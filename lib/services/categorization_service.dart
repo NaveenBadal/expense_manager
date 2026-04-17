@@ -9,6 +9,7 @@ import 'database_helper.dart';
 import 'flutter_gemma_service.dart';
 import 'merchant_normalizer.dart';
 import 'offline_model_service.dart';
+import 'onnx_sms_service.dart';
 
 /// Result of a batch parse: extracted expenses + per-body skip reasons.
 class SmsBatchResult {
@@ -49,6 +50,7 @@ class CategorizationService {
         requestOptions: const RequestOptions(apiVersion: defaultGeminiApiVersion),
         generationConfig: GenerationConfig(
           responseMimeType: 'application/json',
+          maxOutputTokens: onDeviceMaxTokens,
         ),
       );
     }
@@ -60,6 +62,10 @@ class CategorizationService {
   Future<SmsBatchResult> parseSmsBatch(List<Map<String, dynamic>> smsList) async {
     if (smsList.isEmpty) {
       return const SmsBatchResult(expenses: [], skipReasons: {});
+    }
+
+    if (provider == AiProviderType.localOnnx) {
+      return _parseWithOnnxProvider(smsList);
     }
 
     final isOnDevice = provider == AiProviderType.offline ||
@@ -116,6 +122,8 @@ $smsDataString
         AiProviderType.sarvam => await _parseWithSarvam(prompt),
         AiProviderType.offline => await _parseWithOfflineModel(prompt),
         AiProviderType.flutterGemma => await _parseWithFlutterGemma(prompt),
+        // localOnnx is handled before _parseSingleBatch is ever called
+        AiProviderType.localOnnx => throw StateError('localOnnx should not reach _parseSingleBatch'),
       };
 
       responseText = _sanitizeModelResponse(responseText);
@@ -332,7 +340,7 @@ $smsDataString
         ],
         'temperature': 0.1,
         'top_p': 1,
-        'max_tokens': 2000,
+        'max_tokens': onDeviceMaxTokens,
       };
 
       request.add(utf8.encode(json.encode(body)));
@@ -375,6 +383,103 @@ $smsDataString
       prompt: prompt,
       maxTokens: onDeviceMaxTokens,
     );
+  }
+
+  Future<SmsBatchResult> _parseWithOnnxProvider(
+    List<Map<String, dynamic>> smsList,
+  ) async {
+    final onnx = OnnxSmsService.instance;
+    final expenses = <Expense>[];
+    final skipReasons = <String, String>{};
+    int expenseCount = 0;
+    int skipCount = 0;
+    String status = 'Success';
+
+    try {
+      await onnx.ensureInitialized();
+    } catch (e) {
+      status = 'Error: ONNX init failed: $e';
+      final reasons = {for (final s in smsList) s['body'] as String: 'parse_error'};
+      await _logOnnxResult(
+        batchSize: smsList.length,
+        expenses: 0,
+        skipped: smsList.length,
+        status: status,
+      );
+      return SmsBatchResult(expenses: [], skipReasons: reasons);
+    }
+
+    for (final sms in smsList) {
+      final body = sms['body'] as String;
+      try {
+        final result = await onnx.infer(body);
+        final isFinancial = result.label == 'expense' ||
+            result.label == 'income' ||
+            result.label == 'transfer';
+
+        if (!isFinancial) {
+          skipReasons[body] = result.label;
+          skipCount++;
+          continue;
+        }
+
+        final amount = OnnxSmsService.extractAmount(body);
+        if (amount == null || amount <= 0) {
+          skipReasons[body] = 'zero_amount';
+          skipCount++;
+          continue;
+        }
+
+        final merchant = result.merchant ?? '';
+        final normalized = MerchantNormalizer.normalize(merchant);
+
+        String category = OnnxSmsService.inferCategory(merchant);
+        try {
+          final learnedMap = await DatabaseHelper.instance.getMerchantCategoryMap();
+          final learned = learnedMap[normalized.toLowerCase().trim()];
+          if (learned != null && learned.isNotEmpty) category = learned;
+        } catch (_) {}
+
+        expenses.add(Expense(
+          amount: amount,
+          currency: 'INR',
+          merchant: merchant,
+          normalizedMerchant: normalized != merchant ? normalized : null,
+          category: category,
+          date: DateTime.parse(sms['date'] as String),
+          originalSms: body,
+          type: result.label == 'income' ? 'income' : 'expense',
+        ));
+        expenseCount++;
+      } catch (_) {
+        skipReasons[body] = 'parse_error';
+        skipCount++;
+      }
+    }
+
+    await _logOnnxResult(
+      batchSize: smsList.length,
+      expenses: expenseCount,
+      skipped: skipCount,
+      status: status,
+    );
+    return SmsBatchResult(expenses: expenses, skipReasons: skipReasons);
+  }
+
+  Future<void> _logOnnxResult({
+    required int batchSize,
+    required int expenses,
+    required int skipped,
+    required String status,
+  }) async {
+    try {
+      await DatabaseHelper.instance.insertAiLog(AiLog(
+        requestPrompt: '[Provider: DistilBERT | Model: bundled_distilbert]\n$batchSize SMS messages processed',
+        responseBody: 'Extracted $expenses expenses, skipped $skipped',
+        timestamp: DateTime.now(),
+        status: status,
+      ));
+    } catch (_) {}
   }
 
   /// Strips characters that on-device models (LiteRT / Gemma) commonly emit

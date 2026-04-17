@@ -1,4 +1,4 @@
-enum AiProviderType { gemini, sarvam, offline, flutterGemma }
+enum AiProviderType { gemini, sarvam, offline, flutterGemma, localOnnx }
 
 const selectedAiProviderStorageKey = 'selected_ai_provider';
 
@@ -8,6 +8,7 @@ extension AiProviderTypeX on AiProviderType {
         AiProviderType.sarvam => 'sarvam',
         AiProviderType.offline => 'offline',
         AiProviderType.flutterGemma => 'flutter_gemma',
+        AiProviderType.localOnnx => 'local_onnx',
       };
 
   String get displayName => switch (this) {
@@ -15,6 +16,7 @@ extension AiProviderTypeX on AiProviderType {
         AiProviderType.sarvam => 'Sarvam',
         AiProviderType.offline => 'LiteRT',
         AiProviderType.flutterGemma => 'Edge',
+        AiProviderType.localOnnx => 'DistilBERT',
       };
 
   String get apiKeyStorageKey => 'api_key_$id';
@@ -38,6 +40,7 @@ String defaultModelFor(AiProviderType provider) {
     AiProviderType.sarvam => defaultSarvamModel,
     AiProviderType.offline => '',
     AiProviderType.flutterGemma => '',
+    AiProviderType.localOnnx => 'bundled_distilbert',
   };
 }
 
@@ -76,5 +79,6 @@ List<StaticModelOption> staticModelsFor(AiProviderType provider) {
       ],
     AiProviderType.offline => const [],
     AiProviderType.flutterGemma => const [],
+    AiProviderType.localOnnx => const [],
   };
 }

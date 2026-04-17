@@ -32,10 +32,10 @@ class SmsService {
     final financialKeywords = [
       'spent', 'debited', 'credited', 'debit', 'credit', 'paid', 'txn',
       'purchase', 'vpa', 'upi', 'bank', 'amt', 'amount',
-      'rs.', 'inr', 'rs ', '₹', r'\$', '€', 'withdrawn', 'deducted', 'avail bal',
+      r'rs\.', 'inr', 'rs ', '₹', r'\$', '€', 'withdrawn', 'deducted', 'avail bal',
       'refunded', 'reversed', 'collected', 'payment', 'bill', 'due', 'money transfer',
       // Short forms heavily used by HDFC, SBI, ICICI, Axis
-      ' dr ', ' cr ', 'dr.', 'cr.', 'dr-', 'cr-',
+      ' dr ', ' cr ', r'dr\.', r'cr\.', 'dr-', 'cr-',
       // Transfer/wallet keywords
       'transferred', 'received', 'imps', 'neft', 'rtgs', 'mandate',
       'a/c', 'acct', 'account', 'wallet', 'cashback',

@@ -592,7 +592,8 @@ class SyncNotifier extends Notifier<SyncState> {
   Future<void> sync() async {
     final provider = ref.read(selectedAiProviderProvider);
     final needsApiKey = provider != AiProviderType.offline &&
-        provider != AiProviderType.flutterGemma;
+        provider != AiProviderType.flutterGemma &&
+        provider != AiProviderType.localOnnx;
     final apiKey = needsApiKey ? ref.read(activeApiKeyProvider) : '';
     final modelName = ref.read(activeModelProvider);
 
@@ -680,11 +681,25 @@ class SyncNotifier extends Notifier<SyncState> {
     );
 
     if (unparsedSms.isNotEmpty) {
-      const batchSize = 20;
+      final isOnDevice = provider == AiProviderType.offline ||
+          provider == AiProviderType.flutterGemma;
+      // On-device: one message at a time → live progress + dashboard updates.
+      // Online: larger batches → fewer API round-trips.
+      final batchSize = isOnDevice ? 1 : 40;
+      final totalBatches =
+          ((unparsedSms.length + batchSize - 1) ~/ batchSize);
+
       for (var i = 0; i < unparsedSms.length; i += batchSize) {
-        final end =
-            (i + batchSize < unparsedSms.length) ? i + batchSize : unparsedSms.length;
+        final end = (i + batchSize).clamp(0, unparsedSms.length);
         final batch = unparsedSms.sublist(i, end);
+        final batchNum = (i ~/ batchSize) + 1;
+
+        state = SyncState(
+          phase: SyncPhase.analyzing,
+          detail: isOnDevice
+              ? 'Analyzing ${i + 1} / ${unparsedSms.length}'
+              : 'Batch $batchNum / $totalBatches',
+        );
 
         try {
           final result = await catService.parseSmsBatch(batch);

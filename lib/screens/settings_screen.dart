@@ -166,7 +166,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
     final key = _keyController.text.trim();
     final model = _modelController.text.trim();
     final requiresApiKey = _selectedProvider != AiProviderType.offline &&
-        _selectedProvider != AiProviderType.flutterGemma;
+        _selectedProvider != AiProviderType.flutterGemma &&
+        _selectedProvider != AiProviderType.localOnnx;
 
     if (requiresApiKey && key.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -433,7 +434,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          (_selectedProvider == AiProviderType.offline || _selectedProvider == AiProviderType.flutterGemma)
+                          (_selectedProvider == AiProviderType.offline ||
+                                  _selectedProvider == AiProviderType.flutterGemma ||
+                                  _selectedProvider == AiProviderType.localOnnx)
                               ? 'On-device provider — no API key required. Model runs entirely on device.'
                               : 'Saved ${_selectedProvider.displayName} credentials stay separate from other providers.',
                         ),
@@ -452,7 +455,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 if (_selectedProvider != AiProviderType.offline &&
-                    _selectedProvider != AiProviderType.flutterGemma) ...[
+                    _selectedProvider != AiProviderType.flutterGemma &&
+                    _selectedProvider != AiProviderType.localOnnx) ...[
                   TextField(
                     controller: _keyController,
                     onChanged: (_) => setState(() {}),
@@ -609,6 +613,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                     ),
                   ),
                   const SizedBox(height: 16),
+                ] else if (_selectedProvider == AiProviderType.localOnnx) ...[
+                  _BundledOnnxModelCard(scheme: scheme),
+                  const SizedBox(height: 16),
                 ] else ...[
                   Text(
                     'LiteRT models on device',
@@ -674,7 +681,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                   const SizedBox(height: 16),
                 ],
                 if (_selectedProvider != AiProviderType.offline &&
-                    _selectedProvider != AiProviderType.flutterGemma)
+                    _selectedProvider != AiProviderType.flutterGemma &&
+                    _selectedProvider != AiProviderType.localOnnx)
                   TextField(
                     controller: _modelController,
                     onChanged: (_) => setState(() {}),
@@ -713,10 +721,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                 if (selectedRemoteModel != null || selectedStaticModel != null ||
                     selectedOfflineModel != null || selectedFlutterGemmaModel != null)
                   const SizedBox(height: 12),
-                if (_selectedProvider == AiProviderType.offline ||
-                    _selectedProvider == AiProviderType.flutterGemma) ...[
+                if (_selectedProvider != AiProviderType.localOnnx) ...[
                   Text(
-                    'Context window (tokens)',
+                    'Max response tokens',
                     style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 10),
@@ -738,7 +745,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Sets the max context window for on-device inference. Higher = more SMS per chunk but more RAM.',
+                    _selectedProvider == AiProviderType.offline ||
+                            _selectedProvider == AiProviderType.flutterGemma
+                        ? 'Sets the max context window for on-device inference. Higher = more SMS per chunk but more RAM.'
+                        : 'Sets the max output tokens for each API call. Higher = more SMS per batch.',
                     style: theme.textTheme.bodySmall,
                   ),
                   const SizedBox(height: 12),
@@ -1032,6 +1042,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
         'On-device `.litertlm` models via LiteRT-LM. Scans Downloads and AI Edge Gallery. No API key.',
       AiProviderType.flutterGemma =>
         'Google AI Edge models (Gemma 4, Qwen, DeepSeek, etc.) via flutter_gemma. No API key required.',
+      AiProviderType.localOnnx =>
+        'Bundled DistilBERT model trained on SMS data. Runs ONNX inference on-device. No API key or internet needed.',
     };
   }
 
@@ -1041,6 +1053,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
       AiProviderType.sarvam => 'Choose Sarvam 30B or 105B, or type another future Sarvam model ID manually.',
       AiProviderType.offline => 'Select one discovered model below. The model file must already exist on device.',
       AiProviderType.flutterGemma => 'Select a model discovered from AI Edge Gallery or Downloads.',
+      AiProviderType.localOnnx => 'Model is bundled with the app. No selection needed.',
     };
   }
 
@@ -1054,6 +1067,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
         'LiteRT-LM on Android. Scans MediaStore and AI Edge Gallery paths for `.litertlm` files. Grant "All files access" to see Gallery models.',
       AiProviderType.flutterGemma =>
         'flutter_gemma wraps MediaPipe LLM Inference. Scans AI Edge Gallery and Downloads for `.task`, `.bin`, `.gguf` models. Grant "All files access" for full Gallery access.',
+      AiProviderType.localOnnx =>
+        'DistilBERT (distilbert-base-uncased) fine-tuned on SMS data. Dual-head: SMS classification + NER entity extraction. Bundled as app asset.',
     };
   }
 
@@ -1063,6 +1078,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with WidgetsBin
       AiProviderType.sarvam => Icons.language_outlined,
       AiProviderType.offline => Icons.memory_outlined,
       AiProviderType.flutterGemma => Icons.device_hub_outlined,
+      AiProviderType.localOnnx => Icons.model_training_outlined,
     };
   }
 }
@@ -2294,6 +2310,87 @@ class _CsvPreviewSheet extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _BundledOnnxModelCard extends StatelessWidget {
+  const _BundledOnnxModelCard({required this.scheme});
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.model_training_outlined, color: scheme.primary, size: 20),
+              const SizedBox(width: 10),
+              Text(
+                'distilbert-base-uncased (SMS fine-tuned)',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _OnnxInfoRow(label: 'Architecture', value: 'DistilBERT dual-head'),
+          _OnnxInfoRow(label: 'Task 1', value: 'SMS classification (7 labels)'),
+          _OnnxInfoRow(label: 'Task 2', value: 'Named entity recognition (8 tags)'),
+          _OnnxInfoRow(label: 'Labels', value: 'expense · income · transfer · otp · promotional · balance_info · bill_reminder'),
+          _OnnxInfoRow(label: 'Entities', value: 'AMOUNT · MERCHANT · DATE · ACCOUNT · BALANCE'),
+          _OnnxInfoRow(label: 'Max tokens', value: '128 (WordPiece, do_lower_case)'),
+          _OnnxInfoRow(label: 'Runtime', value: 'ONNX Runtime (on-device, no internet)'),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: scheme.secondaryContainer.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle_outline, size: 14, color: scheme.secondary),
+                const SizedBox(width: 6),
+                Text('Bundled with app — no download required', style: theme.textTheme.labelSmall),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnnxInfoRow extends StatelessWidget {
+  const _OnnxInfoRow({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: RichText(
+        text: TextSpan(
+          style: theme.textTheme.bodySmall,
+          children: [
+            TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.w600)),
+            TextSpan(text: value),
+          ],
+        ),
       ),
     );
   }

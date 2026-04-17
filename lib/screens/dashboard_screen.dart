@@ -56,6 +56,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final hasCredentials =
         provider == AiProviderType.offline ||
         provider == AiProviderType.flutterGemma ||
+        provider == AiProviderType.localOnnx ||
         (apiKey != null && apiKey.isNotEmpty);
     final hasModel = modelName.trim().isNotEmpty;
 
