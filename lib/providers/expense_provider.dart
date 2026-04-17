@@ -9,17 +9,13 @@ import '../models/expense.dart';
 import '../models/ai_log.dart';
 import '../models/financial_health_score.dart';
 import '../models/savings_goal.dart';
-import '../models/flutter_gemma_model_info.dart';
 import '../models/merchant_stats.dart';
 import '../models/spending_insight.dart';
 import '../services/anomaly_detector.dart';
 import '../services/database_helper.dart';
 import '../services/export_service.dart';
-import '../services/flutter_gemma_service.dart';
-import '../services/gemini_model_catalog_service.dart';
 import '../services/insights_service.dart';
 import '../services/notification_service.dart';
-import '../services/offline_model_service.dart';
 import '../services/recurring_detector.dart';
 import '../services/sms_service.dart';
 import '../services/categorization_service.dart';
@@ -28,38 +24,15 @@ import '../utils/category_utils.dart';
 // ─── Infrastructure ────────────────────────────────────────────────────────
 
 final secureStorageProvider = Provider((ref) => const FlutterSecureStorage());
-final geminiModelCatalogServiceProvider =
-    Provider((ref) => const GeminiModelCatalogService());
-final offlineModelServiceProvider =
-    Provider((ref) => const OfflineModelService());
-final flutterGemmaServiceProvider =
-    Provider((ref) => const FlutterGemmaService());
 final exportServiceProvider = Provider((ref) => const ExportService());
 
-// ─── AI Provider selection ─────────────────────────────────────────────────
-
-class ProviderApiKeysNotifier extends Notifier<Map<AiProviderType, String>> {
-  @override
-  Map<AiProviderType, String> build() =>
-      {for (final p in AiProviderType.values) p: ''};
-
-  void setKey(AiProviderType provider, String key) =>
-      state = {...state, provider: key};
-}
-
-final providerApiKeysProvider =
-    NotifierProvider<ProviderApiKeysNotifier, Map<AiProviderType, String>>(
-        ProviderApiKeysNotifier.new);
-
-class SelectedAiProviderNotifier extends Notifier<AiProviderType> {
-  @override
-  AiProviderType build() => AiProviderType.gemini;
-  void setProvider(AiProviderType p) => state = p;
-}
+// ─── AI Provider (always localOnnx) ───────────────────────────────────────
 
 final selectedAiProviderProvider =
-    NotifierProvider<SelectedAiProviderNotifier, AiProviderType>(
-        SelectedAiProviderNotifier.new);
+    Provider<AiProviderType>((ref) => AiProviderType.localOnnx);
+
+final activeModelProvider =
+    Provider<String>((ref) => defaultModelFor(AiProviderType.localOnnx));
 
 class SyncLookbackNotifier extends Notifier<int> {
   @override
@@ -69,65 +42,6 @@ class SyncLookbackNotifier extends Notifier<int> {
 
 final syncLookbackProvider =
     NotifierProvider<SyncLookbackNotifier, int>(SyncLookbackNotifier.new);
-
-const onDeviceMaxTokensStorageKey = 'on_device_max_tokens';
-const onDeviceMaxTokensDefault = 4096;
-
-class OnDeviceMaxTokensNotifier extends Notifier<int> {
-  @override
-  int build() => onDeviceMaxTokensDefault;
-  void setTokens(int tokens) => state = tokens;
-}
-
-final onDeviceMaxTokensProvider =
-    NotifierProvider<OnDeviceMaxTokensNotifier, int>(
-        OnDeviceMaxTokensNotifier.new);
-
-class ProviderModelsNotifier extends Notifier<Map<AiProviderType, String>> {
-  @override
-  Map<AiProviderType, String> build() =>
-      {for (final p in AiProviderType.values) p: defaultModelFor(p)};
-
-  void setModel(AiProviderType provider, String model) =>
-      state = {...state, provider: model};
-}
-
-final providerModelsProvider =
-    NotifierProvider<ProviderModelsNotifier, Map<AiProviderType, String>>(
-        ProviderModelsNotifier.new);
-
-final activeApiKeyProvider = Provider<String?>((ref) {
-  final provider = ref.watch(selectedAiProviderProvider);
-  final apiKeys = ref.watch(providerApiKeysProvider);
-  final key = apiKeys[provider]?.trim();
-  return (key == null || key.isEmpty) ? null : key;
-});
-
-final activeModelProvider = Provider<String>((ref) {
-  final provider = ref.watch(selectedAiProviderProvider);
-  final models = ref.watch(providerModelsProvider);
-  final model = models[provider]?.trim();
-  return (model == null || model.isEmpty) ? defaultModelFor(provider) : model;
-});
-
-// ─── Model catalog providers ───────────────────────────────────────────────
-
-final availableGeminiModelsProvider =
-    FutureProvider.family<List<GeminiModelCatalogItem>, String>(
-        (ref, apiKey) async {
-  if (apiKey.trim().isEmpty) return const [];
-  return ref.watch(geminiModelCatalogServiceProvider).fetchModels(apiKey.trim());
-});
-
-final availableOfflineModelsProvider =
-    FutureProvider<List<OfflineModelInfo>>((ref) async {
-  return ref.watch(offlineModelServiceProvider).listModels();
-});
-
-final availableFlutterGemmaModelsProvider =
-    FutureProvider<List<FlutterGemmaModelInfo>>((ref) async {
-  return ref.watch(flutterGemmaServiceProvider).listModels();
-});
 
 // ─── Theme ────────────────────────────────────────────────────────────────
 
@@ -215,45 +129,9 @@ final dailyDigestEnabledProvider =
 final settingsInitializer = FutureProvider<void>((ref) async {
   final storage = ref.watch(secureStorageProvider);
 
-  for (final provider in AiProviderType.values) {
-    final apiKey = await storage.read(key: provider.apiKeyStorageKey);
-    if (apiKey != null) {
-      ref.read(providerApiKeysProvider.notifier).setKey(provider, apiKey);
-    }
-    final savedModel = await storage.read(key: provider.modelStorageKey);
-    if (savedModel != null && savedModel.trim().isNotEmpty) {
-      ref.read(providerModelsProvider.notifier).setModel(provider, savedModel.trim());
-    }
-  }
-
   final lookback = await storage.read(key: 'sync_lookback_days');
   if (lookback != null) {
     ref.read(syncLookbackProvider.notifier).setDays(int.tryParse(lookback) ?? 30);
-  }
-
-  final maxTokens = await storage.read(key: onDeviceMaxTokensStorageKey);
-  if (maxTokens != null) {
-    ref.read(onDeviceMaxTokensProvider.notifier)
-        .setTokens(int.tryParse(maxTokens) ?? onDeviceMaxTokensDefault);
-  }
-
-  final selectedProvider = await storage.read(key: selectedAiProviderStorageKey);
-  ref
-      .read(selectedAiProviderProvider.notifier)
-      .setProvider(aiProviderFromId(selectedProvider));
-
-  final legacyGeminiModel = await storage.read(key: 'gemini_model');
-  if (legacyGeminiModel != null && legacyGeminiModel.trim().isNotEmpty) {
-    ref
-        .read(providerModelsProvider.notifier)
-        .setModel(AiProviderType.gemini, legacyGeminiModel.trim());
-  }
-
-  final legacyGeminiKey = await storage.read(key: 'gemini_api_key');
-  if (legacyGeminiKey != null && legacyGeminiKey.trim().isNotEmpty) {
-    ref
-        .read(providerApiKeysProvider.notifier)
-        .setKey(AiProviderType.gemini, legacyGeminiKey.trim());
   }
 
   final theme = await storage.read(key: 'theme_mode');
@@ -590,22 +468,6 @@ class SyncNotifier extends Notifier<SyncState> {
   }
 
   Future<void> sync() async {
-    final provider = ref.read(selectedAiProviderProvider);
-    final needsApiKey = provider != AiProviderType.offline &&
-        provider != AiProviderType.flutterGemma &&
-        provider != AiProviderType.localOnnx;
-    final apiKey = needsApiKey ? ref.read(activeApiKeyProvider) : '';
-    final modelName = ref.read(activeModelProvider);
-
-    if (needsApiKey && (apiKey == null || apiKey.isEmpty)) {
-      _error('No API key configured for ${provider.displayName}. Go to Settings.');
-      return;
-    }
-    if (modelName.trim().isEmpty) {
-      _error('No model selected for ${provider.displayName}. Go to Settings and choose a model.');
-      return;
-    }
-
     state = const SyncState(phase: SyncPhase.requestingPermissions);
     final hasPermission = await _smsService.requestPermissions();
     if (!hasPermission) {
@@ -616,13 +478,7 @@ class SyncNotifier extends Notifier<SyncState> {
     state = const SyncState(phase: SyncPhase.fetchingSms);
     final messages = await _smsService.getMessages();
     final db = ref.read(databaseProvider);
-    final maxTokens = ref.read(onDeviceMaxTokensProvider);
-    final catService = CategorizationService(
-      apiKey ?? '',
-      provider: provider,
-      modelName: modelName,
-      onDeviceMaxTokens: maxTokens,
-    );
+    const catService = CategorizationService();
     final lookbackDays = ref.read(syncLookbackProvider);
 
     final now = DateTime.now();
@@ -681,24 +537,16 @@ class SyncNotifier extends Notifier<SyncState> {
     );
 
     if (unparsedSms.isNotEmpty) {
-      final isOnDevice = provider == AiProviderType.offline ||
-          provider == AiProviderType.flutterGemma;
-      // On-device: one message at a time → live progress + dashboard updates.
-      // Online: larger batches → fewer API round-trips.
-      final batchSize = isOnDevice ? 1 : 40;
-      final totalBatches =
-          ((unparsedSms.length + batchSize - 1) ~/ batchSize);
+      const batchSize = 20;
+      final total = unparsedSms.length;
 
-      for (var i = 0; i < unparsedSms.length; i += batchSize) {
-        final end = (i + batchSize).clamp(0, unparsedSms.length);
+      for (var i = 0; i < total; i += batchSize) {
+        final end = (i + batchSize).clamp(0, total);
         final batch = unparsedSms.sublist(i, end);
-        final batchNum = (i ~/ batchSize) + 1;
 
         state = SyncState(
           phase: SyncPhase.analyzing,
-          detail: isOnDevice
-              ? 'Analyzing ${i + 1} / ${unparsedSms.length}'
-              : 'Batch $batchNum / $totalBatches',
+          detail: 'Analyzing $end / $total',
         );
 
         try {

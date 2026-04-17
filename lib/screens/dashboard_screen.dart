@@ -6,7 +6,6 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:intl/intl.dart';
-import '../models/ai_provider.dart';
 import '../models/expense.dart';
 import '../providers/expense_provider.dart';
 import '../utils/category_utils.dart';
@@ -50,15 +49,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final expensesAsync = ref.watch(expenseListProvider);
     final syncStatus = ref.watch(syncProvider);
-    final apiKey = ref.watch(activeApiKeyProvider);
-    final modelName = ref.watch(activeModelProvider);
-    final provider = ref.watch(selectedAiProviderProvider);
-    final hasCredentials =
-        provider == AiProviderType.offline ||
-        provider == AiProviderType.flutterGemma ||
-        provider == AiProviderType.localOnnx ||
-        (apiKey != null && apiKey.isNotEmpty);
-    final hasModel = modelName.trim().isNotEmpty;
 
     final privateMode = ref.watch(privateModeProvider);
 
@@ -142,18 +132,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         children: [
           expensesAsync.when(
             data: (allEntries) {
-              if (!hasCredentials || modelName.trim().isEmpty) {
-                return _EmptySetupState(
-                  provider: provider,
-                  modelName: modelName,
-                );
-              }
               if (allEntries.isEmpty) {
-                return _NoExpensesState(
-                  syncStatus: syncStatus,
-                  provider: provider,
-                  modelName: modelName,
-                );
+                return _NoExpensesState(syncStatus: syncStatus);
               }
               // Keep all entries (expense + income) for list display.
               // Hero card and category breakdown use expense-only subset.
@@ -163,8 +143,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ref,
                 allEntries,
                 filtered,
-                provider,
-                modelName,
                 privateMode,
               );
             },
@@ -184,12 +162,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ],
       ),
-      floatingActionButton: hasCredentials && hasModel
-          ? _SyncFab(
-              syncStatus: syncStatus,
-              onAddManual: () => _showAddExpenseSheet(context, ref),
-            )
-          : null,
+      floatingActionButton: _SyncFab(
+        syncStatus: syncStatus,
+        onAddManual: () => _showAddExpenseSheet(context, ref),
+      ),
     );
   }
 
@@ -213,8 +189,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     WidgetRef ref,
     List<Expense> allExpenses,
     List<Expense> filtered,
-    AiProviderType provider,
-    String modelName,
     bool privateMode,
   ) {
     // Day grouping
@@ -271,8 +245,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             currency: currency,
             count: thisMonth.length,
             streak: streak,
-            provider: provider,
-            modelName: modelName,
             privateMode: privateMode,
             onExport: () => _doExport(context, ref, allExpenses),
           ),
@@ -521,8 +493,6 @@ class _MonthlyHeroCard extends StatelessWidget {
     required this.currency,
     required this.count,
     required this.streak,
-    required this.provider,
-    required this.modelName,
     required this.onExport,
     required this.privateMode,
   });
@@ -533,8 +503,6 @@ class _MonthlyHeroCard extends StatelessWidget {
   final String currency;
   final int count;
   final int streak;
-  final AiProviderType provider;
-  final String modelName;
   final VoidCallback onExport;
   final bool privateMode;
 
@@ -546,9 +514,6 @@ class _MonthlyHeroCard extends StatelessWidget {
         ? ((thisMonthExpense - lastMonthExpense) / lastMonthExpense * 100)
         : null;
     final deltaUp = delta != null && delta > 0;
-    final displayModel = provider == AiProviderType.flutterGemma
-        ? modelName.split('/').last
-        : modelName;
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -572,11 +537,7 @@ class _MonthlyHeroCard extends StatelessWidget {
                   children: [
                     _HeroChip(
                       icon: Icons.hub_outlined,
-                      label: provider.displayName,
-                    ),
-                    _HeroChip(
-                      icon: Icons.auto_awesome_rounded,
-                      label: displayModel,
+                      label: 'DistilBERT',
                     ),
                     _HeroChip(
                       icon: Icons.receipt_long_outlined,
@@ -1075,92 +1036,10 @@ class _ExpenseTile extends ConsumerWidget {
 
 // ─── Empty states ─────────────────────────────────────────────────────────
 
-class _EmptySetupState extends StatelessWidget {
-  const _EmptySetupState({required this.provider, required this.modelName});
-
-  final AiProviderType provider;
-  final String modelName;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final isOnDevice =
-        provider == AiProviderType.offline ||
-        provider == AiProviderType.flutterGemma;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(32),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 34,
-                  backgroundColor: scheme.primaryContainer,
-                  child: Icon(
-                    isOnDevice ? Icons.memory_outlined : Icons.key_off_outlined,
-                    size: 34,
-                    color: scheme.primary,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  isOnDevice
-                      ? 'No model selected'
-                      : '${provider.displayName} API key missing',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  provider == AiProviderType.offline
-                      ? 'Select a `.litertlm` model in settings.'
-                      : provider == AiProviderType.flutterGemma
-                      ? 'Select a model from AI Edge Gallery in settings.'
-                      : 'Add ${provider.displayName} API key in settings.',
-                  style: theme.textTheme.bodyLarge,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                FilledButton.icon(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SettingsScreen(),
-                    ),
-                  ),
-                  icon: const Icon(Icons.settings_outlined),
-                  label: const Text('Open settings'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _NoExpensesState extends StatelessWidget {
-  const _NoExpensesState({
-    required this.syncStatus,
-    required this.provider,
-    required this.modelName,
-  });
+  const _NoExpensesState({required this.syncStatus});
 
   final SyncState syncStatus;
-  final AiProviderType provider;
-  final String modelName;
 
   @override
   Widget build(BuildContext context) {
@@ -1196,7 +1075,7 @@ class _NoExpensesState extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Run SMS sync to populate your dashboard.\nProvider: ${provider.displayName}.',
+                'Run SMS sync to populate your dashboard.',
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyLarge,
               ),
