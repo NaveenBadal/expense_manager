@@ -3,6 +3,7 @@ package com.naveen.expense_manager.expense_manager
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.Telephony
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -13,6 +14,7 @@ import java.io.File
 class MainActivity : FlutterFragmentActivity() {
     private val updateChannel = "com.naveen.expense_manager/updater"
     private val notificationChannel = "com.naveen.expense_manager/notifications"
+    private val smsHistoryChannel = "com.naveen.expense_manager/sms_history"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -66,6 +68,37 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, smsHistoryChannel)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "querySince" -> {
+                        val since = call.argument<Number>("since")?.toLong()
+                        if (since == null || since < 0) {
+                            result.error("invalid_cutoff", "A valid SMS cutoff is required", null)
+                        } else {
+                            Thread {
+                                try {
+                                    val messages = queryInboxSince(since)
+                                    runOnUiThread { result.success(messages) }
+                                } catch (error: SecurityException) {
+                                    runOnUiThread {
+                                        result.error(
+                                            "permission_denied",
+                                            "SMS permission is unavailable",
+                                            null,
+                                        )
+                                    }
+                                } catch (error: Exception) {
+                                    runOnUiThread {
+                                        result.error("query_failed", error.message, null)
+                                    }
+                                }
+                            }.start()
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
     }
 
     private fun canRequestInstalls(): Boolean =
@@ -94,5 +127,50 @@ class MainActivity : FlutterFragmentActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             },
         )
+    }
+
+    private fun queryInboxSince(since: Long): List<Map<String, Any?>> {
+        val projection = arrayOf(
+            Telephony.Sms._ID,
+            Telephony.Sms.THREAD_ID,
+            Telephony.Sms.ADDRESS,
+            Telephony.Sms.BODY,
+            Telephony.Sms.READ,
+            Telephony.Sms.DATE,
+            Telephony.Sms.DATE_SENT,
+            Telephony.Sms.SUBSCRIPTION_ID,
+        )
+        val messages = mutableListOf<Map<String, Any?>>()
+        contentResolver.query(
+            Telephony.Sms.Inbox.CONTENT_URI,
+            projection,
+            "${Telephony.Sms.DATE} >= ?",
+            arrayOf(since.toString()),
+            "${Telephony.Sms.DATE} DESC",
+        )?.use { cursor ->
+            val id = cursor.getColumnIndexOrThrow(Telephony.Sms._ID)
+            val threadId = cursor.getColumnIndexOrThrow(Telephony.Sms.THREAD_ID)
+            val address = cursor.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
+            val body = cursor.getColumnIndexOrThrow(Telephony.Sms.BODY)
+            val read = cursor.getColumnIndexOrThrow(Telephony.Sms.READ)
+            val date = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE)
+            val dateSent = cursor.getColumnIndexOrThrow(Telephony.Sms.DATE_SENT)
+            val subscriptionId = cursor.getColumnIndexOrThrow(Telephony.Sms.SUBSCRIPTION_ID)
+            while (cursor.moveToNext()) {
+                messages.add(
+                    mapOf(
+                        "_id" to cursor.getLong(id),
+                        "thread_id" to cursor.getLong(threadId),
+                        "address" to cursor.getString(address),
+                        "body" to cursor.getString(body),
+                        "read" to cursor.getInt(read),
+                        "date" to cursor.getLong(date),
+                        "date_sent" to cursor.getLong(dateSent),
+                        "sub_id" to cursor.getInt(subscriptionId),
+                    ),
+                )
+            }
+        }
+        return messages
     }
 }

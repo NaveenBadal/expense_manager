@@ -1028,21 +1028,24 @@ class SyncNotifier extends Notifier<SyncState> {
       return;
     }
 
-    state = const SyncState(phase: SyncPhase.fetchingSms);
-    final messages = await _smsService.getMessages();
     final db = ref.read(databaseProvider);
+    final lookbackDays = ref.read(syncLookbackProvider);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final cutoffDate = today.subtract(Duration(days: lookbackDays));
+    final cutoffTimestamp = cutoffDate.millisecondsSinceEpoch;
+
+    state = SyncState(
+      phase: SyncPhase.fetchingSms,
+      detail: 'Reading the last $lookbackDays days from your inbox',
+    );
+    final messages = await _smsService.getMessages(since: cutoffDate);
     final catService = CategorizationService(
       apiKey: ref.read(ollamaApiKeyProvider),
       baseUrl: ref.read(ollamaBaseUrlProvider),
       model: ref.read(ollamaModelProvider),
       currency: ref.read(preferredCurrencyProvider),
     );
-    final lookbackDays = ref.read(syncLookbackProvider);
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final cutoffDate = today.subtract(Duration(days: lookbackDays));
-    final cutoffTimestamp = cutoffDate.millisecondsSinceEpoch;
 
     state = SyncState(
       phase: SyncPhase.analyzing,
