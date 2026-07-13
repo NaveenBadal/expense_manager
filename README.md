@@ -1,5 +1,9 @@
 # Fund Flow
 
+Development APKs can update through signed GitHub prereleases. See
+[`docs/development_updates.md`](docs/development_updates.md) for signing,
+publishing, installation, and production-boundary instructions.
+
 A new Flutter project.
 
 ## Getting Started

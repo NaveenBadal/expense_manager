@@ -8,7 +8,10 @@ import '../models/ai_provider.dart';
 import '../providers/expense_provider.dart';
 import '../services/bank_csv_importer.dart';
 import '../services/ollama_cloud_service.dart';
+import '../services/development_update_service.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/ui/command_ui.dart';
+import '../widgets/development_update_ui.dart';
 import 'audit_screen.dart';
 import 'custom_categories_screen.dart';
 import 'logs_screen.dart';
@@ -22,7 +25,10 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _key;
   late final TextEditingController _url;
+  late final TextEditingController _income;
+  late final TextEditingController _buffer;
   late String _model;
+  late String _currency;
   late int _lookback;
   bool _obscure = true;
   bool _testing = false;
@@ -34,6 +40,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     super.initState();
     _key = TextEditingController(text: ref.read(ollamaApiKeyProvider));
     _url = TextEditingController(text: ref.read(ollamaBaseUrlProvider));
+    final plan = ref.read(monthlyPlanProvider);
+    _income = TextEditingController(
+      text: plan.income == 0 ? '' : plan.income.toStringAsFixed(0),
+    );
+    _buffer = TextEditingController(
+      text: plan.buffer == 0 ? '' : plan.buffer.toStringAsFixed(0),
+    );
+    _currency = ref.read(preferredCurrencyProvider);
     _model = ref.read(ollamaModelProvider);
     _lookback = ref.read(syncLookbackProvider);
   }
@@ -42,6 +56,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void dispose() {
     _key.dispose();
     _url.dispose();
+    _income.dispose();
+    _buffer.dispose();
     super.dispose();
   }
 
@@ -49,283 +65,336 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final mode = ref.watch(themeModeProvider);
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            title: const Text('Settings'),
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: FilledButton(
-                  onPressed: _save,
-                  child: const Text('Save'),
+    return CommandScaffold(
+      eyebrow: 'Make Fund Flow yours',
+      title: 'Settings',
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: FilledButton(onPressed: _save, child: const Text('Save')),
+        ),
+      ],
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+          sliver: SliverList.list(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: scheme.inverseSurface,
+                  borderRadius: AppRadius.all(AppRadius.xxl),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        borderRadius: AppRadius.all(16),
+                      ),
+                      child: Icon(Icons.bolt_rounded, color: scheme.onPrimary),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ollama connection',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: scheme.onInverseSurface,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _connected
+                                ? 'Connected and ready'
+                                : 'Private cloud parsing',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: scheme.onInverseSurface.withValues(
+                                    alpha: .65,
+                                  ),
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      _connected
+                          ? Icons.check_circle_rounded
+                          : Icons.cloud_outlined,
+                      color: _connected
+                          ? const Color(0xFFB9F227)
+                          : scheme.onInverseSurface,
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-            sliver: SliverList.list(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    color: scheme.inverseSurface,
-                    borderRadius: AppRadius.all(AppRadius.xxl),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: scheme.primary,
-                          borderRadius: AppRadius.all(16),
+              if (githubDevelopmentUpdatesEnabled) ...[
+                const _SettingsLabel('DEVELOPMENT CHANNEL'),
+                const DevelopmentUpdateSettingsCard(),
+              ],
+              const _SettingsLabel('APPEARANCE'),
+              _SettingsSurface(
+                child: Column(
+                  children: [
+                    SegmentedButton<ThemeMode>(
+                      expandedInsets: EdgeInsets.zero,
+                      showSelectedIcon: false,
+                      segments: const [
+                        ButtonSegment(
+                          value: ThemeMode.system,
+                          label: Text('System'),
                         ),
-                        child: Icon(
-                          Icons.bolt_rounded,
-                          color: scheme.onPrimary,
+                        ButtonSegment(
+                          value: ThemeMode.light,
+                          label: Text('Light'),
                         ),
+                        ButtonSegment(
+                          value: ThemeMode.dark,
+                          label: Text('Dark'),
+                        ),
+                      ],
+                      selected: {mode},
+                      onSelectionChanged: (value) => _setTheme(value.first),
+                    ),
+                  ],
+                ),
+              ),
+              const _SettingsLabel('MONEY PLAN'),
+              _SettingsSurface(
+                child: Column(
+                  children: [
+                    DropdownButtonFormField<String>(
+                      initialValue: _currency,
+                      decoration: const InputDecoration(
+                        labelText: 'Primary currency',
+                        prefixIcon: Icon(Icons.language_rounded),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Ollama connection',
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    color: scheme.onInverseSurface,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                      items: const ['INR', 'USD', 'EUR', 'GBP', 'SGD', 'AED']
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _connected
-                                  ? 'Connected and ready'
-                                  : 'Private cloud parsing',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: scheme.onInverseSurface.withValues(
-                                      alpha: .65,
-                                    ),
-                                  ),
+                          )
+                          .toList(),
+                      onChanged: (value) =>
+                          setState(() => _currency = value ?? _currency),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _income,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Expected monthly income',
+                        prefixIcon: Icon(Icons.south_west_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _buffer,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Safety buffer',
+                        prefixIcon: Icon(Icons.shield_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const _SettingsLabel('PRIVACY'),
+              _SettingsSurface(
+                child: Column(
+                  children: [
+                    _SwitchRow(
+                      icon: Icons.lock_outline_rounded,
+                      title: 'App lock',
+                      caption: 'Require device authentication',
+                      value: ref.watch(appLockEnabledProvider),
+                      onChanged: (_) =>
+                          ref.read(appLockEnabledProvider.notifier).toggle(),
+                    ),
+                    const Divider(height: 1, indent: 52),
+                    _SwitchRow(
+                      icon: Icons.visibility_off_outlined,
+                      title: 'Hide amounts',
+                      caption: 'Mask money across the app',
+                      value: ref.watch(privateModeProvider),
+                      onChanged: (value) =>
+                          ref.read(privateModeProvider.notifier).set(value),
+                    ),
+                  ],
+                ),
+              ),
+              const _SettingsLabel('ADVANCED AUTOMATION'),
+              _SettingsSurface(
+                child: ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  childrenPadding: const EdgeInsets.only(top: 12),
+                  leading: const Icon(Icons.memory_rounded),
+                  title: const Text('AI parsing engine'),
+                  subtitle: const Text('Connection and model controls'),
+                  children: [
+                    Column(
+                      children: [
+                        TextField(
+                          controller: _key,
+                          obscureText: _obscure,
+                          decoration: InputDecoration(
+                            labelText: 'API key',
+                            prefixIcon: const Icon(Icons.key_rounded),
+                            suffixIcon: IconButton(
+                              onPressed: () =>
+                                  setState(() => _obscure = !_obscure),
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility_rounded
+                                    : Icons.visibility_off_rounded,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          initialValue: _model,
+                          decoration: const InputDecoration(
+                            labelText: 'Model',
+                            prefixIcon: Icon(Icons.memory_rounded),
+                          ),
+                          items: [
+                            for (final model in ollamaModelChoices)
+                              DropdownMenuItem(
+                                value: model,
+                                child: Text(model),
+                              ),
+                          ],
+                          onChanged: (value) => setState(() => _model = value!),
+                        ),
+                        const SizedBox(height: 12),
+                        ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          title: const Text('Advanced connection'),
+                          children: [
+                            TextField(
+                              controller: _url,
+                              keyboardType: TextInputType.url,
+                              decoration: const InputDecoration(
+                                labelText: 'Server URL',
+                                prefixIcon: Icon(Icons.dns_outlined),
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                      Icon(
-                        _connected
-                            ? Icons.check_circle_rounded
-                            : Icons.cloud_outlined,
-                        color: _connected
-                            ? const Color(0xFFB9F227)
-                            : scheme.onInverseSurface,
-                      ),
-                    ],
-                  ),
-                ),
-                const _SettingsLabel('APPEARANCE'),
-                _SettingsSurface(
-                  child: Column(
-                    children: [
-                      SegmentedButton<ThemeMode>(
-                        expandedInsets: EdgeInsets.zero,
-                        showSelectedIcon: false,
-                        segments: const [
-                          ButtonSegment(
-                            value: ThemeMode.system,
-                            label: Text('System'),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.light,
-                            label: Text('Light'),
-                          ),
-                          ButtonSegment(
-                            value: ThemeMode.dark,
-                            label: Text('Dark'),
-                          ),
-                        ],
-                        selected: {mode},
-                        onSelectionChanged: (value) => _setTheme(value.first),
-                      ),
-                    ],
-                  ),
-                ),
-                const _SettingsLabel('PRIVACY'),
-                _SettingsSurface(
-                  child: Column(
-                    children: [
-                      _SwitchRow(
-                        icon: Icons.lock_outline_rounded,
-                        title: 'App lock',
-                        caption: 'Require device authentication',
-                        value: ref.watch(appLockEnabledProvider),
-                        onChanged: (_) =>
-                            ref.read(appLockEnabledProvider.notifier).toggle(),
-                      ),
-                      const Divider(height: 1, indent: 52),
-                      _SwitchRow(
-                        icon: Icons.visibility_off_outlined,
-                        title: 'Hide amounts',
-                        caption: 'Mask money across the app',
-                        value: ref.watch(privateModeProvider),
-                        onChanged: (value) =>
-                            ref.read(privateModeProvider.notifier).set(value),
-                      ),
-                    ],
-                  ),
-                ),
-                const _SettingsLabel('AI ENGINE'),
-                _SettingsSurface(
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: _key,
-                        obscureText: _obscure,
-                        decoration: InputDecoration(
-                          labelText: 'API key',
-                          prefixIcon: const Icon(Icons.key_rounded),
-                          suffixIcon: IconButton(
-                            onPressed: () =>
-                                setState(() => _obscure = !_obscure),
-                            icon: Icon(
-                              _obscure
-                                  ? Icons.visibility_rounded
-                                  : Icons.visibility_off_rounded,
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _testing ? null : _test,
+                            icon: _testing
+                                ? const SizedBox.square(
+                                    dimension: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.wifi_tethering_rounded),
+                            label: Text(
+                              _testing ? 'Testing…' : 'Test connection',
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        initialValue: _model,
-                        decoration: const InputDecoration(
-                          labelText: 'Model',
-                          prefixIcon: Icon(Icons.memory_rounded),
-                        ),
-                        items: [
-                          for (final model in ollamaModelChoices)
-                            DropdownMenuItem(value: model, child: Text(model)),
-                        ],
-                        onChanged: (value) => setState(() => _model = value!),
-                      ),
-                      const SizedBox(height: 12),
-                      ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        title: const Text('Advanced connection'),
-                        children: [
-                          TextField(
-                            controller: _url,
-                            keyboardType: TextInputType.url,
-                            decoration: const InputDecoration(
-                              labelText: 'Server URL',
-                              prefixIcon: Icon(Icons.dns_outlined),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _testing ? null : _test,
-                          icon: _testing
-                              ? const SizedBox.square(
-                                  dimension: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.wifi_tethering_rounded),
-                          label: Text(
-                            _testing ? 'Testing…' : 'Test connection',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
-                const _SettingsLabel('IMPORT WINDOW'),
-                _SettingsSurface(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Scan the last $_lookback days',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+              ),
+              const _SettingsLabel('IMPORT WINDOW'),
+              _SettingsSurface(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Scan the last $_lookback days',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
-                      Slider(
-                        value: _lookback.toDouble(),
-                        min: 7,
-                        max: 180,
-                        divisions: 25,
-                        label: '$_lookback days',
-                        onChanged: (value) =>
-                            setState(() => _lookback = value.round()),
-                      ),
-                    ],
-                  ),
+                    ),
+                    Slider(
+                      value: _lookback.toDouble(),
+                      min: 7,
+                      max: 180,
+                      divisions: 25,
+                      label: '$_lookback days',
+                      onChanged: (value) =>
+                          setState(() => _lookback = value.round()),
+                    ),
+                  ],
                 ),
-                const _SettingsLabel('ORGANIZE'),
-                _SettingsSurface(
-                  child: Column(
-                    children: [
-                      _LinkRow(
-                        icon: Icons.category_outlined,
-                        title: 'Category library',
-                        caption: 'Names, colors, and icons',
-                        onTap: () => _push(const CustomCategoriesScreen()),
-                      ),
-                      const Divider(height: 1, indent: 52),
-                      _LinkRow(
-                        icon: Icons.sms_outlined,
-                        title: 'SMS inbox',
-                        caption: 'Review parsed and skipped messages',
-                        onTap: () => _push(const AuditScreen()),
-                      ),
-                    ],
-                  ),
+              ),
+              const _SettingsLabel('ORGANIZE'),
+              _SettingsSurface(
+                child: Column(
+                  children: [
+                    _LinkRow(
+                      icon: Icons.category_outlined,
+                      title: 'Category library',
+                      caption: 'Names, colors, and icons',
+                      onTap: () => _push(const CustomCategoriesScreen()),
+                    ),
+                    const Divider(height: 1, indent: 52),
+                    _LinkRow(
+                      icon: Icons.sms_outlined,
+                      title: 'SMS inbox',
+                      caption: 'Review parsed and skipped messages',
+                      onTap: () => _push(const AuditScreen()),
+                    ),
+                  ],
                 ),
-                const _SettingsLabel('DATA'),
-                _SettingsSurface(
-                  child: Column(
-                    children: [
-                      _LinkRow(
-                        icon: Icons.upload_file_rounded,
-                        title: 'Import bank CSV',
-                        caption: _importing
-                            ? 'Importing…'
-                            : 'Bring transaction history',
-                        onTap: _importing ? null : _importCsv,
-                      ),
-                      const Divider(height: 1, indent: 52),
-                      _LinkRow(
-                        icon: Icons.terminal_rounded,
-                        title: 'Diagnostics',
-                        caption: 'Cloud parsing activity',
-                        onTap: () => _push(const LogsScreen()),
-                      ),
-                    ],
-                  ),
+              ),
+              const _SettingsLabel('DATA'),
+              _SettingsSurface(
+                child: Column(
+                  children: [
+                    _LinkRow(
+                      icon: Icons.upload_file_rounded,
+                      title: 'Import bank CSV',
+                      caption: _importing
+                          ? 'Importing…'
+                          : 'Bring transaction history',
+                      onTap: _importing ? null : _importCsv,
+                    ),
+                    const Divider(height: 1, indent: 52),
+                    _LinkRow(
+                      icon: Icons.terminal_rounded,
+                      title: 'Diagnostics',
+                      caption: 'Cloud parsing activity',
+                      onTap: () => _push(const LogsScreen()),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  'Fund Flow · Local-first finance',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Fund Flow · Local-first finance',
+                textAlign: TextAlign.center,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -383,6 +452,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ref.read(ollamaBaseUrlProvider.notifier).set(url);
     ref.read(ollamaModelProvider.notifier).set(_model);
     ref.read(syncLookbackProvider.notifier).setDays(_lookback);
+    await ref.read(preferredCurrencyProvider.notifier).setCurrency(_currency);
+    await ref
+        .read(monthlyPlanProvider.notifier)
+        .setPlan(
+          income: double.tryParse(_income.text.trim()) ?? 0,
+          buffer: double.tryParse(_buffer.text.trim()) ?? 0,
+        );
     if (mounted) Navigator.pop(context);
   }
 
@@ -395,7 +471,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (path == null) return;
     setState(() => _importing = true);
     try {
-      final expenses = await BankCsvImporter.parse(File(path));
+      final expenses = await BankCsvImporter.parse(
+        File(path),
+        currency: ref.read(preferredCurrencyProvider),
+      );
       if (expenses.isNotEmpty) {
         await ref.read(expenseListProvider.notifier).addExpenses(expenses);
       }

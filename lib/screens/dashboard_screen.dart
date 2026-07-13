@@ -3,13 +3,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/expense.dart';
+import '../models/money_briefing.dart';
 import '../providers/expense_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/category_utils.dart';
 import '../utils/currency_utils.dart';
 import '../widgets/expense_form_sheet.dart';
+import '../widgets/development_update_ui.dart';
 import '../widgets/ui/command_ui.dart';
+import 'action_inbox_screen.dart';
+import 'budget_screen.dart';
+import 'plan_screen.dart';
+import 'savings_goals_screen.dart';
 import 'settings_screen.dart';
+import 'subscriptions_screen.dart';
 
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -19,11 +26,14 @@ class DashboardScreen extends ConsumerWidget {
     final entries = ref.watch(expenseListProvider);
     final sync = ref.watch(syncProvider);
     final hidden = ref.watch(privateModeProvider);
+    final briefing = ref.watch(moneyBriefingProvider);
+    final currency = ref.watch(preferredCurrencyProvider);
 
     return CommandScaffold(
       eyebrow: DateFormat('EEEE · d MMMM').format(DateTime.now()),
       title: 'Today',
       actions: [
+        const ActionInboxButton(),
         IconButton(
           tooltip: hidden ? 'Reveal amounts' : 'Hide amounts',
           onPressed: () => ref.read(privateModeProvider.notifier).toggle(),
@@ -43,12 +53,8 @@ class DashboardScreen extends ConsumerWidget {
           ),
         ),
       ],
-      floatingActionButton: _QuickAction(
-        syncing: sync.isActive,
-        onSync: () => ref.read(syncProvider.notifier).sync(),
-        onAdd: () => _openExpense(context, ref),
-      ),
       slivers: [
+        const SliverToBoxAdapter(child: DevelopmentUpdateBanner()),
         if (sync.phase != SyncPhase.idle)
           SliverToBoxAdapter(child: _SyncLine(sync)),
         entries.when(
@@ -84,11 +90,25 @@ class DashboardScreen extends ConsumerWidget {
               : _TodayContent(
                   items: items,
                   hidden: hidden,
+                  briefing: briefing,
+                  currency: currency,
                   onOpen: (e) => _openExpense(context, ref, e),
+                  onMove: (move) => _openMoneyMove(context, move),
                 ),
         ),
       ],
     );
+  }
+
+  static void _openMoneyMove(BuildContext context, MoneyMoveType move) {
+    final page = switch (move) {
+      MoneyMoveType.protectBills => const SubscriptionsScreen(),
+      MoneyMoveType.fundGoal => const SavingsGoalsScreen(),
+      MoneyMoveType.slowCategory => const BudgetScreen(),
+      MoneyMoveType.reviewPlan => const PlanScreen(),
+      MoneyMoveType.stayCourse => const PlanScreen(),
+    };
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
   static Future<void> _openExpense(
@@ -128,17 +148,28 @@ class _TodayContent extends StatelessWidget {
   const _TodayContent({
     required this.items,
     required this.hidden,
+    required this.briefing,
+    required this.currency,
     required this.onOpen,
+    required this.onMove,
   });
   final List<Expense> items;
   final bool hidden;
+  final MoneyBriefing? briefing;
+  final String currency;
   final ValueChanged<Expense> onOpen;
+  final ValueChanged<MoneyMoveType> onMove;
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final month = items
-        .where((e) => e.date.year == now.year && e.date.month == now.month)
+        .where(
+          (e) =>
+              e.currency == currency &&
+              e.date.year == now.year &&
+              e.date.month == now.month,
+        )
         .toList();
     final today = items.where((e) => DateUtils.isSameDay(e.date, now)).toList();
     final spent = month
@@ -150,10 +181,11 @@ class _TodayContent extends StatelessWidget {
     final todaySpent = today
         .where((e) => !e.isIncome)
         .fold<double>(0, (sum, e) => sum + e.amount);
-    final currency = items.first.currency;
-    final remaining = income - spent;
     final daysLeft = DateTime(now.year, now.month + 1, 0).day - now.day + 1;
-    final dailyRoom = remaining > 0 ? remaining / daysLeft : 0.0;
+    final available = briefing?.safeToSpend ?? (income - spent);
+    final dailyRoom =
+        briefing?.dailySafeToSpend ??
+        (available > 0 ? available / daysLeft : 0.0);
     String money(double value) =>
         hidden ? maskAmount(currency) : formatAmount(value, currency);
 
@@ -186,7 +218,7 @@ class _TodayContent extends StatelessWidget {
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 220),
                     child: Text(
-                      money(remaining),
+                      money(available),
                       key: ValueKey(hidden),
                       style: Theme.of(context).textTheme.displaySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onInverseSurface,
@@ -217,11 +249,36 @@ class _TodayContent extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (briefing != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      _protectionLine(briefing!, currency, hidden),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onInverseSurface.withValues(alpha: .68),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
         ),
+        if (briefing != null) ...[
+          const SliverToBoxAdapter(child: SectionLabel('Your next move')),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _MoneyMoveCard(
+                briefing: briefing!,
+                currency: currency,
+                hidden: hidden,
+                onTap: () => onMove(briefing!.nextMove.type),
+              ),
+            ),
+          ),
+        ],
         const SliverToBoxAdapter(child: SectionLabel('At a glance')),
         SliverToBoxAdapter(
           child: SizedBox(
@@ -284,6 +341,109 @@ class _TodayContent extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  String _protectionLine(MoneyBriefing value, String currency, bool hidden) {
+    final protected =
+        value.commitmentsTotal + value.goalReserve + value.safetyBuffer;
+    if (protected <= 0) return 'Nothing else needs protecting this month.';
+    final amount = hidden
+        ? maskAmount(currency)
+        : formatAmount(protected, currency);
+    final parts = <String>[];
+    if (value.upcomingCommitments.isNotEmpty) {
+      parts.add(
+        '${value.upcomingCommitments.length} upcoming commitment${value.upcomingCommitments.length == 1 ? '' : 's'}',
+      );
+    }
+    if (value.goalReserve > 0) parts.add('your goals');
+    if (value.safetyBuffer > 0) parts.add('your safety buffer');
+    return '$amount protected for ${parts.join(' and ')}.';
+  }
+}
+
+class _MoneyMoveCard extends StatelessWidget {
+  const _MoneyMoveCard({
+    required this.briefing,
+    required this.currency,
+    required this.hidden,
+    required this.onTap,
+  });
+
+  final MoneyBriefing briefing;
+  final String currency;
+  final bool hidden;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final icon = switch (briefing.nextMove.type) {
+      MoneyMoveType.protectBills => Icons.event_available_rounded,
+      MoneyMoveType.fundGoal => Icons.savings_rounded,
+      MoneyMoveType.slowCategory => Icons.speed_rounded,
+      MoneyMoveType.reviewPlan => Icons.account_balance_wallet_rounded,
+      MoneyMoveType.stayCourse => Icons.check_rounded,
+    };
+    final forecast = hidden
+        ? maskAmount(currency)
+        : formatAmount(briefing.projectedMonthSpend, currency);
+    return Material(
+      color: scheme.surfaceContainerLow,
+      borderRadius: AppRadius.all(AppRadius.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: AppRadius.all(AppRadius.lg),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: AppRadius.all(15),
+                ),
+                child: Icon(icon, color: scheme.onPrimaryContainer),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      briefing.nextMove.title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      briefing.nextMove.body,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      'MONTH-END FORECAST  ·  $forecast',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.arrow_forward_rounded, size: 20),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -451,64 +611,6 @@ class _SyncLine extends StatelessWidget {
           ],
         ],
       ),
-    ),
-  );
-}
-
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.syncing,
-    required this.onSync,
-    required this.onAdd,
-  });
-  final bool syncing;
-  final VoidCallback onSync;
-  final VoidCallback onAdd;
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 84),
-    child: FloatingActionButton.extended(
-      onPressed: syncing
-          ? null
-          : () => showModalBottomSheet<void>(
-              context: context,
-              showDragHandle: true,
-              builder: (context) => SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.bolt_rounded),
-                        title: const Text('Sync bank messages'),
-                        subtitle: const Text('Import new transactions'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          onSync();
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.edit_rounded),
-                        title: const Text('Add manually'),
-                        subtitle: const Text('Create an expense or income'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          onAdd();
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-      icon: syncing
-          ? const SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.add_rounded),
-      label: Text(syncing ? 'Syncing' : 'Quick add'),
     ),
   );
 }

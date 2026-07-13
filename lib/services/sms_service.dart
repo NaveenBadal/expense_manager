@@ -13,15 +13,13 @@ class SmsService {
   }
 
   Future<List<SmsMessage>> getMessages() async {
-    return await _query.querySms(
-      kinds: [SmsQueryKind.inbox],
-    );
+    return await _query.querySms(kinds: [SmsQueryKind.inbox]);
   }
 
   // Filters for messages that look like financial transactions (debit, credit, spent, etc.)
   bool isFinancialSms(String body) {
     final lowerBody = body.toLowerCase();
-    
+
     // OTPs should be excluded first for security
     if (lowerBody.contains('otp') || lowerBody.contains('verification code')) {
       return false;
@@ -32,8 +30,22 @@ class SmsService {
     final financialKeywords = [
       'spent', 'debited', 'credited', 'debit', 'credit', 'paid', 'txn',
       'purchase', 'vpa', 'upi', 'bank', 'amt', 'amount',
-      r'rs\.', 'inr', 'rs ', '₹', r'\$', '€', 'withdrawn', 'deducted', 'avail bal',
-      'refunded', 'reversed', 'collected', 'payment', 'bill', 'due', 'money transfer',
+      r'rs\.',
+      'inr',
+      'rs ',
+      '₹',
+      r'\$',
+      '€',
+      'withdrawn',
+      'deducted',
+      'avail bal',
+      'refunded',
+      'reversed',
+      'collected',
+      'payment',
+      'bill',
+      'due',
+      'money transfer',
       // Short forms heavily used by HDFC, SBI, ICICI, Axis
       ' dr ', ' cr ', r'dr\.', r'cr\.', 'dr-', 'cr-',
       // Transfer/wallet keywords
@@ -41,8 +53,8 @@ class SmsService {
       'a/c', 'acct', 'account', 'wallet', 'cashback',
     ];
 
-    // We use a more relaxed regex that doesn't strictly require word boundaries 
-    // for symbols like ₹ or $. 
+    // We use a more relaxed regex that doesn't strictly require word boundaries
+    // for symbols like ₹ or $.
     final pattern = RegExp(
       '(${financialKeywords.join('|')})',
       caseSensitive: false,

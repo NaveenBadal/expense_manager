@@ -19,168 +19,173 @@ class AnalyticsScreen extends ConsumerWidget {
     final monthly = ref.watch(monthlyTotalsProvider);
     final categories = ref.watch(categoryTotalsForPeriodProvider);
     final merchants = ref.watch(topMerchantsForPeriodProvider);
-    final currency =
-        ref.watch(expenseListProvider).asData?.value.firstOrNull?.currency ??
-        'INR';
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          const SliverAppBar.large(title: Text('Trends')),
-          SliverToBoxAdapter(
+    final currency = ref.watch(preferredCurrencyProvider);
+    final hidden = ref.watch(privateModeProvider);
+    return CommandScaffold(
+      eyebrow: 'Movement over time',
+      title: 'Trends',
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SegmentedButton<int>(
+              expandedInsets: EdgeInsets.zero,
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 3, label: Text('3M')),
+                ButtonSegment(value: 6, label: Text('6M')),
+                ButtonSegment(value: 12, label: Text('1Y')),
+              ],
+              selected: {period},
+              onSelectionChanged: (value) => ref
+                  .read(analyticsPeriodProvider.notifier)
+                  .setPeriod(value.first),
+            ),
+          ),
+        ),
+        const SliverToBoxAdapter(child: SectionLabel('Monthly movement')),
+        monthly.when(
+          loading: () => const SliverToBoxAdapter(
+            child: SizedBox(
+              height: 220,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+          error: (error, _) => SliverToBoxAdapter(
+            child: StatePanel(
+              icon: Icons.show_chart_rounded,
+              title: 'Trend unavailable',
+              message: '$error',
+            ),
+          ),
+          data: (rows) => SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: SegmentedButton<int>(
-                expandedInsets: EdgeInsets.zero,
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: 3, label: Text('3M')),
-                  ButtonSegment(value: 6, label: Text('6M')),
-                  ButtonSegment(value: 12, label: Text('1Y')),
-                ],
-                selected: {period},
-                onSelectionChanged: (value) => ref
-                    .read(analyticsPeriodProvider.notifier)
-                    .setPeriod(value.first),
-              ),
+              child: _Timeline(rows: rows, currency: currency, hidden: hidden),
             ),
           ),
-          const SliverToBoxAdapter(child: SectionLabel('Monthly movement')),
-          monthly.when(
-            loading: () => const SliverToBoxAdapter(
-              child: SizedBox(
-                height: 220,
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-            error: (error, _) => SliverToBoxAdapter(
-              child: StatePanel(
-                icon: Icons.show_chart_rounded,
-                title: 'Trend unavailable',
-                message: '$error',
-              ),
-            ),
-            data: (rows) => SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _Timeline(rows: rows, currency: currency),
-              ),
-            ),
+        ),
+        const SliverToBoxAdapter(child: SectionLabel('Where it went')),
+        categories.when(
+          loading: () => const SliverToBoxAdapter(
+            child: Center(child: CircularProgressIndicator()),
           ),
-          const SliverToBoxAdapter(child: SectionLabel('Where it went')),
-          categories.when(
-            loading: () => const SliverToBoxAdapter(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, _) => SliverToBoxAdapter(child: Text('$error')),
-            data: (data) {
-              final rows = data.entries.toList()
-                ..sort((a, b) => b.value.compareTo(a.value));
-              final total = rows.fold<double>(0, (sum, row) => sum + row.value);
-              return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                sliver: SliverList.separated(
-                  itemCount: rows.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final row = rows[index];
-                    final color = categoryColor(row.key);
-                    return Column(
-                      children: [
-                        Row(
-                          children: [
-                            Icon(categoryIcon(row.key), size: 18, color: color),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: Text(
-                                row.key,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              formatAmount(row.value, currency),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 7),
-                        ClipRRect(
-                          borderRadius: AppRadius.all(99),
-                          child: LinearProgressIndicator(
-                            value: total == 0 ? 0 : row.value / total,
-                            minHeight: 7,
-                            color: color,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-          const SliverToBoxAdapter(child: SectionLabel('Merchant gravity')),
-          merchants.when(
-            loading: () => const SliverToBoxAdapter(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, _) => SliverToBoxAdapter(child: Text('$error')),
-            data: (items) => SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+          error: (error, _) => SliverToBoxAdapter(child: Text('$error')),
+          data: (data) {
+            final rows = data.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value));
+            final total = rows.fold<double>(0, (sum, row) => sum + row.value);
+            return SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               sliver: SliverList.separated(
-                itemCount: items.take(8).length,
-                separatorBuilder: (_, _) => Divider(
-                  height: 1,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.outlineVariant.withValues(alpha: .4),
-                ),
+                itemCount: rows.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
                 itemBuilder: (context, index) {
-                  final item = items[index];
-                  final name = item['merchant'] as String? ?? 'Unknown';
-                  final total = (item['total'] as num?)?.toDouble() ?? 0;
-                  final count = item['txn_count'] as int? ?? 0;
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(vertical: 5),
-                    leading: CircleAvatar(
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      child: Text(name.characters.first.toUpperCase()),
-                    ),
-                    title: Text(
-                      name,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text('$count movements'),
-                    trailing: Text(
-                      formatAmount(total, currency),
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MerchantProfileScreen(merchant: name),
+                  final row = rows[index];
+                  final color = categoryColor(row.key);
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(categoryIcon(row.key), size: 18, color: color),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              row.key,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            hidden
+                                ? maskAmount(currency)
+                                : formatAmount(row.value, currency),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ],
                       ),
-                    ),
+                      const SizedBox(height: 7),
+                      ClipRRect(
+                        borderRadius: AppRadius.all(99),
+                        child: LinearProgressIndicator(
+                          value: total == 0 ? 0 : row.value / total,
+                          minHeight: 7,
+                          color: color,
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),
+            );
+          },
+        ),
+        const SliverToBoxAdapter(child: SectionLabel('Merchant gravity')),
+        merchants.when(
+          loading: () => const SliverToBoxAdapter(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => SliverToBoxAdapter(child: Text('$error')),
+          data: (items) => SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+            sliver: SliverList.separated(
+              itemCount: items.take(8).length,
+              separatorBuilder: (_, _) => Divider(
+                height: 1,
+                color: Theme.of(
+                  context,
+                ).colorScheme.outlineVariant.withValues(alpha: .4),
+              ),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final name = item['merchant'] as String? ?? 'Unknown';
+                final total = (item['total'] as num?)?.toDouble() ?? 0;
+                final count = item['txn_count'] as int? ?? 0;
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(vertical: 5),
+                  leading: CircleAvatar(
+                    backgroundColor: Theme.of(
+                      context,
+                    ).colorScheme.primaryContainer,
+                    child: Text(name.characters.first.toUpperCase()),
+                  ),
+                  title: Text(
+                    name,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text('$count movements'),
+                  trailing: Text(
+                    hidden
+                        ? maskAmount(currency)
+                        : formatAmount(total, currency),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MerchantProfileScreen(merchant: name),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
 class _Timeline extends StatelessWidget {
-  const _Timeline({required this.rows, required this.currency});
+  const _Timeline({
+    required this.rows,
+    required this.currency,
+    required this.hidden,
+  });
   final List<Map<String, dynamic>> rows;
   final String currency;
+  final bool hidden;
   @override
   Widget build(BuildContext context) {
     final maximum = rows.fold<double>(
@@ -283,7 +288,9 @@ class _Timeline extends StatelessWidget {
               _Legend(color: context.finance.expense, label: 'Spent'),
               const Spacer(),
               Text(
-                'Peak ${formatAmount(maximum, currency)}',
+                hidden
+                    ? 'Peak ${maskAmount(currency)}'
+                    : 'Peak ${formatAmount(maximum, currency)}',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(
                     context,

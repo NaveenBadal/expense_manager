@@ -18,7 +18,9 @@ class NotificationService {
     if (_initialized) return;
     tz.initializeTimeZones();
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const initSettings = InitializationSettings(android: androidSettings);
 
     await _plugin.initialize(settings: initSettings);
@@ -86,7 +88,9 @@ class NotificationService {
 
   Future<void> checkAndSendSyncReminder() async {
     await _ensureInit();
-    final lastSyncStr = await DatabaseHelper.instance.getAppMetadata('last_sync_at');
+    final lastSyncStr = await DatabaseHelper.instance.getAppMetadata(
+      'last_sync_at',
+    );
     if (lastSyncStr == null) return;
 
     final lastSync = DateTime.tryParse(lastSyncStr);
@@ -97,7 +101,8 @@ class NotificationService {
       await _plugin.show(
         id: _syncReminderId,
         title: 'Expenses untracked',
-        body: "You haven't synced in $daysSince days — some transactions may be missing.",
+        body:
+            "You haven't synced in $daysSince days — some transactions may be missing.",
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(
             'sync_reminders',

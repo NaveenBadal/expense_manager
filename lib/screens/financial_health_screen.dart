@@ -10,154 +10,153 @@ class FinancialHealthScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(financialHealthScoreProvider);
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          const SliverAppBar.large(title: Text('Financial health')),
-          async.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, _) => SliverFillRemaining(
-              child: StatePanel(
-                icon: Icons.monitor_heart_outlined,
-                title: 'Score unavailable',
-                message: '$error',
-              ),
-            ),
-            data: (health) {
-              final color = _color(context, health.score);
-              return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                sliver: SliverList.list(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.inverseSurface,
-                        borderRadius: AppRadius.all(AppRadius.xxl),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '${health.score}',
-                                style: Theme.of(context).textTheme.displayLarge
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onInverseSurface,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -2,
-                                    ),
-                              ),
-                              Text(
-                                '/100',
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onInverseSurface
-                                          .withValues(alpha: .55),
-                                    ),
-                              ),
-                              const Spacer(),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 7,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: color,
-                                  borderRadius: AppRadius.all(99),
-                                ),
-                                child: Text(
-                                  '${health.grade} · ${health.gradeLabel}',
-                                  style: TextStyle(
-                                    color:
-                                        ThemeData.estimateBrightnessForColor(
-                                              color,
-                                            ) ==
-                                            Brightness.dark
-                                        ? Colors.white
-                                        : Colors.black,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 18),
-                          ClipRRect(
-                            borderRadius: AppRadius.all(99),
-                            child: LinearProgressIndicator(
-                              value: health.score / 100,
-                              minHeight: 10,
-                              color: color,
-                              backgroundColor: Theme.of(context)
-                                  .colorScheme
-                                  .onInverseSurface
-                                  .withValues(alpha: .13),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            _summary(health.score),
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onInverseSurface
-                                      .withValues(alpha: .72),
-                                  height: 1.45,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SectionLabel('What shapes your score'),
-                    _Factor(
-                      title: 'Savings capacity',
-                      value: health.savingsRate,
-                      weight: '40%',
-                      caption:
-                          '${(health.savingsRate * 100).round()}% of income remains',
-                    ),
-                    const SizedBox(height: 10),
-                    _Factor(
-                      title: 'Budget control',
-                      value: health.budgetAdherence,
-                      weight: '35%',
-                      caption:
-                          '${(health.budgetAdherence * 100).round()}% of limits are healthy',
-                    ),
-                    const SizedBox(height: 10),
-                    _Factor(
-                      title: 'Spending direction',
-                      value: health.trendScore,
-                      weight: '25%',
-                      caption: health.trendScore >= .5
-                          ? 'Moving in the right direction'
-                          : 'Higher than your recent baseline',
-                    ),
-                    const SectionLabel('How to read this'),
-                    Text(
-                      'The score is directional, not a credit rating. It combines how much income remains, whether categories stay within plan, and whether spending is improving month over month.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        height: 1.55,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+    return CommandScaffold(
+      eyebrow: 'Your directional score',
+      title: 'Financial health',
+      slivers: [
+        async.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
           ),
-        ],
-      ),
+          error: (error, _) => SliverFillRemaining(
+            child: StatePanel(
+              icon: Icons.monitor_heart_outlined,
+              title: 'Score unavailable',
+              message: '$error',
+            ),
+          ),
+          data: (health) {
+            final color = _color(context, health.score);
+            return SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+              sliver: SliverList.list(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.inverseSurface,
+                      borderRadius: AppRadius.all(AppRadius.xxl),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${health.score}',
+                              style: Theme.of(context).textTheme.displayLarge
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onInverseSurface,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -2,
+                                  ),
+                            ),
+                            Text(
+                              '/100',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onInverseSurface
+                                        .withValues(alpha: .55),
+                                  ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 7,
+                              ),
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: AppRadius.all(99),
+                              ),
+                              child: Text(
+                                '${health.grade} · ${health.gradeLabel}',
+                                style: TextStyle(
+                                  color:
+                                      ThemeData.estimateBrightnessForColor(
+                                            color,
+                                          ) ==
+                                          Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                        ClipRRect(
+                          borderRadius: AppRadius.all(99),
+                          child: LinearProgressIndicator(
+                            value: health.score / 100,
+                            minHeight: 10,
+                            color: color,
+                            backgroundColor: Theme.of(context)
+                                .colorScheme
+                                .onInverseSurface
+                                .withValues(alpha: .13),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Text(
+                          _summary(health.score),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onInverseSurface
+                                    .withValues(alpha: .72),
+                                height: 1.45,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SectionLabel('What shapes your score'),
+                  _Factor(
+                    title: 'Savings capacity',
+                    value: health.savingsRate,
+                    weight: '40%',
+                    caption:
+                        '${(health.savingsRate * 100).round()}% of income remains',
+                  ),
+                  const SizedBox(height: 10),
+                  _Factor(
+                    title: 'Budget control',
+                    value: health.budgetAdherence,
+                    weight: '35%',
+                    caption:
+                        '${(health.budgetAdherence * 100).round()}% of limits are healthy',
+                  ),
+                  const SizedBox(height: 10),
+                  _Factor(
+                    title: 'Spending direction',
+                    value: health.trendScore,
+                    weight: '25%',
+                    caption: health.trendScore >= .5
+                        ? 'Moving in the right direction'
+                        : 'Higher than your recent baseline',
+                  ),
+                  const SectionLabel('How to read this'),
+                  Text(
+                    'The score is directional, not a credit rating. It combines how much income remains, whether categories stay within plan, and whether spending is improving month over month.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.55,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

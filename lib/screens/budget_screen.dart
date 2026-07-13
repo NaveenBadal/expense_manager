@@ -16,143 +16,142 @@ class BudgetScreen extends ConsumerWidget {
     final async = ref.watch(budgetProgressProvider);
     final hidden = ref.watch(privateModeProvider);
     final categories = ref.watch(allCategoryNamesProvider);
-    return Scaffold(
+    return CommandScaffold(
+      eyebrow: 'Boundaries with context',
+      title: 'Spending limits',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _edit(context, ref, categories, null),
         icon: const Icon(Icons.add_rounded),
         label: const Text('Add limit'),
       ),
-      body: CustomScrollView(
-        slivers: [
-          const SliverAppBar.large(title: Text('Spending limits')),
-          async.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
+      slivers: [
+        async.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => SliverFillRemaining(
+            child: StatePanel(
+              icon: Icons.track_changes_rounded,
+              title: 'Limits unavailable',
+              message: '$error',
             ),
-            error: (error, _) => SliverFillRemaining(
-              child: StatePanel(
-                icon: Icons.track_changes_rounded,
-                title: 'Limits unavailable',
-                message: '$error',
-              ),
-            ),
-            data: (items) {
-              if (items.isEmpty) {
-                return const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: StatePanel(
-                    icon: Icons.track_changes_rounded,
-                    title: 'Set your first boundary',
-                    message:
-                        'Choose one category where a monthly limit would make decisions easier.',
-                  ),
-                );
-              }
-              final totalLimit = items.fold<double>(
-                0,
-                (sum, b) => sum + (b['limit_amount'] as num).toDouble(),
+          ),
+          data: (items) {
+            if (items.isEmpty) {
+              return const SliverFillRemaining(
+                hasScrollBody: false,
+                child: StatePanel(
+                  icon: Icons.track_changes_rounded,
+                  title: 'Set your first boundary',
+                  message:
+                      'Choose one category where a monthly limit would make decisions easier.',
+                ),
               );
-              final totalSpent = items.fold<double>(
-                0,
-                (sum, b) => sum + (b['spent'] as num).toDouble(),
-              );
-              final currency = items.first['currency'] as String? ?? 'INR';
-              return SliverMainAxisGroup(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.inverseSurface,
-                          borderRadius: AppRadius.all(AppRadius.xxl),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'PLANNED SPENDING',
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onInverseSurface
-                                        .withValues(alpha: .6),
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2,
-                                  ),
+            }
+            final totalLimit = items.fold<double>(
+              0,
+              (sum, b) => sum + (b['limit_amount'] as num).toDouble(),
+            );
+            final totalSpent = items.fold<double>(
+              0,
+              (sum, b) => sum + (b['spent'] as num).toDouble(),
+            );
+            final currency = items.first['currency'] as String? ?? 'INR';
+            return SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.inverseSurface,
+                        borderRadius: AppRadius.all(AppRadius.xxl),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'PLANNED SPENDING',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onInverseSurface
+                                      .withValues(alpha: .6),
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            hidden
+                                ? maskAmount(currency)
+                                : formatAmount(totalLimit, currency),
+                            style: Theme.of(context).textTheme.displaySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onInverseSurface,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                          const SizedBox(height: 16),
+                          ClipRRect(
+                            borderRadius: AppRadius.all(99),
+                            child: LinearProgressIndicator(
+                              value: totalLimit == 0
+                                  ? 0
+                                  : (totalSpent / totalLimit).clamp(0, 1),
+                              minHeight: 10,
+                              backgroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .onInverseSurface
+                                  .withValues(alpha: .14),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              hidden
-                                  ? maskAmount(currency)
-                                  : formatAmount(totalLimit, currency),
-                              style: Theme.of(context).textTheme.displaySmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onInverseSurface,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                            const SizedBox(height: 16),
-                            ClipRRect(
-                              borderRadius: AppRadius.all(99),
-                              child: LinearProgressIndicator(
-                                value: totalLimit == 0
-                                    ? 0
-                                    : (totalSpent / totalLimit).clamp(0, 1),
-                                minHeight: 10,
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .onInverseSurface
-                                    .withValues(alpha: .14),
-                              ),
-                            ),
-                            const SizedBox(height: 9),
-                            Text(
-                              '${(totalLimit == 0 ? 0 : totalSpent / totalLimit * 100).round()}% used across ${items.length} categories',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onInverseSurface
-                                        .withValues(alpha: .68),
-                                  ),
-                            ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 9),
+                          Text(
+                            '${(totalLimit == 0 ? 0 : totalSpent / totalLimit * 100).round()}% used across ${items.length} categories',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onInverseSurface
+                                      .withValues(alpha: .68),
+                                ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SliverToBoxAdapter(
-                    child: SectionLabel('Category pressure'),
+                ),
+                const SliverToBoxAdapter(
+                  child: SectionLabel('Category pressure'),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                  sliver: SliverList.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final b = items[index];
+                      return _LimitRow(
+                        data: b,
+                        hidden: hidden,
+                        onTap: () => _edit(context, ref, categories, b),
+                        onDelete: () => ref
+                            .read(budgetListProvider.notifier)
+                            .remove(b['category'] as String),
+                      );
+                    },
                   ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                    sliver: SliverList.separated(
-                      itemCount: items.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final b = items[index];
-                        return _LimitRow(
-                          data: b,
-                          hidden: hidden,
-                          onTap: () => _edit(context, ref, categories, b),
-                          onDelete: () => ref
-                              .read(budgetListProvider.notifier)
-                              .remove(b['category'] as String),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -316,66 +315,80 @@ class _LimitSheetState extends ConsumerState<_LimitSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      20,
-      4,
-      20,
-      MediaQuery.viewInsetsOf(context).bottom + 28,
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          widget.existing == null ? 'New spending limit' : 'Adjust limit',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 22),
-        DropdownButtonFormField<String>(
-          initialValue: _category,
-          decoration: const InputDecoration(labelText: 'Category'),
-          items: widget.categories
-              .map((name) => DropdownMenuItem(value: name, child: Text(name)))
-              .toList(),
-          onChanged: widget.existing == null
-              ? (value) => setState(() => _category = value!)
-              : null,
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: _amount,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-          ],
-          decoration: const InputDecoration(
-            labelText: 'Monthly limit',
-            prefixText: '₹ ',
+  Widget build(BuildContext context) {
+    final String currency =
+        (widget.existing?['currency'] as String?) ??
+        ref.watch(preferredCurrencyProvider);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        20,
+        4,
+        20,
+        MediaQuery.viewInsetsOf(context).bottom + 28,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            widget.existing == null ? 'New spending limit' : 'Adjust limit',
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
-        ),
-        const SizedBox(height: 22),
-        SizedBox(
-          width: double.infinity,
-          height: 52,
-          child: FilledButton(
-            onPressed: _saving ? null : _save,
-            child: Text(_saving ? 'Saving…' : 'Save limit'),
+          const SizedBox(height: 22),
+          DropdownButtonFormField<String>(
+            initialValue: _category,
+            decoration: const InputDecoration(labelText: 'Category'),
+            items: widget.categories
+                .map((name) => DropdownMenuItem(value: name, child: Text(name)))
+                .toList(),
+            onChanged: widget.existing == null
+                ? (value) => setState(() => _category = value!)
+                : null,
           ),
-        ),
-      ],
-    ),
-  );
+          const SizedBox(height: 14),
+          TextField(
+            controller: _amount,
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+            ],
+            decoration: InputDecoration(
+              labelText: 'Monthly limit',
+              prefixText: '${symbolFor(currency)} ',
+            ),
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              child: Text(_saving ? 'Saving…' : 'Save limit'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _save() async {
     final value = double.tryParse(_amount.text);
     if (value == null || value <= 0) return;
     setState(() => _saving = true);
     await ref
         .read(budgetListProvider.notifier)
-        .upsert(Budget(category: _category, limitAmount: value));
+        .upsert(
+          Budget(
+            category: _category,
+            limitAmount: value,
+            currency:
+                widget.existing?['currency'] as String? ??
+                ref.read(preferredCurrencyProvider),
+          ),
+        );
     if (mounted) Navigator.pop(context);
   }
 }

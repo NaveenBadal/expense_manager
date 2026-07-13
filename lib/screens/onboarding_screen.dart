@@ -14,7 +14,10 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _controller = PageController();
+  final _income = TextEditingController();
+  final _buffer = TextEditingController();
   int _page = 0;
+  String _currency = 'INR';
   static const _steps = [
     _Step(
       number: '01',
@@ -32,16 +35,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     ),
     _Step(
       number: '03',
-      title: 'Patterns become decisions.',
+      title: 'Shape your safe-to-spend.',
       body:
-          'Plans, commitments, anomalies, and financial health are explained without spreadsheet noise.',
-      icon: Icons.auto_graph_rounded,
+          'Choose your currency and add an optional income estimate and safety buffer.',
+      icon: Icons.tune_rounded,
+    ),
+    _Step(
+      number: '04',
+      title: 'Automation, on your terms.',
+      body:
+          'Allow SMS access to find bank transactions automatically. Messages are reviewed only when you start a sync, and you can continue without it.',
+      icon: Icons.sms_outlined,
     ),
   ];
 
   @override
   void dispose() {
     _controller.dispose();
+    _income.dispose();
+    _buffer.dispose();
     super.dispose();
   }
 
@@ -75,7 +87,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                   ),
                   const Spacer(),
-                  TextButton(onPressed: _finish, child: const Text('Skip')),
+                  TextButton(
+                    onPressed: () => _finish(requestPermission: false),
+                    child: Text(last ? 'Not now' : 'Skip'),
+                  ),
                 ],
               ),
             ),
@@ -84,7 +99,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 controller: _controller,
                 itemCount: _steps.length,
                 onPageChanged: (value) => setState(() => _page = value),
-                itemBuilder: (context, index) => _StepView(step: _steps[index]),
+                itemBuilder: (context, index) => index == 2
+                    ? _SetupView(
+                        currency: _currency,
+                        income: _income,
+                        buffer: _buffer,
+                        onCurrency: (value) =>
+                            setState(() => _currency = value),
+                      )
+                    : _StepView(step: _steps[index]),
               ),
             ),
             Padding(
@@ -106,11 +129,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                   const Spacer(),
                   FloatingActionButton.extended(
-                    onPressed: last ? _finish : _next,
+                    onPressed: last
+                        ? () => _finish(requestPermission: true)
+                        : _next,
                     icon: Icon(
                       last ? Icons.check_rounded : Icons.arrow_forward_rounded,
                     ),
-                    label: Text(last ? 'Allow & begin' : 'Continue'),
+                    label: Text(last ? 'Enable & begin' : 'Continue'),
                   ),
                 ],
               ),
@@ -126,8 +151,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     curve: Curves.easeOutCubic,
   );
 
-  Future<void> _finish() async {
-    if (_page == _steps.length - 1) {
+  Future<void> _finish({required bool requestPermission}) async {
+    await ref.read(preferredCurrencyProvider.notifier).setCurrency(_currency);
+    await ref
+        .read(monthlyPlanProvider.notifier)
+        .setPlan(
+          income: double.tryParse(_income.text.trim()) ?? 0,
+          buffer: double.tryParse(_buffer.text.trim()) ?? 0,
+        );
+    if (requestPermission) {
       await Permission.sms.request();
     }
     await markOnboardingDone(ref.read(secureStorageProvider));
@@ -138,6 +170,90 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       );
     }
   }
+}
+
+class _SetupView extends StatelessWidget {
+  const _SetupView({
+    required this.currency,
+    required this.income,
+    required this.buffer,
+    required this.onCurrency,
+  });
+
+  final String currency;
+  final TextEditingController income;
+  final TextEditingController buffer;
+  final ValueChanged<String> onCurrency;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '03',
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.4,
+          ),
+        ),
+        const SizedBox(height: 34),
+        Text(
+          'Make the first forecast yours.',
+          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1.1,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'These are planning guides, not account balances. You can change them later.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            height: 1.45,
+          ),
+        ),
+        const SizedBox(height: 28),
+        DropdownButtonFormField<String>(
+          initialValue: currency,
+          decoration: const InputDecoration(
+            labelText: 'Primary currency',
+            prefixIcon: Icon(Icons.language_rounded),
+          ),
+          items: const ['INR', 'USD', 'EUR', 'GBP', 'SGD', 'AED']
+              .map(
+                (value) => DropdownMenuItem(value: value, child: Text(value)),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value != null) onCurrency(value);
+          },
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: income,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Expected monthly income (optional)',
+            prefixIcon: const Icon(Icons.south_west_rounded),
+            prefixText: '$currency ',
+          ),
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          controller: buffer,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Safety buffer (optional)',
+            prefixIcon: const Icon(Icons.shield_outlined),
+            prefixText: '$currency ',
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _Step {

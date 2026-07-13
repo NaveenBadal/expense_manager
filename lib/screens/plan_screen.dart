@@ -21,12 +21,15 @@ class PlanScreen extends ConsumerWidget {
         ref.watch(budgetProgressProvider).asData?.value ??
         const <Map<String, dynamic>>[];
     final goals = ref.watch(savingsGoalsProvider).asData?.value ?? const [];
-    final income = balance['income'] ?? 0;
+    final detectedIncome = balance['income'] ?? 0;
     final expense = balance['expense'] ?? 0;
-    final free = income - expense;
-    final currency =
-        ref.watch(expenseListProvider).asData?.value.firstOrNull?.currency ??
-        'INR';
+    final briefing = ref.watch(moneyBriefingProvider);
+    final income = briefing?.income ?? detectedIncome;
+    final free = briefing?.safeToSpend ?? (income - expense);
+    final currency = ref.watch(preferredCurrencyProvider);
+    final hidden = ref.watch(privateModeProvider);
+    String money(double value) =>
+        hidden ? maskAmount(currency) : formatAmount(value, currency);
     final pressure = budgets.where((b) {
       final limit = (b['limit_amount'] as num?)?.toDouble() ?? 0;
       final spent = (b['spent'] as num?)?.toDouble() ?? 0;
@@ -34,7 +37,7 @@ class PlanScreen extends ConsumerWidget {
     }).length;
 
     return CommandScaffold(
-      eyebrow: 'Give every rupee a job',
+      eyebrow: 'Give your money a job',
       title: 'Plan',
       slivers: [
         SliverToBoxAdapter(
@@ -50,7 +53,7 @@ class PlanScreen extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'UNASSIGNED THIS MONTH',
+                    'SAFE TO ALLOCATE',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       letterSpacing: 1.2,
                       fontWeight: FontWeight.w800,
@@ -61,7 +64,7 @@ class PlanScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 7),
                   Text(
-                    formatAmount(free, currency),
+                    money(free),
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
                       fontWeight: FontWeight.w800,
                       letterSpacing: -1.2,
@@ -69,8 +72,12 @@ class PlanScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    free >= 0
-                        ? 'Available to budget, save, or enjoy.'
+                    free > 0
+                        ? briefing != null &&
+                                  (briefing.commitmentsTotal > 0 ||
+                                      briefing.goalReserve > 0)
+                              ? 'Upcoming commitments and goal pace are already protected.'
+                              : 'Available to budget, save, or enjoy.'
                         : 'Your plan needs attention before the month ends.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
@@ -122,7 +129,7 @@ class PlanScreen extends ConsumerWidget {
                     height: 128,
                     child: MetricTile(
                       label: 'Coming in',
-                      value: formatAmount(income, currency),
+                      value: money(income),
                       icon: Icons.south_west_rounded,
                       color: context.finance.income,
                     ),
@@ -134,7 +141,7 @@ class PlanScreen extends ConsumerWidget {
                     height: 128,
                     child: MetricTile(
                       label: 'Going out',
-                      value: formatAmount(expense, currency),
+                      value: money(expense),
                       icon: Icons.north_east_rounded,
                       color: context.finance.expense,
                     ),

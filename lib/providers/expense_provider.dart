@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/ai_provider.dart';
+import '../models/action_item.dart';
 import '../models/budget.dart';
 import '../models/custom_category.dart';
 import '../models/expense.dart';
@@ -12,12 +13,15 @@ import '../models/ai_log.dart';
 import '../models/financial_health_score.dart';
 import '../models/savings_goal.dart';
 import '../models/merchant_stats.dart';
+import '../models/money_briefing.dart';
 import '../models/spending_insight.dart';
 import '../services/anomaly_detector.dart';
+import '../services/action_inbox_service.dart';
 import '../services/database_helper.dart';
 import '../services/export_service.dart';
 import '../services/insights_service.dart';
 import '../services/notification_service.dart';
+import '../services/money_briefing_service.dart';
 import '../services/recurring_detector.dart';
 import '../services/sms_service.dart';
 import '../services/categorization_service.dart';
@@ -86,19 +90,69 @@ final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
   ThemeModeNotifier.new,
 );
 
+class PreferredCurrencyNotifier extends Notifier<String> {
+  @override
+  String build() => 'INR';
+
+  Future<void> setCurrency(String currency) async {
+    state = currency;
+    await ref
+        .read(secureStorageProvider)
+        .write(key: 'preferred_currency', value: currency);
+  }
+
+  void restore(String currency) => state = currency;
+}
+
+final preferredCurrencyProvider =
+    NotifierProvider<PreferredCurrencyNotifier, String>(
+      PreferredCurrencyNotifier.new,
+    );
+
+class MonthlyPlanNotifier extends Notifier<({double income, double buffer})> {
+  @override
+  ({double income, double buffer}) build() => (income: 0, buffer: 0);
+
+  Future<void> setPlan({required double income, required double buffer}) async {
+    state = (income: income, buffer: buffer);
+    final storage = ref.read(secureStorageProvider);
+    await Future.wait([
+      storage.write(key: 'planned_monthly_income', value: '$income'),
+      storage.write(key: 'monthly_safety_buffer', value: '$buffer'),
+    ]);
+  }
+
+  void restore({required double income, required double buffer}) {
+    state = (income: income, buffer: buffer);
+  }
+}
+
+final monthlyPlanProvider =
+    NotifierProvider<MonthlyPlanNotifier, ({double income, double buffer})>(
+      MonthlyPlanNotifier.new,
+    );
+
 // ─── Privacy / App lock ────────────────────────────────────────────────────
 
 class PrivateModeNotifier extends Notifier<bool> {
   @override
   bool build() => false;
 
-  void toggle() {
+  Future<void> toggle() async {
     state = !state;
+    await ref
+        .read(secureStorageProvider)
+        .write(key: 'private_mode_enabled', value: '$state');
   }
 
-  void set(bool v) {
+  Future<void> set(bool v) async {
     state = v;
+    await ref
+        .read(secureStorageProvider)
+        .write(key: 'private_mode_enabled', value: '$state');
   }
+
+  void restore(bool value) => state = value;
 }
 
 final privateModeProvider = NotifierProvider<PrivateModeNotifier, bool>(
@@ -185,8 +239,25 @@ final settingsInitializer = FutureProvider<void>((ref) async {
     ref.read(themeModeProvider.notifier).setThemeMode(mode);
   }
 
+  final currency = await storage.read(key: 'preferred_currency');
+  if (currency != null && currency.isNotEmpty) {
+    ref.read(preferredCurrencyProvider.notifier).restore(currency);
+  }
+  final plannedIncome = double.tryParse(
+    await storage.read(key: 'planned_monthly_income') ?? '',
+  );
+  final buffer = double.tryParse(
+    await storage.read(key: 'monthly_safety_buffer') ?? '',
+  );
+  ref
+      .read(monthlyPlanProvider.notifier)
+      .restore(income: plannedIncome ?? 0, buffer: buffer ?? 0);
+
   final appLock = await storage.read(key: 'app_lock_enabled');
   ref.read(appLockEnabledProvider.notifier).set(appLock == 'true');
+
+  final privateMode = await storage.read(key: 'private_mode_enabled');
+  ref.read(privateModeProvider.notifier).restore(privateMode == 'true');
 
   final dailyDigest = await storage.read(key: 'daily_digest_enabled');
   ref.read(dailyDigestEnabledProvider.notifier).set(dailyDigest == 'true');
@@ -367,10 +438,28 @@ final budgetListProvider = AsyncNotifierProvider<BudgetNotifier, List<Budget>>(
 final budgetProgressProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
-  ref.watch(budgetListProvider);
-  ref.watch(expenseListProvider);
+  final budgets = await ref.watch(budgetListProvider.future);
+  final expenses = await ref.watch(expenseListProvider.future);
+  final currency = ref.watch(preferredCurrencyProvider);
   final now = DateTime.now();
-  return ref.read(databaseProvider).getBudgetProgress(now.year, now.month);
+  return [
+    for (final budget in budgets.where((b) => b.currency == currency))
+      <String, dynamic>{
+        'category': budget.category,
+        'limit_amount': budget.limitAmount,
+        'currency': budget.currency,
+        'spent': expenses
+            .where(
+              (e) =>
+                  !e.isIncome &&
+                  e.currency == currency &&
+                  e.category == budget.category &&
+                  e.date.year == now.year &&
+                  e.date.month == now.month,
+            )
+            .fold(0.0, (sum, e) => sum + e.amount),
+      },
+  ];
 });
 
 // ─── Analytics ────────────────────────────────────────────────────────────
@@ -389,35 +478,128 @@ final monthlyTotalsProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
   final months = ref.watch(analyticsPeriodProvider);
-  ref.watch(expenseListProvider);
-  return ref.read(databaseProvider).getMonthlyTotals(months: months);
+  final currency = ref.watch(preferredCurrencyProvider);
+  final expenses = await ref.watch(expenseListProvider.future);
+  final now = DateTime.now();
+  return [
+    for (var offset = months - 1; offset >= 0; offset--)
+      () {
+        final date = DateTime(now.year, now.month - offset);
+        final entries = expenses.where(
+          (e) =>
+              e.currency == currency &&
+              e.date.year == date.year &&
+              e.date.month == date.month,
+        );
+        return <String, dynamic>{
+          'year': date.year,
+          'month': date.month,
+          'total_income': entries
+              .where((e) => e.isIncome)
+              .fold(0.0, (sum, e) => sum + e.amount),
+          'total_expense': entries
+              .where((e) => !e.isIncome)
+              .fold(0.0, (sum, e) => sum + e.amount),
+        };
+      }(),
+  ];
 });
 
 final categoryTotalsForPeriodProvider = FutureProvider<Map<String, double>>((
   ref,
 ) async {
   final months = ref.watch(analyticsPeriodProvider);
-  ref.watch(expenseListProvider);
+  final currency = ref.watch(preferredCurrencyProvider);
+  final expenses = await ref.watch(expenseListProvider.future);
   final to = DateTime.now();
   final from = DateTime(to.year, to.month - months + 1, 1);
-  return ref.read(databaseProvider).getCategoryTotals(from, to);
+  final totals = <String, double>{};
+  for (final expense in expenses.where(
+    (e) =>
+        !e.isIncome &&
+        e.currency == currency &&
+        !e.date.isBefore(from) &&
+        !e.date.isAfter(to),
+  )) {
+    totals.update(
+      expense.category,
+      (value) => value + expense.amount,
+      ifAbsent: () => expense.amount,
+    );
+  }
+  return totals;
 });
 
 final topMerchantsForPeriodProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
       final months = ref.watch(analyticsPeriodProvider);
-      ref.watch(expenseListProvider);
+      final currency = ref.watch(preferredCurrencyProvider);
+      final expenses = await ref.watch(expenseListProvider.future);
       final to = DateTime.now();
       final from = DateTime(to.year, to.month - months + 1, 1);
-      return ref.read(databaseProvider).getTopMerchants(from, to);
+      final grouped = <String, List<Expense>>{};
+      for (final expense in expenses.where(
+        (e) =>
+            !e.isIncome &&
+            e.currency == currency &&
+            !e.date.isBefore(from) &&
+            !e.date.isAfter(to),
+      )) {
+        grouped.putIfAbsent(expense.displayMerchant, () => []).add(expense);
+      }
+      final rows = grouped.entries
+          .map(
+            (entry) => <String, dynamic>{
+              'merchant': entry.key,
+              'total': entry.value.fold(0.0, (sum, e) => sum + e.amount),
+              'txn_count': entry.value.length,
+            },
+          )
+          .toList();
+      rows.sort(
+        (a, b) => (b['total'] as double).compareTo(a['total'] as double),
+      );
+      return rows;
     });
 
 final currentMonthBalanceProvider = FutureProvider<Map<String, double>>((
   ref,
 ) async {
-  ref.watch(expenseListProvider);
+  final expenses = await ref.watch(expenseListProvider.future);
+  final currency = ref.watch(preferredCurrencyProvider);
   final now = DateTime.now();
-  return ref.read(databaseProvider).getMonthlyBalance(now.year, now.month);
+  final month = expenses.where(
+    (e) =>
+        e.currency == currency &&
+        e.date.year == now.year &&
+        e.date.month == now.month,
+  );
+  return {
+    'income': month
+        .where((e) => e.isIncome)
+        .fold(0.0, (sum, e) => sum + e.amount),
+    'expense': month
+        .where((e) => !e.isIncome)
+        .fold(0.0, (sum, e) => sum + e.amount),
+  };
+});
+
+/// A local, explainable forecast that turns balances, bills, budgets and goals
+/// into one safe-to-spend number and one recommended next action.
+final moneyBriefingProvider = Provider<MoneyBriefing?>((ref) {
+  final expenses = ref.watch(expenseListProvider).asData?.value;
+  if (expenses == null) return null;
+  final currency = ref.watch(preferredCurrencyProvider);
+  final budgets = ref.watch(budgetListProvider).asData?.value ?? const [];
+  final goals = ref.watch(savingsGoalsProvider).asData?.value ?? const [];
+  final plan = ref.watch(monthlyPlanProvider);
+  return MoneyBriefingService.compute(
+    expenses: expenses.where((e) => e.currency == currency).toList(),
+    budgets: budgets,
+    goals: goals,
+    plannedIncome: plan.income,
+    safetyBuffer: plan.buffer,
+  );
 });
 
 // ─── Spending insights & anomalies ────────────────────────────────────────
@@ -426,14 +608,20 @@ final spendingInsightsProvider = FutureProvider<List<SpendingInsight>>((
   ref,
 ) async {
   final expenses = ref.watch(expenseListProvider).asData?.value ?? [];
-  return InsightsService.compute(expenses);
+  final currency = ref.watch(preferredCurrencyProvider);
+  return InsightsService.compute(
+    expenses.where((e) => e.currency == currency).toList(),
+  );
 });
 
 final anomalyAlertsProvider = FutureProvider<List<SpendingInsight>>((
   ref,
 ) async {
   final expenses = ref.watch(expenseListProvider).asData?.value ?? [];
-  return AnomalyDetector.detect(expenses);
+  final currency = ref.watch(preferredCurrencyProvider);
+  return AnomalyDetector.detect(
+    expenses.where((e) => e.currency == currency).toList(),
+  );
 });
 
 // ─── Financial health score ────────────────────────────────────────────────
@@ -447,15 +635,23 @@ final financialHealthScoreProvider = FutureProvider<FinancialHealthScore>((
   final prevMonth = now.month == 1
       ? DateTime(now.year - 1, 12)
       : DateTime(now.year, now.month - 1);
-  final prevBalance = await ref
-      .read(databaseProvider)
-      .getMonthlyBalance(prevMonth.year, prevMonth.month);
+  final expenses = await ref.watch(expenseListProvider.future);
+  final currency = ref.watch(preferredCurrencyProvider);
+  final previousExpense = expenses
+      .where(
+        (e) =>
+            !e.isIncome &&
+            e.currency == currency &&
+            e.date.year == prevMonth.year &&
+            e.date.month == prevMonth.month,
+      )
+      .fold(0.0, (sum, e) => sum + e.amount);
 
   return FinancialHealthScore.compute(
     totalIncome: balance['income'] ?? 0,
     totalExpense: balance['expense'] ?? 0,
     budgetProgress: budgetProg,
-    previousMonthExpense: prevBalance['expense'] ?? 0,
+    previousMonthExpense: previousExpense,
   );
 });
 
@@ -465,16 +661,72 @@ final merchantStatsProvider = FutureProvider.family<MerchantStats, String>((
   ref,
   merchant,
 ) async {
-  return ref.read(databaseProvider).getMerchantStats(merchant);
+  final currency = ref.watch(preferredCurrencyProvider);
+  final expenses = await ref.watch(expenseListProvider.future);
+  final items =
+      expenses
+          .where(
+            (e) =>
+                !e.isIncome &&
+                e.currency == currency &&
+                e.displayMerchant.toLowerCase() == merchant.toLowerCase(),
+          )
+          .toList()
+        ..sort((a, b) => a.date.compareTo(b.date));
+  final total = items.fold(0.0, (sum, e) => sum + e.amount);
+  final now = DateTime.now();
+  final monthly = <MonthlyMerchantTotal>[];
+  for (var offset = 5; offset >= 0; offset--) {
+    final date = DateTime(now.year, now.month - offset);
+    monthly.add(
+      MonthlyMerchantTotal(
+        year: date.year,
+        month: date.month,
+        total: items
+            .where(
+              (e) => e.date.year == date.year && e.date.month == date.month,
+            )
+            .fold(0.0, (sum, e) => sum + e.amount),
+      ),
+    );
+  }
+  return MerchantStats(
+    merchant: merchant,
+    lifetimeTotal: total,
+    transactionCount: items.length,
+    firstTransactionDate: items.firstOrNull?.date,
+    averageAmount: items.isEmpty ? 0 : total / items.length,
+    monthlyTotals: monthly,
+  );
 });
 
 // ─── Heatmap data ──────────────────────────────────────────────────────────
 
 final heatmapDataProvider = FutureProvider<Map<DateTime, double>>((ref) async {
-  ref.watch(expenseListProvider);
+  final currency = ref.watch(preferredCurrencyProvider);
+  final expenses = await ref.watch(expenseListProvider.future);
   final to = DateTime.now();
   final from = to.subtract(const Duration(days: 364));
-  return ref.read(databaseProvider).getDailyTotals(from, to);
+  final totals = <DateTime, double>{};
+  for (final expense in expenses.where(
+    (e) =>
+        !e.isIncome &&
+        e.currency == currency &&
+        !e.date.isBefore(from) &&
+        !e.date.isAfter(to),
+  )) {
+    final day = DateTime(
+      expense.date.year,
+      expense.date.month,
+      expense.date.day,
+    );
+    totals.update(
+      day,
+      (value) => value + expense.amount,
+      ifAbsent: () => expense.amount,
+    );
+  }
+  return totals;
 });
 
 // ─── Year in review ────────────────────────────────────────────────────────
@@ -483,8 +735,59 @@ final yearInReviewProvider = FutureProvider.family<Map<String, dynamic>, int>((
   ref,
   year,
 ) async {
-  ref.watch(expenseListProvider);
-  return ref.read(databaseProvider).getYearInReview(year);
+  final currency = ref.watch(preferredCurrencyProvider);
+  final expenses = await ref.watch(expenseListProvider.future);
+  final items = expenses
+      .where(
+        (e) => !e.isIncome && e.currency == currency && e.date.year == year,
+      )
+      .toList();
+  final merchants = <String, double>{};
+  final categories = <String, double>{};
+  final days = <DateTime, double>{};
+  for (final expense in items) {
+    merchants.update(
+      expense.displayMerchant,
+      (v) => v + expense.amount,
+      ifAbsent: () => expense.amount,
+    );
+    categories.update(
+      expense.category,
+      (v) => v + expense.amount,
+      ifAbsent: () => expense.amount,
+    );
+    final day = DateTime(
+      expense.date.year,
+      expense.date.month,
+      expense.date.day,
+    );
+    days.update(day, (v) => v + expense.amount, ifAbsent: () => expense.amount);
+  }
+  MapEntry<String, double>? topMerchant;
+  MapEntry<String, double>? topCategory;
+  MapEntry<DateTime, double>? topDay;
+  if (merchants.isNotEmpty) {
+    topMerchant = merchants.entries.reduce((a, b) => a.value > b.value ? a : b);
+  }
+  if (categories.isNotEmpty) {
+    topCategory = categories.entries.reduce(
+      (a, b) => a.value > b.value ? a : b,
+    );
+  }
+  if (days.isNotEmpty) {
+    topDay = days.entries.reduce((a, b) => a.value > b.value ? a : b);
+  }
+  final daysInYear = DateTime(year + 1, 1, 1).difference(DateTime(year)).inDays;
+  return {
+    'topMerchant': topMerchant?.key,
+    'topMerchantTotal': topMerchant?.value ?? 0.0,
+    'topCategory': topCategory?.key,
+    'totalSpent': items.fold(0.0, (sum, e) => sum + e.amount),
+    'maxSpendDay': topDay?.key.toIso8601String(),
+    'maxSpendAmount': topDay?.value ?? 0.0,
+    'activeDays': days.length,
+    'zeroSpendDays': daysInYear - days.length,
+  };
 });
 
 // ─── Spending streak ──────────────────────────────────────────────────────
@@ -516,12 +819,26 @@ final spendingStreakProvider = FutureProvider<int>((ref) async {
 final previousMonthBalanceProvider = FutureProvider<Map<String, double>>((
   ref,
 ) async {
-  ref.watch(expenseListProvider);
+  final expenses = await ref.watch(expenseListProvider.future);
+  final currency = ref.watch(preferredCurrencyProvider);
   final now = DateTime.now();
   final prev = now.month == 1
       ? DateTime(now.year - 1, 12)
       : DateTime(now.year, now.month - 1);
-  return ref.read(databaseProvider).getMonthlyBalance(prev.year, prev.month);
+  final month = expenses.where(
+    (e) =>
+        e.currency == currency &&
+        e.date.year == prev.year &&
+        e.date.month == prev.month,
+  );
+  return {
+    'income': month
+        .where((e) => e.isIncome)
+        .fold(0.0, (sum, e) => sum + e.amount),
+    'expense': month
+        .where((e) => !e.isIncome)
+        .fold(0.0, (sum, e) => sum + e.amount),
+  };
 });
 
 // ─── Parsed SMS audit ─────────────────────────────────────────────────────
@@ -530,6 +847,52 @@ final parsedSmsAuditProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
 ) async {
   return ref.read(databaseProvider).getParsedSmsAudit();
+});
+
+class ActionDismissalsNotifier extends AsyncNotifier<Set<String>> {
+  @override
+  Future<Set<String>> build() =>
+      ref.watch(databaseProvider).getDismissedActionKeys();
+
+  Future<void> dismiss(String key) async {
+    await ref.read(databaseProvider).dismissAction(key);
+    state = AsyncValue.data({...?state.asData?.value, key});
+  }
+
+  Future<void> restore(String key) async {
+    await ref.read(databaseProvider).restoreAction(key);
+    final next = {...?state.asData?.value}..remove(key);
+    state = AsyncValue.data(next);
+  }
+}
+
+final actionDismissalsProvider =
+    AsyncNotifierProvider<ActionDismissalsNotifier, Set<String>>(
+      ActionDismissalsNotifier.new,
+    );
+
+final actionInboxProvider = FutureProvider<List<ActionItem>>((ref) async {
+  final expenses = await ref.watch(expenseListProvider.future);
+  final currency = ref.watch(preferredCurrencyProvider);
+  final budgets = await ref.watch(budgetListProvider.future);
+  final goals = await ref.watch(savingsGoalsProvider.future);
+  final audit = await ref.watch(parsedSmsAuditProvider.future);
+  final dismissed = await ref.watch(actionDismissalsProvider.future);
+  final plan = ref.watch(monthlyPlanProvider);
+  final briefing = MoneyBriefingService.compute(
+    expenses: expenses.where((e) => e.currency == currency).toList(),
+    budgets: budgets,
+    goals: goals,
+    plannedIncome: plan.income,
+    safetyBuffer: plan.buffer,
+  );
+  return ActionInboxService.compute(
+    expenses: expenses.where((e) => e.currency == currency).toList(),
+    budgets: budgets,
+    smsAudit: audit,
+    briefing: briefing,
+    dismissedKeys: dismissed,
+  );
 });
 
 // ─── AI Logs ──────────────────────────────────────────────────────────────
@@ -661,6 +1024,7 @@ class SyncNotifier extends Notifier<SyncState> {
       apiKey: ref.read(ollamaApiKeyProvider),
       baseUrl: ref.read(ollamaBaseUrlProvider),
       model: ref.read(ollamaModelProvider),
+      currency: ref.read(preferredCurrencyProvider),
     );
     final lookbackDays = ref.read(syncLookbackProvider);
 

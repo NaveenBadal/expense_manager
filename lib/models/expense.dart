@@ -35,7 +35,11 @@ class Expense {
   /// Parsed tag list from the comma-separated [tags] field.
   List<String> get tagList => tags.isEmpty
       ? []
-      : tags.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+      : tags
+            .split(',')
+            .map((t) => t.trim())
+            .where((t) => t.isNotEmpty)
+            .toList();
 
   Expense copyWith({
     int? id,
@@ -50,51 +54,50 @@ class Expense {
     double? splitShare,
     bool? isRecurring,
     String? normalizedMerchant,
-  }) =>
-      Expense(
-        id: id ?? this.id,
-        amount: amount ?? this.amount,
-        currency: currency ?? this.currency,
-        merchant: merchant ?? this.merchant,
-        category: category ?? this.category,
-        date: date ?? this.date,
-        originalSms: originalSms ?? this.originalSms,
-        type: type ?? this.type,
-        tags: tags ?? this.tags,
-        splitShare: splitShare ?? this.splitShare,
-        isRecurring: isRecurring ?? this.isRecurring,
-        normalizedMerchant: normalizedMerchant ?? this.normalizedMerchant,
-      );
+  }) => Expense(
+    id: id ?? this.id,
+    amount: amount ?? this.amount,
+    currency: currency ?? this.currency,
+    merchant: merchant ?? this.merchant,
+    category: category ?? this.category,
+    date: date ?? this.date,
+    originalSms: originalSms ?? this.originalSms,
+    type: type ?? this.type,
+    tags: tags ?? this.tags,
+    splitShare: splitShare ?? this.splitShare,
+    isRecurring: isRecurring ?? this.isRecurring,
+    normalizedMerchant: normalizedMerchant ?? this.normalizedMerchant,
+  );
 
   Map<String, dynamic> toMap() => {
-        'id': id,
-        'amount': amount,
-        'currency': currency,
-        'merchant': merchant,
-        'category': category,
-        'date': date.toIso8601String(),
-        'originalSms': originalSms,
-        'type': type,
-        'tags': tags,
-        'split_share': splitShare,
-        'is_recurring': isRecurring ? 1 : 0,
-        'normalized_merchant': normalizedMerchant,
-      };
+    'id': id,
+    'amount': amount,
+    'currency': currency,
+    'merchant': merchant,
+    'category': category,
+    'date': date.toIso8601String(),
+    'originalSms': originalSms,
+    'type': type,
+    'tags': tags,
+    'split_share': splitShare,
+    'is_recurring': isRecurring ? 1 : 0,
+    'normalized_merchant': normalizedMerchant,
+  };
 
   factory Expense.fromMap(Map<String, dynamic> map) => Expense(
-        id: map['id'] as int?,
-        amount: (map['amount'] as num).toDouble(),
-        currency: map['currency'] as String,
-        merchant: map['merchant'] as String,
-        category: map['category'] as String,
-        date: DateTime.parse(map['date'] as String),
-        originalSms: map['originalSms'] as String,
-        type: map['type'] as String? ?? 'expense',
-        tags: map['tags'] as String? ?? '',
-        splitShare: map['split_share'] != null
-            ? (map['split_share'] as num).toDouble()
-            : null,
-        isRecurring: (map['is_recurring'] as int? ?? 0) == 1,
-        normalizedMerchant: map['normalized_merchant'] as String?,
-      );
+    id: map['id'] as int?,
+    amount: (map['amount'] as num).toDouble(),
+    currency: map['currency'] as String,
+    merchant: map['merchant'] as String,
+    category: map['category'] as String,
+    date: DateTime.parse(map['date'] as String),
+    originalSms: map['originalSms'] as String,
+    type: map['type'] as String? ?? 'expense',
+    tags: map['tags'] as String? ?? '',
+    splitShare: map['split_share'] != null
+        ? (map['split_share'] as num).toDouble()
+        : null,
+    isRecurring: (map['is_recurring'] as int? ?? 0) == 1,
+    normalizedMerchant: map['normalized_merchant'] as String?,
+  );
 }

@@ -43,7 +43,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
     _tags = TextEditingController(text: item?.tags ?? '');
     _type = item?.type ?? 'expense';
     _category = item?.category ?? 'Others';
-    _currency = item?.currency ?? 'INR';
+    _currency = item?.currency ?? ref.read(preferredCurrencyProvider);
     _date = item?.date ?? DateTime.now();
   }
 

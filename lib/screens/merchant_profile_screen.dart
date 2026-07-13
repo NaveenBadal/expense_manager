@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 
 import '../models/expense.dart';
 import '../providers/expense_provider.dart';
-import '../services/database_helper.dart';
 import '../theme/app_tokens.dart';
 import '../utils/category_utils.dart';
 import '../utils/currency_utils.dart';
@@ -17,182 +16,180 @@ class MerchantProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(merchantStatsProvider(merchant));
     final hidden = ref.watch(privateModeProvider);
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(title: Text(merchant)),
-          async.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
+    final currency = ref.watch(preferredCurrencyProvider);
+    final movements =
+        ref
+            .watch(expenseListProvider)
+            .asData
+            ?.value
+            .where(
+              (e) =>
+                  e.currency == currency &&
+                  e.displayMerchant.toLowerCase() == merchant.toLowerCase(),
+            )
+            .toList() ??
+        const <Expense>[];
+    return CommandScaffold(
+      eyebrow: 'Merchant dossier',
+      title: merchant,
+      slivers: [
+        async.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => SliverFillRemaining(
+            child: StatePanel(
+              icon: Icons.storefront_outlined,
+              title: 'Merchant unavailable',
+              message: '$error',
             ),
-            error: (error, _) => SliverFillRemaining(
-              child: StatePanel(
-                icon: Icons.storefront_outlined,
-                title: 'Merchant unavailable',
-                message: '$error',
-              ),
-            ),
-            data: (stats) => SliverMainAxisGroup(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.inverseSurface,
-                        borderRadius: AppRadius.all(AppRadius.xxl),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 54,
-                                height: 54,
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  borderRadius: AppRadius.all(18),
+          ),
+          data: (stats) => SliverMainAxisGroup(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.inverseSurface,
+                      borderRadius: AppRadius.all(AppRadius.xxl),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 54,
+                              height: 54,
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                borderRadius: AppRadius.all(18),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  merchant.characters.first.toUpperCase(),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onPrimary,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    merchant.characters.first.toUpperCase(),
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    merchant,
                                     style: Theme.of(context)
                                         .textTheme
-                                        .headlineSmall
+                                        .titleLarge
                                         ?.copyWith(
                                           color: Theme.of(
                                             context,
-                                          ).colorScheme.onPrimary,
+                                          ).colorScheme.onInverseSurface,
                                           fontWeight: FontWeight.w800,
                                         ),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 15),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
+                                  if (stats.firstTransactionDate != null)
                                     Text(
-                                      merchant,
+                                      'In your ledger since ${DateFormat('MMMM yyyy').format(stats.firstTransactionDate!)}',
                                       style: Theme.of(context)
                                           .textTheme
-                                          .titleLarge
+                                          .bodySmall
                                           ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onInverseSurface,
-                                            fontWeight: FontWeight.w800,
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .onInverseSurface
+                                                .withValues(alpha: .62),
                                           ),
                                     ),
-                                    if (stats.firstTransactionDate != null)
-                                      Text(
-                                        'In your ledger since ${DateFormat('MMMM yyyy').format(stats.firstTransactionDate!)}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .onInverseSurface
-                                                  .withValues(alpha: .62),
-                                            ),
-                                      ),
-                                  ],
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 24),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _Datum(
-                                  label: 'Lifetime',
-                                  value: hidden
-                                      ? maskAmount('INR')
-                                      : formatAmount(
-                                          stats.lifetimeTotal,
-                                          'INR',
-                                        ),
-                                ),
-                              ),
-                              Expanded(
-                                child: _Datum(
-                                  label: 'Average',
-                                  value: hidden
-                                      ? maskAmount('INR')
-                                      : formatAmount(
-                                          stats.averageAmount,
-                                          'INR',
-                                        ),
-                                ),
-                              ),
-                              Expanded(
-                                child: _Datum(
-                                  label: 'Visits',
-                                  value: '${stats.transactionCount}',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SectionLabel('Six-month rhythm'),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: SizedBox(
-                      height: 130,
-                      child: _MiniBars(
-                        values: stats.monthlyTotals
-                            .map((e) => e.total)
-                            .toList(),
-                        labels: stats.monthlyTotals
-                            .map(
-                              (e) => DateFormat(
-                                'MMM',
-                              ).format(DateTime(e.year, e.month)),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ),
-                ),
-                const SliverToBoxAdapter(
-                  child: SectionLabel('Movement history'),
-                ),
-                SliverToBoxAdapter(
-                  child: FutureBuilder<List<Expense>>(
-                    future: DatabaseHelper.instance.getExpensesByMerchant(
-                      merchant,
-                    ),
-                    builder: (context, snapshot) {
-                      final items = snapshot.data ?? const [];
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                        child: Column(
-                          children: [
-                            for (final e in items)
-                              _Movement(expense: e, hidden: hidden),
+                            ),
                           ],
                         ),
-                      );
-                    },
+                        const SizedBox(height: 24),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _Datum(
+                                label: 'Lifetime',
+                                value: hidden
+                                    ? maskAmount(currency)
+                                    : formatAmount(
+                                        stats.lifetimeTotal,
+                                        currency,
+                                      ),
+                              ),
+                            ),
+                            Expanded(
+                              child: _Datum(
+                                label: 'Average',
+                                value: hidden
+                                    ? maskAmount(currency)
+                                    : formatAmount(
+                                        stats.averageAmount,
+                                        currency,
+                                      ),
+                              ),
+                            ),
+                            Expanded(
+                              child: _Datum(
+                                label: 'Visits',
+                                value: '${stats.transactionCount}',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              const SliverToBoxAdapter(child: SectionLabel('Six-month rhythm')),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: SizedBox(
+                    height: 130,
+                    child: _MiniBars(
+                      values: stats.monthlyTotals.map((e) => e.total).toList(),
+                      labels: stats.monthlyTotals
+                          .map(
+                            (e) => DateFormat(
+                              'MMM',
+                            ).format(DateTime(e.year, e.month)),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SectionLabel('Movement history')),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                  child: Column(
+                    children: [
+                      for (final e in movements)
+                        _Movement(expense: e, hidden: hidden),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -23,11 +23,13 @@ class CategorizationService {
     required this.apiKey,
     this.baseUrl = defaultOllamaBaseUrl,
     this.model = defaultOllamaModel,
+    this.currency = 'INR',
   });
 
   final String apiKey;
   final String baseUrl;
   final String model;
+  final String currency;
 
   Future<SmsBatchResult> parseSmsBatch(
     List<Map<String, dynamic>> smsList,
@@ -92,7 +94,7 @@ class CategorizationService {
         expenses.add(
           Expense(
             amount: amount,
-            currency: 'INR',
+            currency: currency,
             merchant: merchant,
             normalizedMerchant: normalized != merchant ? normalized : null,
             category: category,

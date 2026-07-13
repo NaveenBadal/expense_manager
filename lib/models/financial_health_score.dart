@@ -44,20 +44,28 @@ class FinancialHealthScore {
     final budgetAdherence = budgetProgress.isEmpty
         ? 0.5
         : budgetProgress
-                .where((b) =>
-                    (b['spent'] as num).toDouble() <=
-                    (b['limit_amount'] as num).toDouble())
-                .length /
-            budgetProgress.length;
+                  .where(
+                    (b) =>
+                        (b['spent'] as num).toDouble() <=
+                        (b['limit_amount'] as num).toDouble(),
+                  )
+                  .length /
+              budgetProgress.length;
 
     // Trend score: lower expense vs previous month = better
-    final trendScore = previousMonthExpense > 0 && totalExpense < previousMonthExpense
+    final trendScore =
+        previousMonthExpense > 0 && totalExpense < previousMonthExpense
         ? 1.0
         : previousMonthExpense > 0
-            ? (1.0 - ((totalExpense - previousMonthExpense) / previousMonthExpense).clamp(0.0, 1.0))
-            : 0.5;
+        ? (1.0 -
+              ((totalExpense - previousMonthExpense) / previousMonthExpense)
+                  .clamp(0.0, 1.0))
+        : 0.5;
 
-    final score = ((savingsRate * 40) + (budgetAdherence * 35) + (trendScore * 25)).round().clamp(0, 100);
+    final score =
+        ((savingsRate * 40) + (budgetAdherence * 35) + (trendScore * 25))
+            .round()
+            .clamp(0, 100);
 
     return FinancialHealthScore(
       score: score,

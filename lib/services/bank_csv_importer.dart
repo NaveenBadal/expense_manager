@@ -7,7 +7,10 @@ import 'merchant_normalizer.dart';
 class BankCsvImporter {
   const BankCsvImporter();
 
-  static Future<List<Expense>> parse(File file) async {
+  static Future<List<Expense>> parse(
+    File file, {
+    String currency = 'INR',
+  }) async {
     final lines = await file.readAsLines();
     if (lines.isEmpty) return [];
 
@@ -22,19 +25,44 @@ class BankCsvImporter {
     }
     if (headerIndex < 0) return [];
 
-    final headers = _splitCsv(lines[headerIndex])
-        .map((h) => h.toLowerCase().trim().replaceAll('"', ''))
-        .toList();
+    final headers = _splitCsv(
+      lines[headerIndex],
+    ).map((h) => h.toLowerCase().trim().replaceAll('"', '')).toList();
 
     // Detect column indices
-    final dateCol = _findCol(headers, ['date', 'txn date', 'transaction date', 'value date']);
-    final descCol = _findCol(headers, [
-      'description', 'narration', 'particulars', 'remarks', 'transaction details',
-      'transaction remarks', 'details', 'merchant'
+    final dateCol = _findCol(headers, [
+      'date',
+      'txn date',
+      'transaction date',
+      'value date',
     ]);
-    final debitCol = _findCol(headers, ['debit', 'debit amount', 'withdrawal', 'withdrawal amt']);
-    final creditCol = _findCol(headers, ['credit', 'credit amount', 'deposit', 'deposit amt']);
-    final amtCol = _findCol(headers, ['amount', 'transaction amount', 'txn amount']);
+    final descCol = _findCol(headers, [
+      'description',
+      'narration',
+      'particulars',
+      'remarks',
+      'transaction details',
+      'transaction remarks',
+      'details',
+      'merchant',
+    ]);
+    final debitCol = _findCol(headers, [
+      'debit',
+      'debit amount',
+      'withdrawal',
+      'withdrawal amt',
+    ]);
+    final creditCol = _findCol(headers, [
+      'credit',
+      'credit amount',
+      'deposit',
+      'deposit amt',
+    ]);
+    final amtCol = _findCol(headers, [
+      'amount',
+      'transaction amount',
+      'txn amount',
+    ]);
 
     if (dateCol < 0 || descCol < 0 || (debitCol < 0 && amtCol < 0)) {
       return [];
@@ -63,8 +91,12 @@ class BankCsvImporter {
             type = 'income';
           }
         } else {
-          final debit = debitCol >= 0 ? _parseAmount(_cell(row, debitCol)) : 0.0;
-          final credit = creditCol >= 0 ? _parseAmount(_cell(row, creditCol)) : 0.0;
+          final debit = debitCol >= 0
+              ? _parseAmount(_cell(row, debitCol))
+              : 0.0;
+          final credit = creditCol >= 0
+              ? _parseAmount(_cell(row, creditCol))
+              : 0.0;
           if (debit > 0) {
             amount = debit;
             type = 'expense';
@@ -80,16 +112,18 @@ class BankCsvImporter {
 
         final merchant = MerchantNormalizer.normalize(desc);
 
-        expenses.add(Expense(
-          amount: amount,
-          currency: 'INR',
-          merchant: desc,
-          normalizedMerchant: merchant != desc ? merchant : null,
-          category: _guessCategory(desc),
-          date: date,
-          originalSms: 'imported:csv',
-          type: type,
-        ));
+        expenses.add(
+          Expense(
+            amount: amount,
+            currency: currency,
+            merchant: desc,
+            normalizedMerchant: merchant != desc ? merchant : null,
+            category: _guessCategory(desc),
+            date: date,
+            originalSms: 'imported:csv',
+            type: type,
+          ),
+        );
       } catch (_) {
         // Skip malformed rows
       }
@@ -135,7 +169,8 @@ class BankCsvImporter {
     final m0 = formats[0].firstMatch(cleaned);
     if (m0 != null) {
       return DateTime.tryParse(
-          '${m0.group(3)!}-${m0.group(2)!.padLeft(2, '0')}-${m0.group(1)!.padLeft(2, '0')}');
+        '${m0.group(3)!}-${m0.group(2)!.padLeft(2, '0')}-${m0.group(1)!.padLeft(2, '0')}',
+      );
     }
 
     final m1 = formats[1].firstMatch(cleaned);
@@ -146,7 +181,8 @@ class BankCsvImporter {
       final year = int.tryParse(m2.group(3)!) ?? 0;
       final fullYear = year < 50 ? 2000 + year : 1900 + year;
       return DateTime.tryParse(
-          '$fullYear-${m2.group(2)!.padLeft(2, '0')}-${m2.group(1)!.padLeft(2, '0')}');
+        '$fullYear-${m2.group(2)!.padLeft(2, '0')}-${m2.group(1)!.padLeft(2, '0')}',
+      );
     }
 
     return null;
@@ -174,32 +210,60 @@ class BankCsvImporter {
 
   static String _guessCategory(String desc) {
     final d = desc.toLowerCase();
-    if (d.contains('swiggy') || d.contains('zomato') || d.contains('restaurant') ||
-        d.contains('food') || d.contains('cafe') || d.contains('pizza') ||
-        d.contains('kfc') || d.contains('mcdonald')) {
+    if (d.contains('swiggy') ||
+        d.contains('zomato') ||
+        d.contains('restaurant') ||
+        d.contains('food') ||
+        d.contains('cafe') ||
+        d.contains('pizza') ||
+        d.contains('kfc') ||
+        d.contains('mcdonald')) {
       return 'Food';
     }
-    if (d.contains('uber') || d.contains('ola') || d.contains('metro') ||
-        d.contains('petrol') || d.contains('fuel') || d.contains('irctc') ||
-        d.contains('indigo') || d.contains('spicejet')) {
+    if (d.contains('uber') ||
+        d.contains('ola') ||
+        d.contains('metro') ||
+        d.contains('petrol') ||
+        d.contains('fuel') ||
+        d.contains('irctc') ||
+        d.contains('indigo') ||
+        d.contains('spicejet')) {
       return 'Transport';
     }
-    if (d.contains('netflix') || d.contains('spotify') || d.contains('prime') ||
-        d.contains('hotstar') || d.contains('youtube') || d.contains('movie') ||
-        d.contains('pvr') || d.contains('inox')) {
+    if (d.contains('netflix') ||
+        d.contains('spotify') ||
+        d.contains('prime') ||
+        d.contains('hotstar') ||
+        d.contains('youtube') ||
+        d.contains('movie') ||
+        d.contains('pvr') ||
+        d.contains('inox')) {
       return 'Entertainment';
     }
-    if (d.contains('electricity') || d.contains('water') || d.contains('gas') ||
-        d.contains('broadband') || d.contains('airtel') || d.contains('jio') ||
-        d.contains('bsnl') || d.contains('utility')) {
+    if (d.contains('electricity') ||
+        d.contains('water') ||
+        d.contains('gas') ||
+        d.contains('broadband') ||
+        d.contains('airtel') ||
+        d.contains('jio') ||
+        d.contains('bsnl') ||
+        d.contains('utility')) {
       return 'Utilities';
     }
-    if (d.contains('amazon') || d.contains('flipkart') || d.contains('myntra') ||
-        d.contains('meesho') || d.contains('nykaa') || d.contains('ajio')) {
+    if (d.contains('amazon') ||
+        d.contains('flipkart') ||
+        d.contains('myntra') ||
+        d.contains('meesho') ||
+        d.contains('nykaa') ||
+        d.contains('ajio')) {
       return 'Shopping';
     }
-    if (d.contains('hospital') || d.contains('pharmacy') || d.contains('apollo') ||
-        d.contains('medic') || d.contains('doctor') || d.contains('clinic')) {
+    if (d.contains('hospital') ||
+        d.contains('pharmacy') ||
+        d.contains('apollo') ||
+        d.contains('medic') ||
+        d.contains('doctor') ||
+        d.contains('clinic')) {
       return 'Health';
     }
     return 'Others';

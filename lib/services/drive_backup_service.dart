@@ -9,7 +9,7 @@ import 'database_helper.dart';
 
 class DriveBackupService {
   static final DriveBackupService instance = DriveBackupService._();
-  
+
   late final GoogleSignIn _googleSignIn;
   GoogleSignInAccount? _currentUser;
   StreamSubscription<GoogleSignInAuthenticationEvent>? _subscription;
@@ -53,9 +53,11 @@ class DriveBackupService {
     final account = await _ensureSignedIn();
     if (account == null) return false;
 
-    final headers = await account.authorizationClient.authorizationHeaders(_scopes);
+    final headers = await account.authorizationClient.authorizationHeaders(
+      _scopes,
+    );
     if (headers == null) return false;
-    
+
     final client = _AuthenticatedClient(headers);
 
     try {
@@ -73,10 +75,7 @@ class DriveBackupService {
         $fields: 'files(id)',
       );
 
-      final media = drive.Media(
-        localFile.openRead(),
-        localFile.lengthSync(),
-      );
+      final media = drive.Media(localFile.openRead(), localFile.lengthSync());
 
       if (existing.files != null && existing.files!.isNotEmpty) {
         // Update existing file
@@ -104,7 +103,9 @@ class DriveBackupService {
     final account = await _ensureSignedIn();
     if (account == null) return false;
 
-    final headers = await account.authorizationClient.authorizationHeaders(_scopes);
+    final headers = await account.authorizationClient.authorizationHeaders(
+      _scopes,
+    );
     if (headers == null) return false;
 
     final client = _AuthenticatedClient(headers);
@@ -123,22 +124,24 @@ class DriveBackupService {
       }
 
       final fileId = existing.files!.first.id!;
-      final response = await driveApi.files.get(
-        fileId,
-        downloadOptions: drive.DownloadOptions.fullMedia,
-      ) as drive.Media;
+      final response =
+          await driveApi.files.get(
+                fileId,
+                downloadOptions: drive.DownloadOptions.fullMedia,
+              )
+              as drive.Media;
 
       // Close current DB connection before overwriting
       await DatabaseHelper.instance.close();
 
       final dbPath = await getDatabasesPath();
       final localFile = File(join(dbPath, 'expenses.db'));
-      
+
       final sink = localFile.openWrite();
       await response.stream.pipe(sink);
       await sink.flush();
       await sink.close();
-      
+
       return true;
     } catch (e) {
       return false;
@@ -150,7 +153,8 @@ class DriveBackupService {
   Future<GoogleSignInAccount?> _ensureSignedIn() async {
     final current = _currentUser;
     if (current != null) return current;
-    return await _googleSignIn.attemptLightweightAuthentication() ?? await _googleSignIn.authenticate();
+    return await _googleSignIn.attemptLightweightAuthentication() ??
+        await _googleSignIn.authenticate();
   }
 
   void dispose() {

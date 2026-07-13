@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 import 'providers/expense_provider.dart';
+import 'providers/development_update_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/activity_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -13,6 +14,7 @@ import 'screens/onboarding_screen.dart';
 import 'screens/plan_screen.dart';
 import 'services/notification_service.dart';
 import 'services/drive_backup_service.dart';
+import 'widgets/global_quick_action.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -200,6 +202,9 @@ class _AppShellState extends ConsumerState<AppShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(developmentUpdateProvider.notifier).check(silent: true);
+    });
   }
 
   @override
@@ -220,29 +225,6 @@ class _AppShellState extends ConsumerState<AppShell>
     }
   }
 
-  static const _destinations = [
-    NavigationDestination(
-      icon: Icon(Icons.home_outlined),
-      selectedIcon: Icon(Icons.home_rounded),
-      label: 'Today',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.receipt_long_outlined),
-      selectedIcon: Icon(Icons.receipt_long_rounded),
-      label: 'Activity',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.track_changes_outlined),
-      selectedIcon: Icon(Icons.track_changes_rounded),
-      label: 'Plan',
-    ),
-    NavigationDestination(
-      icon: Icon(Icons.auto_graph_outlined),
-      selectedIcon: Icon(Icons.auto_graph_rounded),
-      label: 'Insights',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final body = IndexedStack(index: _index, children: _pages);
@@ -259,10 +241,17 @@ class _AppShellState extends ConsumerState<AppShell>
                     onDestinationSelected: (i) => setState(() => _index = i),
                     leading: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 18),
-                      child: Icon(
-                        Icons.bolt_rounded,
-                        size: 30,
-                        color: Theme.of(context).colorScheme.primary,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.bolt_rounded,
+                            size: 30,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(height: 18),
+                          const GlobalQuickActionButton(small: true),
+                        ],
                       ),
                     ),
                     destinations: const [
@@ -305,39 +294,139 @@ class _AppShellState extends ConsumerState<AppShell>
           body: body,
           bottomNavigationBar: SafeArea(
             minimum: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainer.withValues(alpha: 0.94),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.outlineVariant.withValues(alpha: 0.45),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(28),
-                child: NavigationBar(
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  selectedIndex: _index,
-                  onDestinationSelected: (i) => setState(() => _index = i),
-                  destinations: _destinations,
-                ),
-              ),
+            child: _ActionDock(
+              selectedIndex: _index,
+              onSelected: (i) => setState(() => _index = i),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _ActionDock extends StatelessWidget {
+  const _ActionDock({required this.selectedIndex, required this.onSelected});
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  static const _items = [
+    (Icons.home_outlined, Icons.home_rounded, 'Today'),
+    (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Activity'),
+    (Icons.track_changes_outlined, Icons.track_changes_rounded, 'Plan'),
+    (Icons.auto_graph_outlined, Icons.auto_graph_rounded, 'Insights'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 78,
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer.withValues(alpha: .96),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: .45)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .12),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _DockItem(
+            item: _items[0],
+            selected: selectedIndex == 0,
+            onTap: () => onSelected(0),
+          ),
+          _DockItem(
+            item: _items[1],
+            selected: selectedIndex == 1,
+            onTap: () => onSelected(1),
+          ),
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GlobalQuickActionButton(),
+                SizedBox(height: 2),
+                Text(
+                  'Add',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          _DockItem(
+            item: _items[2],
+            selected: selectedIndex == 2,
+            onTap: () => onSelected(2),
+          ),
+          _DockItem(
+            item: _items[3],
+            selected: selectedIndex == 3,
+            onTap: () => onSelected(3),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DockItem extends StatelessWidget {
+  const _DockItem({
+    required this.item,
+    required this.selected,
+    required this.onTap,
+  });
+  final (IconData, IconData, String) item;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Semantics(
+        selected: selected,
+        button: true,
+        label: item.$3,
+        child: InkResponse(
+          onTap: onTap,
+          radius: 30,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? scheme.primaryContainer
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Icon(selected ? item.$2 : item.$1, size: 21),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                item.$3,
+                maxLines: 1,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontSize: 10,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -16,7 +16,10 @@ class MerchantNormalizer {
     // Streaming
     (RegExp(r'NETFLIX', caseSensitive: false), 'Netflix'),
     (RegExp(r'SPOTIFY', caseSensitive: false), 'Spotify'),
-    (RegExp(r'PRIME\s*VIDEO|AMAZON\s*PRIME', caseSensitive: false), 'Amazon Prime'),
+    (
+      RegExp(r'PRIME\s*VIDEO|AMAZON\s*PRIME', caseSensitive: false),
+      'Amazon Prime',
+    ),
     (RegExp(r'HOTSTAR|DISNEY', caseSensitive: false), 'Disney+ Hotstar'),
     (RegExp(r'YOUTUBE\s*PREMIUM', caseSensitive: false), 'YouTube Premium'),
     (RegExp(r'SONYLIV', caseSensitive: false), 'SonyLIV'),
@@ -61,7 +64,10 @@ class MerchantNormalizer {
     (RegExp(r'\bRELIANCE\s*FRESH\b', caseSensitive: false), 'Reliance Fresh'),
     (RegExp(r'\bSPENCERS?\b', caseSensitive: false), "Spencer's"),
     // Health
-    (RegExp(r'APOLLO\s*PHARMA|APOLLOPHARMACY', caseSensitive: false), 'Apollo Pharmacy'),
+    (
+      RegExp(r'APOLLO\s*PHARMA|APOLLOPHARMACY', caseSensitive: false),
+      'Apollo Pharmacy',
+    ),
     (RegExp(r'NETMEDS', caseSensitive: false), 'Netmeds'),
     (RegExp(r'PHARMEASY', caseSensitive: false), 'PharmEasy'),
     (RegExp(r'1MG|TATA\s*1MG', caseSensitive: false), 'Tata 1mg'),
@@ -80,8 +86,20 @@ class MerchantNormalizer {
         .replaceAll(RegExp(r'\*[A-Z0-9\-]+'), '') // *ORD-12345
         .replaceAll(RegExp(r'#[A-Z0-9\-]+'), '') // #TXN123
         .replaceAll(RegExp(r'\b[0-9]{6,}\b'), '') // long numbers
-        .replaceAll(RegExp(r'(PVT\.?\s*LTD\.?|LIMITED|LTD\.?|INC\.?|CORP\.?)', caseSensitive: false), '')
-        .replaceAll(RegExp(r'(TECHNOLOGIES?|INTERNET|DIGITAL|PAYMENTS?|SOLUTIONS?)', caseSensitive: false), '')
+        .replaceAll(
+          RegExp(
+            r'(PVT\.?\s*LTD\.?|LIMITED|LTD\.?|INC\.?|CORP\.?)',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'(TECHNOLOGIES?|INTERNET|DIGITAL|PAYMENTS?|SOLUTIONS?)',
+            caseSensitive: false,
+          ),
+          '',
+        )
         .replaceAll(RegExp(r'[_\-]+'), ' ')
         .replaceAll(RegExp(r'\s{2,}'), ' ')
         .trim();
@@ -91,7 +109,10 @@ class MerchantNormalizer {
     // Title-case the result
     return cleaned
         .split(' ')
-        .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1).toLowerCase())
+        .map(
+          (w) =>
+              w.isEmpty ? w : w[0].toUpperCase() + w.substring(1).toLowerCase(),
+        )
         .join(' ');
   }
 }

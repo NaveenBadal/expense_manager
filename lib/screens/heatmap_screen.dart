@@ -14,157 +14,170 @@ class HeatmapScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(heatmapDataProvider);
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          const SliverAppBar.large(title: Text('Spending calendar')),
-          async.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, _) => SliverFillRemaining(
-              child: StatePanel(
-                icon: Icons.calendar_month_outlined,
-                title: 'Calendar unavailable',
-                message: '$error',
-              ),
-            ),
-            data: (data) {
-              if (data.isEmpty) {
-                return const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: StatePanel(
-                    icon: Icons.calendar_month_rounded,
-                    title: 'No rhythm yet',
-                    message:
-                        'Your daily pattern will emerge as movements enter the ledger.',
-                  ),
-                );
-              }
-              final maximum = data.values.reduce(max);
-              final total = data.values.fold<double>(
-                0,
-                (sum, value) => sum + value,
-              );
-              final active = data.values.where((value) => value > 0).length;
-              final top = data.entries.toList()
-                ..sort((a, b) => b.value.compareTo(a.value));
-              return SliverMainAxisGroup(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: SizedBox(
-                              height: 125,
-                              child: MetricTile(
-                                label: 'Tracked year',
-                                value: formatAmount(total, 'INR'),
-                                icon: Icons.calendar_view_month_rounded,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: SizedBox(
-                              height: 125,
-                              child: MetricTile(
-                                label: 'Active days',
-                                value: '$active',
-                                icon: Icons.brightness_5_rounded,
-                                caption: '${365 - active} no-spend days',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SliverToBoxAdapter(
-                    child: SectionLabel('Last 16 weeks'),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Container(
-                        padding: const EdgeInsets.all(18),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.inverseSurface,
-                          borderRadius: AppRadius.all(AppRadius.xxl),
-                        ),
-                        child: _CalendarGrid(data: data, maximum: maximum),
-                      ),
-                    ),
-                  ),
-                  const SliverToBoxAdapter(
-                    child: SectionLabel('Highest-spend days'),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                    sliver: SliverList.separated(
-                      itemCount: min(6, top.length),
-                      separatorBuilder: (_, _) => Divider(
-                        height: 1,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.outlineVariant.withValues(alpha: .4),
-                      ),
-                      itemBuilder: (context, index) {
-                        final item = top[index];
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 5,
-                          ),
-                          leading: Container(
-                            width: 42,
-                            height: 42,
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.primary.withValues(alpha: .12),
-                              borderRadius: AppRadius.all(14),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${item.key.day}',
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.primary,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            DateFormat('EEEE').format(item.key),
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Text(
-                            DateFormat('d MMMM yyyy').format(item.key),
-                          ),
-                          trailing: Text(
-                            formatAmount(item.value, 'INR'),
-                            style: const TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              );
-            },
+    final hidden = ref.watch(privateModeProvider);
+    final currency = ref.watch(preferredCurrencyProvider);
+    return CommandScaffold(
+      eyebrow: 'Your daily rhythm',
+      title: 'Spending calendar',
+      slivers: [
+        async.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
           ),
-        ],
-      ),
+          error: (error, _) => SliverFillRemaining(
+            child: StatePanel(
+              icon: Icons.calendar_month_outlined,
+              title: 'Calendar unavailable',
+              message: '$error',
+            ),
+          ),
+          data: (data) {
+            if (data.isEmpty) {
+              return const SliverFillRemaining(
+                hasScrollBody: false,
+                child: StatePanel(
+                  icon: Icons.calendar_month_rounded,
+                  title: 'No rhythm yet',
+                  message:
+                      'Your daily pattern will emerge as movements enter the ledger.',
+                ),
+              );
+            }
+            final maximum = data.values.reduce(max);
+            final total = data.values.fold<double>(
+              0,
+              (sum, value) => sum + value,
+            );
+            final active = data.values.where((value) => value > 0).length;
+            final top = data.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value));
+            return SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 125,
+                            child: MetricTile(
+                              label: 'Tracked year',
+                              value: hidden
+                                  ? maskAmount(currency)
+                                  : formatAmount(total, currency),
+                              icon: Icons.calendar_view_month_rounded,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SizedBox(
+                            height: 125,
+                            child: MetricTile(
+                              label: 'Active days',
+                              value: '$active',
+                              icon: Icons.brightness_5_rounded,
+                              caption: '${365 - active} no-spend days',
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SectionLabel('Last 16 weeks')),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.inverseSurface,
+                        borderRadius: AppRadius.all(AppRadius.xxl),
+                      ),
+                      child: _CalendarGrid(
+                        data: data,
+                        maximum: maximum,
+                        currency: currency,
+                        hidden: hidden,
+                      ),
+                    ),
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SectionLabel('Highest-spend days'),
+                ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                  sliver: SliverList.separated(
+                    itemCount: min(6, top.length),
+                    separatorBuilder: (_, _) => Divider(
+                      height: 1,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outlineVariant.withValues(alpha: .4),
+                    ),
+                    itemBuilder: (context, index) {
+                      final item = top[index];
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(vertical: 5),
+                        leading: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: .12),
+                            borderRadius: AppRadius.all(14),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${item.key.day}',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          DateFormat('EEEE').format(item.key),
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          DateFormat('d MMMM yyyy').format(item.key),
+                        ),
+                        trailing: Text(
+                          hidden
+                              ? maskAmount(currency)
+                              : formatAmount(item.value, currency),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ],
     );
   }
 }
 
 class _CalendarGrid extends StatelessWidget {
-  const _CalendarGrid({required this.data, required this.maximum});
+  const _CalendarGrid({
+    required this.data,
+    required this.maximum,
+    required this.currency,
+    required this.hidden,
+  });
   final Map<DateTime, double> data;
   final double maximum;
+  final String currency;
+  final bool hidden;
   @override
   Widget build(BuildContext context) {
     final today = DateUtils.dateOnly(DateTime.now());
@@ -224,7 +237,7 @@ class _CalendarGrid extends StatelessWidget {
                 : (amount / maximum).clamp(.08, 1.0);
             return Tooltip(
               message:
-                  '${DateFormat('d MMM').format(day)} · ${formatAmount(amount, 'INR')}',
+                  '${DateFormat('d MMM').format(day)} · ${hidden ? maskAmount(currency) : formatAmount(amount, currency)}',
               child: Container(
                 decoration: BoxDecoration(
                   color: amount == 0

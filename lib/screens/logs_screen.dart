@@ -12,62 +12,62 @@ class LogsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final logs = ref.watch(aiLogProvider);
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            title: const Text('Diagnostics'),
-            actions: [
-              IconButton(
-                tooltip: 'Clear history',
-                onPressed: () => _clear(context, ref),
-                icon: const Icon(Icons.delete_sweep_outlined),
-              ),
-            ],
+    return CommandScaffold(
+      eyebrow: 'Advanced troubleshooting',
+      title: 'Diagnostics',
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: IconButton(
+            tooltip: 'Clear history',
+            onPressed: () => _clear(context, ref),
+            icon: const Icon(Icons.delete_sweep_outlined),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Text(
-                'A technical timeline of cloud extraction. Your financial dashboard does not depend on keeping this history.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  height: 1.45,
-                ),
+        ),
+      ],
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Text(
+              'A technical timeline of cloud extraction. Your financial dashboard does not depend on keeping this history.',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.45,
               ),
             ),
           ),
-          logs.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
+        ),
+        logs.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => SliverFillRemaining(
+            child: StatePanel(
+              icon: Icons.error_outline_rounded,
+              title: 'Diagnostics unavailable',
+              message: '$error',
             ),
-            error: (error, _) => SliverFillRemaining(
-              child: StatePanel(
-                icon: Icons.error_outline_rounded,
-                title: 'Diagnostics unavailable',
-                message: '$error',
-              ),
-            ),
-            data: (items) => items.isEmpty
-                ? const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: StatePanel(
-                      icon: Icons.terminal_rounded,
-                      title: 'No diagnostic events',
-                      message: 'Cloud parsing events will appear here.',
-                    ),
-                  )
-                : SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
-                    sliver: SliverList.separated(
-                      itemCount: items.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) => _LogEvent(items[index]),
-                    ),
+          ),
+          data: (items) => items.isEmpty
+              ? const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: StatePanel(
+                    icon: Icons.terminal_rounded,
+                    title: 'No diagnostic events',
+                    message: 'Cloud parsing events will appear here.',
                   ),
-          ),
-        ],
-      ),
+                )
+              : SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                  sliver: SliverList.separated(
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) => _LogEvent(items[index]),
+                  ),
+                ),
+        ),
+      ],
     );
   }
 

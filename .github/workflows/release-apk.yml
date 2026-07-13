@@ -1,12 +1,23 @@
-name: Build Release APK
+name: Publish Development Update
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+concurrency:
+  group: development-release
+  cancel-in-progress: false
+
+env:
+  DEV_BASE_VERSION: 0.0.1
+  APK_NAME: fund-flow-development.apk
+
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,15 +36,86 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Validate signing secrets
+        env:
+          DEV_KEYSTORE_BASE64: ${{ secrets.DEV_KEYSTORE_BASE64 }}
+          DEV_KEYSTORE_PASSWORD: ${{ secrets.DEV_KEYSTORE_PASSWORD }}
+          DEV_KEY_ALIAS: ${{ secrets.DEV_KEY_ALIAS }}
+          DEV_KEY_PASSWORD: ${{ secrets.DEV_KEY_PASSWORD }}
+        run: |
+          test -n "$DEV_KEYSTORE_BASE64" || { echo "Missing DEV_KEYSTORE_BASE64"; exit 1; }
+          test -n "$DEV_KEYSTORE_PASSWORD" || { echo "Missing DEV_KEYSTORE_PASSWORD"; exit 1; }
+          test -n "$DEV_KEY_ALIAS" || { echo "Missing DEV_KEY_ALIAS"; exit 1; }
+          test -n "$DEV_KEY_PASSWORD" || { echo "Missing DEV_KEY_PASSWORD"; exit 1; }
+
+      - name: Restore development signing key
+        env:
+          DEV_KEYSTORE_BASE64: ${{ secrets.DEV_KEYSTORE_BASE64 }}
+        run: echo "$DEV_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/fund-flow-dev.jks"
+
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build release APK
-        run: flutter build apk --release --no-tree-shake-icons
+      - name: Analyze and test
+        run: |
+          flutter analyze
+          flutter test
 
-      - name: Upload APK artifact
+      - name: Build signed development APK
+        env:
+          DEV_KEYSTORE_PATH: ${{ runner.temp }}/fund-flow-dev.jks
+          DEV_KEYSTORE_PASSWORD: ${{ secrets.DEV_KEYSTORE_PASSWORD }}
+          DEV_KEY_ALIAS: ${{ secrets.DEV_KEY_ALIAS }}
+          DEV_KEY_PASSWORD: ${{ secrets.DEV_KEY_PASSWORD }}
+        run: |
+          flutter build apk \
+            --release \
+            --flavor development \
+            --dart-define=ENABLE_GITHUB_UPDATES=true \
+            --build-name="${DEV_BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}" \
+            --build-number="${GITHUB_RUN_NUMBER}" \
+            --no-tree-shake-icons
+          cp build/app/outputs/flutter-apk/app-development-release.apk "$APK_NAME"
+
+      - name: Create update manifest
+        id: manifest
+        run: |
+          VERSION_NAME="${DEV_BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}"
+          TAG="dev-v${VERSION_NAME}"
+          SHA256="$(sha256sum "$APK_NAME" | cut -d ' ' -f1)"
+          DOWNLOAD_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${APK_NAME}"
+          NOTES="$(git log -1 --pretty=%s)"
+          jq -n \
+            --arg versionName "$VERSION_NAME" \
+            --argjson buildNumber "$GITHUB_RUN_NUMBER" \
+            --arg apkUrl "$DOWNLOAD_URL" \
+            --arg sha256 "$SHA256" \
+            --arg releaseNotes "$NOTES" \
+            --arg publishedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{schemaVersion: 1, channel: "development", versionName: $versionName, buildNumber: $buildNumber, apkUrl: $apkUrl, sha256: $sha256, releaseNotes: $releaseNotes, publishedAt: $publishedAt, mandatory: false}' \
+            > update.json
+          printf '# Fund Flow %s\n\n%s\n\nBuild: %s\n' "$VERSION_NAME" "$NOTES" "$GITHUB_RUN_NUMBER" > release-notes.md
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.manifest.outputs.tag }}" \
+            "$APK_NAME" \
+            update.json \
+            --target "$GITHUB_SHA" \
+            --title "Fund Flow ${{ steps.manifest.outputs.version }}" \
+            --notes-file release-notes.md \
+            --prerelease
+
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: fund-flow-${{ steps.manifest.outputs.version }}
+          path: |
+            ${{ env.APK_NAME }}
+            update.json
+          retention-days: 14
           if-no-files-found: error

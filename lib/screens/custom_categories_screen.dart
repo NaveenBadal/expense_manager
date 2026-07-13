@@ -11,68 +11,67 @@ class CustomCategoriesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(customCategoryListProvider);
-    return Scaffold(
+    return CommandScaffold(
+      eyebrow: 'Your organization system',
+      title: 'Category library',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _open(context),
         icon: const Icon(Icons.add_rounded),
         label: const Text('New category'),
       ),
-      body: CustomScrollView(
-        slivers: [
-          const SliverAppBar.large(title: Text('Category library')),
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 18),
-              child: Text(
-                'Built-in categories cover the essentials. Add only the distinctions that change how you understand your spending.',
-              ),
+      slivers: [
+        const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(20, 0, 20, 18),
+            child: Text(
+              'Built-in categories cover the essentials. Add only the distinctions that change how you understand your spending.',
             ),
           ),
-          async.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
+        ),
+        async.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => SliverFillRemaining(
+            child: StatePanel(
+              icon: Icons.category_outlined,
+              title: 'Library unavailable',
+              message: '$error',
             ),
-            error: (error, _) => SliverFillRemaining(
-              child: StatePanel(
-                icon: Icons.category_outlined,
-                title: 'Library unavailable',
-                message: '$error',
-              ),
-            ),
-            data: (items) => items.isEmpty
-                ? const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: StatePanel(
-                      icon: Icons.category_rounded,
-                      title: 'No custom categories',
-                      message:
-                          'Your built-in category system is ready. Add one only when you need more detail.',
-                    ),
-                  )
-                : SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-                    sliver: SliverGrid.builder(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 12,
-                            crossAxisSpacing: 12,
-                            childAspectRatio: 1.35,
-                          ),
-                      itemCount: items.length,
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        return _CategoryCell(
-                          item: item,
-                          onTap: () => _open(context, item),
-                          onDelete: () => _delete(context, ref, item),
-                        );
-                      },
-                    ),
+          ),
+          data: (items) => items.isEmpty
+              ? const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: StatePanel(
+                    icon: Icons.category_rounded,
+                    title: 'No custom categories',
+                    message:
+                        'Your built-in category system is ready. Add one only when you need more detail.',
                   ),
-          ),
-        ],
-      ),
+                )
+              : SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                  sliver: SliverGrid.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.35,
+                        ),
+                    itemCount: items.length,
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return _CategoryCell(
+                        item: item,
+                        onTap: () => _open(context, item),
+                        onDelete: () => _delete(context, ref, item),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
 

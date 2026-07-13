@@ -73,7 +73,11 @@ class CommandScaffold extends StatelessWidget {
                 ),
               ),
               ...slivers,
-              const SliverToBoxAdapter(child: SizedBox(height: 130)),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: Navigator.of(context).canPop() ? 40 : 130,
+                ),
+              ),
             ],
           ),
         ],
@@ -147,11 +151,15 @@ class MetricTile extends StatelessWidget {
             ).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 5),
-          Text(
-            value,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
           ),
           if (caption != null) ...[
             const SizedBox(height: 4),
@@ -198,7 +206,7 @@ class StatePanel extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          message,
+          _friendlyMessage(message),
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -208,4 +216,15 @@ class StatePanel extends StatelessWidget {
       ],
     ),
   );
+
+  String _friendlyMessage(String raw) {
+    final technical =
+        raw.contains('Exception') ||
+        raw.contains('DatabaseException') ||
+        raw.contains('SocketException') ||
+        raw.contains('StackTrace');
+    return technical
+        ? 'Something interrupted this view. Your data is safe; please try again.'
+        : raw;
+  }
 }

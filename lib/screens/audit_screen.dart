@@ -20,94 +20,92 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(parsedSmsAuditProvider);
-    return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          const SliverAppBar.large(title: Text('SMS inbox')),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Every message the importer has considered, including why non-transactions were skipped.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      height: 1.45,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  SegmentedButton<_Filter>(
-                    expandedInsets: EdgeInsets.zero,
-                    showSelectedIcon: false,
-                    segments: const [
-                      ButtonSegment(value: _Filter.all, label: Text('All')),
-                      ButtonSegment(
-                        value: _Filter.imported,
-                        label: Text('Imported'),
-                      ),
-                      ButtonSegment(
-                        value: _Filter.skipped,
-                        label: Text('Skipped'),
-                      ),
-                    ],
-                    selected: {_filter},
-                    onSelectionChanged: (value) =>
-                        setState(() => _filter = value.first),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          async.when(
-            loading: () => const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (error, _) => SliverFillRemaining(
-              child: StatePanel(
-                icon: Icons.sms_failed_outlined,
-                title: 'Inbox unavailable',
-                message: '$error',
-              ),
-            ),
-            data: (all) {
-              final items = all
-                  .where(
-                    (item) =>
-                        _filter == _Filter.all ||
-                        (_filter == _Filter.imported
-                            ? item['has_expense'] == 1
-                            : item['has_expense'] == 0),
-                  )
-                  .toList();
-              if (items.isEmpty) {
-                return const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: StatePanel(
-                    icon: Icons.sms_outlined,
-                    title: 'Nothing here',
-                    message:
-                        'Messages matching this filter will appear after sync.',
-                  ),
-                );
-              }
-              return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                sliver: SliverList.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) => _SmsEvent(
-                    entry: items[index],
-                    onRetry: () =>
-                        _retry(items[index]['body'] as String? ?? ''),
+    return CommandScaffold(
+      eyebrow: 'Import transparency',
+      title: 'SMS inbox',
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Every message the importer has considered, including why non-transactions were skipped.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    height: 1.45,
                   ),
                 ),
-              );
-            },
+                const SizedBox(height: 18),
+                SegmentedButton<_Filter>(
+                  expandedInsets: EdgeInsets.zero,
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: _Filter.all, label: Text('All')),
+                    ButtonSegment(
+                      value: _Filter.imported,
+                      label: Text('Imported'),
+                    ),
+                    ButtonSegment(
+                      value: _Filter.skipped,
+                      label: Text('Skipped'),
+                    ),
+                  ],
+                  selected: {_filter},
+                  onSelectionChanged: (value) =>
+                      setState(() => _filter = value.first),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+        async.when(
+          loading: () => const SliverFillRemaining(
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (error, _) => SliverFillRemaining(
+            child: StatePanel(
+              icon: Icons.sms_failed_outlined,
+              title: 'Inbox unavailable',
+              message: '$error',
+            ),
+          ),
+          data: (all) {
+            final items = all
+                .where(
+                  (item) =>
+                      _filter == _Filter.all ||
+                      (_filter == _Filter.imported
+                          ? item['has_expense'] == 1
+                          : item['has_expense'] == 0),
+                )
+                .toList();
+            if (items.isEmpty) {
+              return const SliverFillRemaining(
+                hasScrollBody: false,
+                child: StatePanel(
+                  icon: Icons.sms_outlined,
+                  title: 'Nothing here',
+                  message:
+                      'Messages matching this filter will appear after sync.',
+                ),
+              );
+            }
+            return SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+              sliver: SliverList.separated(
+                itemCount: items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 10),
+                itemBuilder: (context, index) => _SmsEvent(
+                  entry: items[index],
+                  onRetry: () => _retry(items[index]['body'] as String? ?? ''),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

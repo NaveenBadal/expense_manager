@@ -31,11 +31,40 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "channel"
+    productFlavors {
+        create("development") {
+            dimension = "channel"
+            applicationIdSuffix = ".dev"
+            resValue("string", "app_name", "Fund Flow Dev")
+        }
+        create("production") {
+            dimension = "channel"
+            resValue("string", "app_name", "Fund Flow")
+        }
+    }
+
+    signingConfigs {
+        create("developmentRelease") {
+            val keystorePath = System.getenv("DEV_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("DEV_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("DEV_KEY_ALIAS")
+                keyPassword = System.getenv("DEV_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // CI supplies the permanent development keystore. Local release
+            // builds fall back to the debug key and cannot update CI builds.
+            signingConfig = if (System.getenv("DEV_KEYSTORE_PATH").isNullOrBlank()) {
+                signingConfigs.getByName("debug")
+            } else {
+                signingConfigs.getByName("developmentRelease")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

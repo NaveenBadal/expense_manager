@@ -17,12 +17,15 @@ class NotificationParserService {
     final model =
         await _storage.read(key: ollamaModelStorageKey) ?? defaultOllamaModel;
     final baseUrl =
-        await _storage.read(key: ollamaBaseUrlStorageKey) ?? defaultOllamaBaseUrl;
+        await _storage.read(key: ollamaBaseUrlStorageKey) ??
+        defaultOllamaBaseUrl;
+    final currency = await _storage.read(key: 'preferred_currency') ?? 'INR';
 
     final catService = CategorizationService(
       apiKey: apiKey,
       baseUrl: baseUrl,
       model: model,
+      currency: currency,
     );
 
     try {
@@ -32,7 +35,7 @@ class NotificationParserService {
           'date': DateTime.now().toIso8601String(),
           'address': title,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
-        }
+        },
       ]);
       return result.expenses;
     } catch (_) {

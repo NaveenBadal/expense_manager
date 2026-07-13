@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/expense_provider.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/ui/command_ui.dart';
+import 'action_inbox_screen.dart';
 import 'analytics_screen.dart';
 import 'financial_health_screen.dart';
 import 'heatmap_screen.dart';
@@ -21,6 +22,12 @@ class IntelligenceScreen extends ConsumerWidget {
     return CommandScaffold(
       eyebrow: 'Patterns, explained',
       title: 'Intelligence',
+      actions: const [
+        Padding(
+          padding: EdgeInsets.only(right: 12),
+          child: ActionInboxButton(),
+        ),
+      ],
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
@@ -149,39 +156,43 @@ class IntelligenceScreen extends ConsumerWidget {
           ),
         ],
         const SliverToBoxAdapter(child: SectionLabel('Explore')),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          sliver: SliverGrid.count(
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 1.12,
-            children: [
-              _Explore(
-                title: 'Trends',
-                caption: 'Charts and comparisons',
-                icon: Icons.show_chart_rounded,
-                onTap: () => _push(context, const AnalyticsScreen()),
-              ),
-              _Explore(
-                title: 'Health',
-                caption: 'Score and guidance',
-                icon: Icons.favorite_outline_rounded,
-                onTap: () => _push(context, const FinancialHealthScreen()),
-              ),
-              _Explore(
-                title: 'Calendar',
-                caption: 'Daily spending rhythm',
-                icon: Icons.calendar_view_month_rounded,
-                onTap: () => _push(context, const HeatmapScreen()),
-              ),
-              _Explore(
-                title: 'Year story',
-                caption: 'Your annual review',
-                icon: Icons.auto_awesome_rounded,
-                onTap: () => _push(context, const YearInReviewScreen()),
-              ),
-            ],
+        SliverLayoutBuilder(
+          builder: (context, constraints) => SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverGrid.count(
+              crossAxisCount: constraints.crossAxisExtent >= 720 ? 4 : 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: constraints.crossAxisExtent >= 720
+                  ? 1.25
+                  : 1.12,
+              children: [
+                _Explore(
+                  title: 'Trends',
+                  caption: 'Charts and comparisons',
+                  icon: Icons.show_chart_rounded,
+                  onTap: () => _push(context, const AnalyticsScreen()),
+                ),
+                _Explore(
+                  title: 'Health',
+                  caption: 'Score and guidance',
+                  icon: Icons.favorite_outline_rounded,
+                  onTap: () => _push(context, const FinancialHealthScreen()),
+                ),
+                _Explore(
+                  title: 'Calendar',
+                  caption: 'Daily spending rhythm',
+                  icon: Icons.calendar_view_month_rounded,
+                  onTap: () => _push(context, const HeatmapScreen()),
+                ),
+                _Explore(
+                  title: 'Year story',
+                  caption: 'Your annual review',
+                  icon: Icons.auto_awesome_rounded,
+                  onTap: () => _push(context, const YearInReviewScreen()),
+                ),
+              ],
+            ),
           ),
         ),
       ],

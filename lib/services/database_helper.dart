@@ -25,7 +25,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 10,
+      version: 11,
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
@@ -40,6 +40,7 @@ class DatabaseHelper {
     await _createMerchantCategoryMapTable(db);
     await _createAppMetadataTable(db);
     await _createSavingsGoalsTable(db);
+    await _createDismissedActionsTable(db);
   }
 
   Future _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -102,6 +103,7 @@ class DatabaseHelper {
         );
       } catch (_) {}
     }
+    if (oldVersion < 11) await _createDismissedActionsTable(db);
   }
 
   // ─── Table definitions ───────────────────────────────────────────────────
@@ -158,6 +160,15 @@ CREATE TABLE budgets (
   category     TEXT    NOT NULL UNIQUE,
   limit_amount REAL    NOT NULL,
   currency     TEXT    NOT NULL DEFAULT 'INR'
+)
+''');
+  }
+
+  Future _createDismissedActionsTable(Database db) async {
+    await db.execute('''
+CREATE TABLE IF NOT EXISTS dismissed_actions (
+  action_key   TEXT PRIMARY KEY,
+  dismissed_at TEXT NOT NULL
 )
 ''');
   }
@@ -808,6 +819,31 @@ CREATE TABLE IF NOT EXISTS app_metadata (
     await db.rawDelete(
       'DELETE FROM parsed_sms WHERE body IN ($placeholders)',
       bodies,
+    );
+  }
+
+  // ─── Action inbox dismissals ────────────────────────────────────────────
+
+  Future<Set<String>> getDismissedActionKeys() async {
+    final db = await instance.database;
+    final rows = await db.query('dismissed_actions', columns: ['action_key']);
+    return rows.map((row) => row['action_key'] as String).toSet();
+  }
+
+  Future<void> dismissAction(String key) async {
+    final db = await instance.database;
+    await db.insert('dismissed_actions', {
+      'action_key': key,
+      'dismissed_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> restoreAction(String key) async {
+    final db = await instance.database;
+    await db.delete(
+      'dismissed_actions',
+      where: 'action_key = ?',
+      whereArgs: [key],
     );
   }
 
