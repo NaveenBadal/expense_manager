@@ -24,10 +24,19 @@ swipeable mental spaces connected by a summonable Flow Portal:
 - **Possible** simulates commitments, boundaries, and future anchors.
 - **Oracle** is grounded conversation over the user's actual records.
 
-The portal is available everywhere and provides direct access to grounded chat,
-manual teaching, signal sensing, interventions, and configuration. Charts,
-diagnostics, provenance, and long-form reports are evidence lenses rather than
-primary destinations.
+Grounded AI is available as a persistent composer on every primary surface. A
+question can be typed and sent without opening navigation or visiting a chat
+destination. Manual teaching remains adjacent, while spaces are changed with a
+compact context signal or horizontal gesture.
+
+Now is deliberately non-scrolling. It renders a living financial world-state:
+flexible money is the center of gravity, recent movements orbit it, opposing
+inflow/outflow forces sit on an axis, and financial pressure changes the field.
+It contains no dashboard sections, metric carousel, or transaction feed.
+
+Flow DNA is intent-driven configuration. Natural commands such as “hide
+amounts,” “use AED,” “scan 60 days,” and “switch to dark mode” execute directly.
+Four contextual DNA strands remain as transparent fallbacks for precise control.
 
 ## Information architecture
 

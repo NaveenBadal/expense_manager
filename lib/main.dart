@@ -291,7 +291,7 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
   int _index = 0;
-  bool _portalOpen = false;
+  final _ask = TextEditingController();
 
   static const _pages = [
     DashboardScreen(),
@@ -315,6 +315,7 @@ class _AppShellState extends ConsumerState<AppShell>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _ask.dispose();
     super.dispose();
   }
 
@@ -348,34 +349,15 @@ class _AppShellState extends ConsumerState<AppShell>
         child: Stack(
           children: [
             Positioned.fill(child: body),
-            if (_portalOpen)
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: () => setState(() => _portalOpen = false),
-                  child: ColoredBox(color: Colors.black.withValues(alpha: .48)),
-                ),
-              ),
             Align(
               alignment: Alignment.bottomCenter,
               child: SafeArea(
                 minimum: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-                child: _FlowPortal(
-                  open: _portalOpen,
+                child: _DirectAskBar(
+                  controller: _ask,
                   selectedIndex: _index,
-                  onToggle: () => setState(() => _portalOpen = !_portalOpen),
-                  onAsk: () {
-                    setState(() => _portalOpen = false);
-                    showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (_) => const MoneyChatSheet(),
-                    );
-                  },
-                  onSelected: (index) => setState(() {
-                    _index = index;
-                    _portalOpen = false;
-                  }),
+                  onAsk: _openChat,
+                  onSelected: (index) => setState(() => _index = index),
                 ),
               ),
             ),
@@ -384,42 +366,44 @@ class _AppShellState extends ConsumerState<AppShell>
       ),
     );
   }
+
+  void _openChat([String? value]) {
+    final prompt = (value ?? _ask.text).trim();
+    _ask.clear();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          MoneyChatSheet(initialPrompt: prompt.isEmpty ? null : prompt),
+    );
+  }
 }
 
-class _FlowPortal extends StatelessWidget {
-  const _FlowPortal({
-    required this.open,
+class _DirectAskBar extends StatelessWidget {
+  const _DirectAskBar({
+    required this.controller,
     required this.selectedIndex,
-    required this.onToggle,
     required this.onAsk,
     required this.onSelected,
   });
 
-  final bool open;
+  final TextEditingController controller;
   final int selectedIndex;
-  final VoidCallback onToggle;
-  final VoidCallback onAsk;
+  final ValueChanged<String?> onAsk;
   final ValueChanged<int> onSelected;
 
-  static const _items = [
-    (Icons.blur_on_rounded, 'Now', 'What is changing'),
-    (Icons.route_rounded, 'Memory', 'Every money event'),
-    (Icons.all_inclusive_rounded, 'Possible', 'Shape what comes next'),
-    (Icons.auto_awesome_rounded, 'Oracle', 'Patterns and answers'),
-  ];
+  static const _spaces = ['NOW', 'MEMORY', 'POSSIBLE', 'ORACLE'];
 
   @override
   Widget build(BuildContext context) {
     const ink = Color(0xFF090D16);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeOutCubic,
-      width: open ? 430 : 176,
-      constraints: const BoxConstraints(maxWidth: 430),
-      padding: EdgeInsets.all(open ? 10 : 7),
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 720),
+      padding: const EdgeInsets.fromLTRB(7, 7, 7, 7),
       decoration: BoxDecoration(
         color: ink.withValues(alpha: .97),
-        borderRadius: BorderRadius.circular(open ? 32 : 99),
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: Colors.white.withValues(alpha: .12)),
         boxShadow: const [
           BoxShadow(
@@ -429,130 +413,83 @@ class _FlowPortal extends StatelessWidget {
           ),
         ],
       ),
-      child: open
-          ? Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var index = 0; index < _items.length; index++)
-                  _PortalDestination(
-                    item: _items[index],
-                    selected: selectedIndex == index,
-                    onTap: () => onSelected(index),
-                  ),
-                const Divider(color: Colors.white12, height: 20),
-                ListTile(
-                  onTap: onAsk,
-                  leading: const Icon(
-                    Icons.chat_bubble_outline_rounded,
-                    color: Color(0xFFC7FF4A),
-                  ),
-                  title: const Text(
-                    'Ask your money',
+      child: Row(
+        children: [
+          PopupMenuButton<int>(
+            tooltip: 'Change space',
+            initialValue: selectedIndex,
+            onSelected: onSelected,
+            color: ink,
+            itemBuilder: (_) => [
+              for (var index = 0; index < _spaces.length; index++)
+                PopupMenuItem(
+                  value: index,
+                  child: Text(
+                    _spaces[index],
                     style: TextStyle(
-                      color: Colors.white,
+                      color: index == selectedIndex
+                          ? const Color(0xFFC7FF4A)
+                          : Colors.white70,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  subtitle: const Text(
-                    'Answers grounded in your transactions',
-                    style: TextStyle(color: Colors.white38, fontSize: 11),
-                  ),
                 ),
-                Row(
-                  children: [
-                    const GlobalQuickActionButton(small: true),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Create a money event',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: onToggle,
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            )
-          : InkWell(
-              borderRadius: BorderRadius.circular(99),
-              onTap: onToggle,
-              child: const SizedBox(
-                height: 48,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.blur_circular_rounded, color: Color(0xFFC7FF4A)),
-                    SizedBox(width: 10),
-                    Text(
-                      'Open flow',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-    );
-  }
-}
-
-class _PortalDestination extends StatelessWidget {
-  const _PortalDestination({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-  });
-  final (IconData, String, String) item;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: selected ? Colors.white.withValues(alpha: .09) : Colors.transparent,
-    borderRadius: BorderRadius.circular(22),
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Icon(
-              item.$1,
-              color: selected ? const Color(0xFFC7FF4A) : Colors.white54,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
+            ],
+            child: SizedBox(
+              width: 50,
+              height: 48,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    item.$2,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                  for (var i = 0; i < 4; i++)
+                    Container(
+                      width: i == selectedIndex ? 18 : 5,
+                      height: 3,
+                      margin: const EdgeInsets.symmetric(vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: i == selectedIndex
+                            ? const Color(0xFFC7FF4A)
+                            : Colors.white24,
+                        borderRadius: BorderRadius.circular(9),
+                      ),
                     ),
-                  ),
-                  Text(
-                    item.$3,
-                    style: const TextStyle(color: Colors.white38, fontSize: 11),
-                  ),
                 ],
               ),
             ),
-            if (selected)
-              const Icon(Icons.circle, size: 7, color: Color(0xFFC7FF4A)),
-          ],
-        ),
+          ),
+          Container(width: 1, height: 28, color: Colors.white12),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.auto_awesome_rounded,
+            color: Color(0xFFC7FF4A),
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onTap: () {},
+              onSubmitted: onAsk,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration.collapsed(
+                hintText: 'Ask your money anything…',
+                hintStyle: TextStyle(color: Colors.white38),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Ask Flow',
+            onPressed: () => onAsk(controller.text),
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFC7FF4A),
+              foregroundColor: Colors.black,
+            ),
+            icon: const Icon(Icons.arrow_upward_rounded),
+          ),
+          const SizedBox(width: 4),
+          const GlobalQuickActionButton(small: true),
+        ],
       ),
-    ),
-  );
+    );
+  }
 }

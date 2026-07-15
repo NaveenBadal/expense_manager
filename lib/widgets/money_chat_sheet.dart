@@ -7,7 +7,8 @@ import '../services/money_chat_service.dart';
 import '../services/ollama_cloud_service.dart';
 
 class MoneyChatSheet extends ConsumerStatefulWidget {
-  const MoneyChatSheet({super.key});
+  const MoneyChatSheet({super.key, this.initialPrompt});
+  final String? initialPrompt;
   @override
   ConsumerState<MoneyChatSheet> createState() => _MoneyChatSheetState();
 }
@@ -22,6 +23,15 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
     'Where can I safely spend less?',
     'Find subscriptions I may have forgotten',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    final prompt = widget.initialPrompt?.trim();
+    if (prompt != null && prompt.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _ask(prompt));
+    }
+  }
 
   @override
   void dispose() {
