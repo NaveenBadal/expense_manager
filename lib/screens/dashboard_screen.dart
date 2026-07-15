@@ -259,20 +259,22 @@ class _MoneyWorldState extends State<_MoneyWorld>
                                 ),
                               ),
                               const SizedBox(height: 7),
-                              AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 300),
-                                child: Text(
-                                  money(available),
-                                  key: ValueKey(widget.hidden),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .displayLarge
-                                      ?.copyWith(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w500,
-                                        letterSpacing: -3,
-                                        fontSize: compact ? 42 : 54,
-                                      ),
+                              SizedBox(
+                                width: constraints.maxWidth * .72,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    money(available),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .displayLarge
+                                        ?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w500,
+                                          letterSpacing: -2,
+                                          fontSize: compact ? 42 : 52,
+                                        ),
+                                  ),
                                 ),
                               ),
                               Text(
@@ -384,11 +386,10 @@ class _OrbitEvent extends StatelessWidget {
       button: true,
       label:
           '${expense.displayMerchant}, ${expense.amount} ${expense.currency}',
-      child: InkResponse(
+      child: GestureDetector(
         onTap: onTap,
-        radius: 54,
         child: Container(
-          constraints: const BoxConstraints(maxWidth: 132),
+          width: 132,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             color: const Color(0xFF090D16).withValues(alpha: .82),
