@@ -14,7 +14,7 @@ class AppTheme {
   const AppTheme._();
 
   /// Brand fallback seed when the platform provides no dynamic color.
-  static const seed = Color(0xFF78A900);
+  static const seed = Color(0xFF65EAD1);
 
   static const _bodyFont = 'Inter';
   static const _displayFont = 'Space Grotesk';
@@ -74,12 +74,12 @@ class AppTheme {
         : (isLight
               ? FlexThemeData.light(
                   colors: const FlexSchemeColor(
-                    primary: Color(0xFF4E7100),
-                    primaryContainer: Color(0xFFDDF7A2),
-                    secondary: Color(0xFF416456),
-                    secondaryContainer: Color(0xFFD2EDDF),
-                    tertiary: Color(0xFF7A594D),
-                    tertiaryContainer: Color(0xFFFFDBCF),
+                    primary: Color(0xFF006B61),
+                    primaryContainer: Color(0xFFB9F3E9),
+                    secondary: Color(0xFF4F5F7E),
+                    secondaryContainer: Color(0xFFDCE5FF),
+                    tertiary: Color(0xFF705A00),
+                    tertiaryContainer: Color(0xFFFFE178),
                   ),
                   surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
                   blendLevel: 4,
@@ -89,12 +89,12 @@ class AppTheme {
                 )
               : FlexThemeData.dark(
                   colors: const FlexSchemeColor(
-                    primary: Color(0xFFB9F227),
-                    primaryContainer: Color(0xFF334600),
-                    secondary: Color(0xFF9CD4BD),
-                    secondaryContainer: Color(0xFF244C3D),
-                    tertiary: Color(0xFFFFB5A0),
-                    tertiaryContainer: Color(0xFF65372A),
+                    primary: Color(0xFF65EAD1),
+                    primaryContainer: Color(0xFF004F47),
+                    secondary: Color(0xFFBAC7EA),
+                    secondaryContainer: Color(0xFF333F5C),
+                    tertiary: Color(0xFFFFDF67),
+                    tertiaryContainer: Color(0xFF544600),
                   ),
                   surfaceMode: FlexSurfaceMode.levelSurfacesLowScaffold,
                   blendLevel: 8,

@@ -416,10 +416,10 @@ class _ActionDock extends StatelessWidget {
   final ValueChanged<int> onSelected;
 
   static const _items = [
-    (Icons.home_outlined, Icons.home_rounded, 'Today'),
-    (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Activity'),
-    (Icons.track_changes_outlined, Icons.track_changes_rounded, 'Plan'),
-    (Icons.auto_graph_outlined, Icons.auto_graph_rounded, 'Insights'),
+    (Icons.blur_on_outlined, Icons.blur_on_rounded, 'Now'),
+    (Icons.route_outlined, Icons.route_rounded, 'Flow'),
+    (Icons.all_inclusive_outlined, Icons.all_inclusive_rounded, 'Future'),
+    (Icons.auto_awesome_outlined, Icons.auto_awesome_rounded, 'Ask AI'),
   ];
 
   @override
@@ -458,7 +458,7 @@ class _ActionDock extends StatelessWidget {
                 GlobalQuickActionButton(),
                 SizedBox(height: 2),
                 Text(
-                  'Add',
+                  'Create',
                   style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
                 ),
               ],

@@ -6,6 +6,7 @@ import '../models/expense.dart';
 import '../models/ai_log.dart';
 import '../models/merchant_stats.dart';
 import '../models/savings_goal.dart';
+import 'transaction_duplicate_detector.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -240,15 +241,31 @@ CREATE TABLE IF NOT EXISTS app_metadata (
   Future<List<Expense>> insertExpensesReturning(List<Expense> expenses) async {
     if (expenses.isEmpty) return const [];
     final db = await instance.database;
-    final batch = db.batch();
-    for (final expense in expenses) {
-      batch.insert('expenses', expense.toMap());
-    }
-    final ids = await batch.commit();
-    return [
-      for (var index = 0; index < expenses.length; index++)
-        expenses[index].copyWith(id: ids[index] as int),
-    ];
+    const detector = TransactionDuplicateDetector();
+    return db.transaction((txn) async {
+      final inserted = <Expense>[];
+      for (final expense in expenses) {
+        final from = expense.date
+            .subtract(TransactionDuplicateDetector.candidateWindow)
+            .toIso8601String();
+        final to = expense.date
+            .add(TransactionDuplicateDetector.candidateWindow)
+            .toIso8601String();
+        final rows = await txn.query(
+          'expenses',
+          where:
+              'amount = ? AND currency = ? AND type = ? AND date BETWEEN ? AND ?',
+          whereArgs: [expense.amount, expense.currency, expense.type, from, to],
+        );
+        final duplicate = rows
+            .map(Expense.fromMap)
+            .any((existing) => detector.isDuplicate(expense, existing));
+        if (duplicate) continue;
+        final id = await txn.insert('expenses', expense.toMap());
+        inserted.add(expense.copyWith(id: id));
+      }
+      return inserted;
+    });
   }
 
   Future<int> updateExpense(Expense expense) async {

@@ -333,7 +333,7 @@ class ExpenseListNotifier extends AsyncNotifier<List<Expense>> {
   }
 
   Future<void> addExpenses(List<Expense> expenses) async {
-    await ref.read(databaseProvider).insertExpenses(expenses);
+    await ref.read(databaseProvider).insertExpensesReturning(expenses);
     await refreshExpenses();
   }
 
