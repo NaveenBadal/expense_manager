@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:expense_manager/services/money_chat_service.dart';
 import 'package:expense_manager/services/ollama_cloud_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -85,5 +86,36 @@ void main() {
     expect(answer, 'Food spending is down 12% this month.');
     expect(requestBody['think'], 'medium');
     expect((requestBody['messages'] as List), hasLength(2));
+  });
+
+  test('money chat rejects unrelated work without contacting AI', () async {
+    var requests = 0;
+    final service = MoneyChatService(
+      OllamaCloudService(
+        apiKey: 'test',
+        client: MockClient((_) async {
+          requests++;
+          return http.Response('{}', 200);
+        }),
+      ),
+    );
+
+    final answer = await service.ask('Create a Python game for me', const []);
+
+    expect(answer.text, MoneyChatService.outOfScopeReply);
+    expect(answer.sources, isEmpty);
+    expect(requests, 0);
+  });
+
+  test('money chat recognizes finance and app questions', () {
+    expect(
+      MoneyChatService.isInScope('What did I spend this month?', const []),
+      isTrue,
+    );
+    expect(
+      MoneyChatService.isInScope('How do I update this app?', const []),
+      isTrue,
+    );
+    expect(MoneyChatService.isInScope('Write me a poem', const []), isFalse);
   });
 }

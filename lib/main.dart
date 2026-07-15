@@ -403,7 +403,11 @@ class _DirectAskBar extends StatelessWidget {
   Widget build(BuildContext context) {
     const ink = Color(0xFF090D16);
     return Container(
-      constraints: const BoxConstraints(maxWidth: 720),
+      constraints: const BoxConstraints(
+        maxWidth: 720,
+        minHeight: 62,
+        maxHeight: 62,
+      ),
       padding: const EdgeInsets.fromLTRB(7, 7, 7, 7),
       decoration: BoxDecoration(
         color: ink.withValues(alpha: .97),
@@ -517,7 +521,8 @@ class _DirectAskBar extends StatelessWidget {
                   Expanded(
                     child: TextField(
                       controller: controller,
-                      onTap: () {},
+                      maxLines: 1,
+                      textInputAction: TextInputAction.send,
                       onSubmitted: onAsk,
                       style: const TextStyle(color: Colors.white),
                       decoration: const InputDecoration.collapsed(

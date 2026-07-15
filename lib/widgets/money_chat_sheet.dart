@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/expense.dart';
@@ -187,15 +188,56 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                message.text,
-                                style: TextStyle(
-                                  color: message.user
-                                      ? Colors.black
-                                      : Colors.white,
-                                  height: 1.45,
+                              if (message.user)
+                                Text(
+                                  message.text,
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    height: 1.45,
+                                  ),
+                                )
+                              else
+                                MarkdownBody(
+                                  data: message.text,
+                                  selectable: true,
+                                  styleSheet: MarkdownStyleSheet(
+                                    p: const TextStyle(
+                                      color: Colors.white,
+                                      height: 1.5,
+                                      fontSize: 14,
+                                    ),
+                                    strong: const TextStyle(
+                                      color: Color(0xFFC7FF4A),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                    em: const TextStyle(
+                                      color: Color(0xFF65EAD1),
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                    listBullet: const TextStyle(
+                                      color: Color(0xFFC7FF4A),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                    code: TextStyle(
+                                      color: const Color(0xFF65EAD1),
+                                      backgroundColor: Colors.black.withValues(
+                                        alpha: .35,
+                                      ),
+                                      fontFamily: 'monospace',
+                                    ),
+                                    blockquoteDecoration: const BoxDecoration(
+                                      border: Border(
+                                        left: BorderSide(
+                                          color: Color(0xFFC7FF4A),
+                                          width: 3,
+                                        ),
+                                      ),
+                                    ),
+                                    blockquotePadding: const EdgeInsets.only(
+                                      left: 12,
+                                    ),
+                                  ),
                                 ),
-                              ),
                               if (message.sources > 0) ...[
                                 const SizedBox(height: 10),
                                 Text(
