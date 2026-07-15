@@ -6,10 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/ai_provider.dart';
 import '../providers/expense_provider.dart';
+import '../services/development_update_service.dart';
 import '../providers/notification_ingestion_provider.dart';
 import '../services/bank_csv_importer.dart';
 import '../services/ollama_cloud_service.dart';
 import '../widgets/ui/command_ui.dart';
+import '../widgets/development_update_ui.dart';
 import 'audit_screen.dart';
 import 'custom_categories_screen.dart';
 import 'logs_screen.dart';
@@ -287,6 +289,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: () => _push(const CustomCategoriesScreen()),
                 ),
               ),
+              if (githubDevelopmentUpdatesEnabled)
+                _DnaNode(
+                  code: '05',
+                  title: 'Evolution channel',
+                  description:
+                      'Signed GitHub builds, verification, and installation.',
+                  open: _open == 'evolution',
+                  onTap: () => setState(
+                    () => _open = _open == 'evolution' ? null : 'evolution',
+                  ),
+                  child: const DevelopmentUpdateDnaControl(),
+                ),
             ],
           ),
         ),

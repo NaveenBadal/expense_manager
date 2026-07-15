@@ -7,9 +7,11 @@ import 'package:intl/intl.dart';
 import '../models/expense.dart';
 import '../models/money_briefing.dart';
 import '../providers/expense_provider.dart';
+import '../providers/development_update_provider.dart';
 import '../utils/category_utils.dart';
 import '../utils/currency_utils.dart';
 import '../widgets/expense_form_sheet.dart';
+import '../widgets/development_update_ui.dart';
 import '../widgets/ui/command_ui.dart';
 import 'action_inbox_screen.dart';
 import 'budget_screen.dart';
@@ -193,6 +195,12 @@ class _MoneyWorldState extends State<_MoneyWorld>
                 ),
               ),
             ),
+            const Positioned(
+              left: 20,
+              right: 20,
+              top: 70,
+              child: _EvolutionSignal(),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 16, 102),
               child: Column(
@@ -353,6 +361,78 @@ class _MoneyWorldState extends State<_MoneyWorld>
     if (available <= 0) return 'Your world needs a correction.';
     if (income > 0 && spent / income > .75) return 'The field is narrowing.';
     return 'Your financial world is stable.';
+  }
+}
+
+class _EvolutionSignal extends ConsumerWidget {
+  const _EvolutionSignal();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(developmentUpdateProvider);
+    if (state.phase != DevelopmentUpdatePhase.available &&
+        state.phase != DevelopmentUpdatePhase.downloading &&
+        state.phase != DevelopmentUpdatePhase.ready &&
+        state.phase != DevelopmentUpdatePhase.permissionRequired) {
+      return const SizedBox.shrink();
+    }
+    final ready =
+        state.phase == DevelopmentUpdatePhase.ready ||
+        state.phase == DevelopmentUpdatePhase.permissionRequired;
+    return Material(
+      color: const Color(0xFF111722).withValues(alpha: .96),
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: () => showDevelopmentUpdateSheet(context),
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.system_update_rounded,
+                color: Color(0xFFC7FF4A),
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ready
+                          ? 'Evolution ready to install'
+                          : state.phase == DevelopmentUpdatePhase.downloading
+                          ? 'Receiving evolution…'
+                          : '${state.update?.versionName} available',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (state.phase == DevelopmentUpdatePhase.downloading)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: LinearProgressIndicator(
+                          value: state.progress,
+                          minHeight: 2,
+                          color: const Color(0xFFC7FF4A),
+                          backgroundColor: Colors.white12,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_rounded,
+                color: Colors.white54,
+                size: 17,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
