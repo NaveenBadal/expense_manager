@@ -47,6 +47,12 @@ class ExpressiveShape {
           bottomLeft: Radius.circular(18),
           bottomRight: Radius.circular(30),
         );
+
+  static OutlinedBorder playfulBorder(int index, {Color? color}) =>
+      ContinuousRectangleBorder(
+        borderRadius: playful(index),
+        side: color == null ? BorderSide.none : BorderSide(color: color),
+      );
 }
 
 /// Semantic finance colors resolved per theme brightness.

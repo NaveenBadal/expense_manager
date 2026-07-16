@@ -37,6 +37,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(expenseListProvider);
     final hidden = ref.watch(privateModeProvider);
+    final sync = ref.watch(syncProvider);
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 72,
@@ -56,6 +57,18 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            tooltip: _isSyncActive(sync) ? 'SMS sync in progress' : 'Sync SMS',
+            onPressed: _isSyncActive(sync)
+                ? null
+                : () => ref.read(syncProvider.notifier).sync(),
+            icon: _isSyncActive(sync)
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync_rounded),
+          ),
           IconButton(
             tooltip: hidden ? 'Show amounts' : 'Hide amounts',
             onPressed: () => ref.read(privateModeProvider.notifier).toggle(),
@@ -90,12 +103,17 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
           action: 'Try again',
           onAction: () => ref.invalidate(expenseListProvider),
         ),
-        data: (all) => _content(all, hidden),
+        data: (all) => _content(all, hidden, sync),
       ),
     );
   }
 
-  Widget _content(List<Expense> all, bool hidden) {
+  bool _isSyncActive(SyncState state) =>
+      state.phase == SyncPhase.requestingPermissions ||
+      state.phase == SyncPhase.fetchingSms ||
+      state.phase == SyncPhase.analyzing;
+
+  Widget _content(List<Expense> all, bool hidden, SyncState sync) {
     final now = DateTime.now();
     final month = all.where(
       (item) => item.date.year == now.year && item.date.month == now.month,
@@ -142,6 +160,12 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   hidden: hidden,
                   onSpent: () => setState(() => _direction = 'out'),
                   onReceived: () => setState(() => _direction = 'in'),
+                ),
+                const SizedBox(height: 16),
+                _SmsSyncCard(
+                  state: sync,
+                  onSync: () => ref.read(syncProvider.notifier).sync(),
+                  onStop: () => ref.read(syncProvider.notifier).cancel(),
                 ),
                 const SizedBox(height: 16),
                 _FilterBar(
@@ -478,6 +502,123 @@ class _SummaryValue extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _SmsSyncCard extends StatelessWidget {
+  const _SmsSyncCard({
+    required this.state,
+    required this.onSync,
+    required this.onStop,
+  });
+
+  final SyncState state;
+  final VoidCallback onSync;
+  final VoidCallback onStop;
+
+  bool get _active =>
+      state.phase == SyncPhase.requestingPermissions ||
+      state.phase == SyncPhase.fetchingSms ||
+      state.phase == SyncPhase.analyzing;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final error = state.phase == SyncPhase.error;
+    final complete = state.phase == SyncPhase.complete;
+    final progress = state.total > 0
+        ? (state.current / state.total).clamp(0.0, 1.0)
+        : null;
+    final title = switch (state.phase) {
+      SyncPhase.requestingPermissions => 'Getting SMS access',
+      SyncPhase.fetchingSms => 'Reading bank messages',
+      SyncPhase.analyzing => 'Understanding transactions',
+      SyncPhase.complete => 'SMS sync complete',
+      SyncPhase.error => 'SMS sync needs attention',
+      SyncPhase.idle => 'Sync bank SMS',
+    };
+    final detail = error
+        ? state.errorMessage ?? 'Could not sync messages.'
+        : state.detail ??
+              'Find new transactions from the last configured history range.';
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      switchInCurve: Curves.easeOutCubic,
+      child: Material(
+        key: ValueKey(state.phase),
+        color: error
+            ? scheme.errorContainer
+            : complete
+            ? scheme.tertiaryContainer
+            : scheme.secondaryContainer,
+        shape: ExpressiveShape.playfulBorder(1),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: scheme.surface.withValues(alpha: .75),
+                    child: Icon(
+                      complete
+                          ? Icons.check_rounded
+                          : error
+                          ? Icons.sms_failed_outlined
+                          : Icons.sms_outlined,
+                      color: error ? scheme.error : scheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          detail,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_active)
+                    IconButton.filledTonal(
+                      tooltip: 'Stop SMS sync',
+                      onPressed: onStop,
+                      icon: const Icon(Icons.stop_rounded),
+                    )
+                  else
+                    FilledButton.tonalIcon(
+                      onPressed: onSync,
+                      icon: const Icon(Icons.sync_rounded),
+                      label: Text(
+                        error
+                            ? 'Retry'
+                            : complete
+                            ? 'Again'
+                            : 'Sync',
+                      ),
+                    ),
+                ],
+              ),
+              if (_active) ...[
+                const SizedBox(height: 14),
+                LinearProgressIndicator(value: progress),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _FilterBar extends StatelessWidget {
