@@ -84,7 +84,13 @@ class CategorizationService {
           return;
         }
 
-        final merchant = result.merchant ?? 'Unknown';
+        final modelMerchant = result.merchant?.trim();
+        final merchant =
+            modelMerchant == null ||
+                modelMerchant.isEmpty ||
+                modelMerchant.toLowerCase() == 'unknown'
+            ? MerchantNormalizer.extractFromSms(body) ?? 'Unknown'
+            : modelMerchant;
         final normalized = MerchantNormalizer.normalize(merchant);
 
         String category = result.category ?? 'Others';

@@ -72,6 +72,9 @@ class OllamaCloudService {
       'Every input must produce exactly one result with the same id. '
       'Actual money movement types: expense, income, transfer. '
       'OTP, promotion, balance alert, bill reminder, and statement without a new transaction are not_financial. '
+      'For expense/transfer merchant, extract the actual payee or merchant from labels and phrases such as merchant:, payee:, info:, paid to, transferred to, card used at, UPI descriptors, or VPA. '
+      'Do not use the sending bank, payment rail (UPI/IMPS/NEFT), account/card number, reference number, or generic words as merchant. '
+      'Use null only when the SMS truly contains no payee or merchant clue. '
       'Categories: Food, Transport, Utilities, Entertainment, Shopping, Health, Others. '
       'Amount must be a JSON number in INR or null. No markdown or explanation.';
 
