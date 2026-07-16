@@ -25,6 +25,7 @@ import '../services/money_briefing_service.dart';
 import '../services/recurring_detector.dart';
 import '../services/sms_service.dart';
 import '../services/categorization_service.dart';
+import '../services/ollama_cloud_service.dart';
 import '../utils/category_utils.dart';
 
 // ─── Infrastructure ────────────────────────────────────────────────────────
@@ -67,6 +68,16 @@ final ollamaModelProvider = NotifierProvider<OllamaModelNotifier, String>(
 final activeModelProvider = Provider<String>(
   (ref) => ref.watch(ollamaModelProvider),
 );
+
+final ollamaCloudProvider = Provider<OllamaCloudService>((ref) {
+  final service = OllamaCloudService(
+    apiKey: ref.watch(ollamaApiKeyProvider),
+    baseUrl: ref.watch(ollamaBaseUrlProvider),
+    model: ref.watch(ollamaModelProvider),
+  );
+  ref.onDispose(service.close);
+  return service;
+});
 
 class SyncLookbackNotifier extends Notifier<int> {
   @override

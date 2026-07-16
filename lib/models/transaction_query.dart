@@ -12,7 +12,7 @@ class TransactionQuery {
     this.text,
     this.minimumAmount,
     this.maximumAmount,
-    this.limit = 100,
+    this.limit = 50,
   });
 
   final String label;
@@ -79,7 +79,7 @@ class TransactionQuery {
       text: clean('text'),
       minimumAmount: number('minimum_amount'),
       maximumAmount: number('maximum_amount'),
-      limit: (rawLimit ?? 100).clamp(1, 200),
+      limit: (rawLimit ?? 50).clamp(1, 200),
     );
   }
 
@@ -117,44 +117,4 @@ class TransactionQuery {
         (minimumAmount == null || expense.amount >= minimumAmount!) &&
         (maximumAmount == null || expense.amount <= maximumAmount!);
   }
-}
-
-class MoneyQueryPlan {
-  const MoneyQueryPlan({
-    required this.intent,
-    required this.queries,
-    this.needsClarification = false,
-    this.clarification,
-  });
-
-  final String intent;
-  final List<TransactionQuery> queries;
-  final bool needsClarification;
-  final String? clarification;
-
-  factory MoneyQueryPlan.fromJson(Map<String, dynamic> json) {
-    final rawQueries = json['queries'] as List<dynamic>? ?? const [];
-    final queries = rawQueries
-        .whereType<Map>()
-        .map(
-          (value) => TransactionQuery.fromJson(value.cast<String, dynamic>()),
-        )
-        .take(2)
-        .toList();
-    final rawIntent = json['intent']?.toString().trim().toLowerCase();
-    const allowed = {'transactions', 'summary', 'comparison', 'app_help'};
-    return MoneyQueryPlan(
-      intent: allowed.contains(rawIntent) ? rawIntent! : 'transactions',
-      queries: queries,
-      needsClarification: json['needs_clarification'] == true,
-      clarification: json['clarification']?.toString().trim(),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'intent': intent,
-    'needs_clarification': needsClarification,
-    if (clarification != null) 'clarification': clarification,
-    'queries': queries.map((query) => query.toJson()).toList(),
-  };
 }

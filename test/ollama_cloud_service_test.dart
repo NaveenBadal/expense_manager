@@ -157,31 +157,6 @@ void main() {
     );
   });
 
-  test('returns a grounded conversational answer', () async {
-    late Map<String, dynamic> requestBody;
-    final service = OllamaCloudService(
-      apiKey: 'test',
-      client: MockClient((request) async {
-        requestBody = jsonDecode(request.body) as Map<String, dynamic>;
-        return http.Response(
-          jsonEncode({
-            'message': {'content': 'Food spending is down 12% this month.'},
-          }),
-          200,
-        );
-      }),
-    );
-
-    final answer = await service.answer(
-      systemPrompt: 'Use only supplied records.',
-      userPrompt: 'How is food spending?',
-    );
-
-    expect(answer, 'Food spending is down 12% this month.');
-    expect(requestBody['think'], 'medium');
-    expect((requestBody['messages'] as List), hasLength(2));
-  });
-
   test(
     'money chat uses role context instead of a manual prompt gate',
     () async {
@@ -192,13 +167,8 @@ void main() {
           apiKey: 'test',
           client: MockClient((_) async {
             requests++;
-            final content = requests == 1
-                ? 'I can only help with Flow and your personal finances.'
-                : jsonEncode({
-                    'valid': true,
-                    'answer':
-                        'I can only help with Flow and your personal finances.',
-                  });
+            const content =
+                'I can only help with Flow and your personal finances.';
             return http.Response(
               jsonEncode({
                 'message': {'role': 'assistant', 'content': content},
@@ -214,12 +184,50 @@ void main() {
 
       expect(answer.text, contains('personal finances'));
       expect(answer.sources, isEmpty);
-      expect(requests, 2);
+      expect(requests, 1);
       expect(mcp.calledTools, isEmpty);
     },
   );
 
-  test('money chat runs an Ollama-native MCP tool loop and verifies', () async {
+  test('money chat bounds conversation context for low token use', () async {
+    late Map<String, dynamic> requestBody;
+    final service = MoneyChatService(
+      OllamaCloudService(
+        apiKey: 'test',
+        client: MockClient((request) async {
+          requestBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response(
+            jsonEncode({
+              'message': {
+                'role': 'assistant',
+                'content': 'I can help with Flow.',
+              },
+            }),
+            200,
+          );
+        }),
+      ),
+      mcpClient: _FakeMoneyMcpClient(),
+    );
+    final history = List.generate(
+      10,
+      (index) => AssistantMessage(
+        user: index.isEven,
+        text: 'message $index ${'x' * 1000}',
+        timestamp: DateTime(2026, 7, 16),
+      ),
+    );
+
+    await service.ask('What can you do?', history: history);
+
+    final messages = requestBody['messages'] as List<dynamic>;
+    expect(messages, hasLength(6));
+    for (final message in messages.skip(1).take(4).cast<Map>()) {
+      expect(message['content'].toString().length, lessThanOrEqualTo(601));
+    }
+  });
+
+  test('money chat renders MCP records in one model request', () async {
     final requests = <Map<String, dynamic>>[];
     var call = 0;
     final mcp = _FakeMoneyMcpClient();
@@ -229,37 +237,23 @@ void main() {
         client: MockClient((request) async {
           requests.add(jsonDecode(request.body) as Map<String, dynamic>);
           call++;
-          final message = switch (call) {
-            1 => {
-              'role': 'assistant',
-              'content': '',
-              'tool_calls': [
-                {
-                  'type': 'function',
-                  'function': {
-                    'name': 'search_transactions',
-                    'arguments': {
-                      'label': 'primary',
-                      'from': '2026-06-20T00:00:00+05:30',
-                      'to': '2026-06-20T23:59:59.999999+05:30',
-                      'limit': 100,
-                    },
+          final message = {
+            'role': 'assistant',
+            'content': '',
+            'tool_calls': [
+              {
+                'type': 'function',
+                'function': {
+                  'name': 'search_transactions',
+                  'arguments': {
+                    'label': 'primary',
+                    'from': '2026-06-20T00:00:00+05:30',
+                    'to': '2026-06-20T23:59:59.999999+05:30',
+                    'limit': 50,
                   },
                 },
-              ],
-            },
-            2 => {
-              'role': 'assistant',
-              'content': 'You had one transaction on 20 June.',
-            },
-            _ => {
-              'role': 'assistant',
-              'content': jsonEncode({
-                'valid': true,
-                'answer': 'You had one verified transaction on 20 June.',
-                'issue': null,
-              }),
-            },
+              },
+            ],
           };
           return http.Response(jsonEncode({'message': message}), 200);
         }),
@@ -278,13 +272,14 @@ void main() {
       ],
     );
 
-    expect(call, 3);
+    expect(call, 1);
     expect(mcp.calledTools, ['search_transactions']);
     expect(answer.verified, isTrue);
     expect(answer.checkedRecords, 1);
     expect(answer.sources.single.id, 7);
     expect(answer.appliedFilters.single.from?.day, 20);
-    expect(answer.text, contains('verified transaction'));
+    expect(answer.text, contains('Cafe'));
+    expect(answer.text, contains('₹450.00'));
     expect(requests.first['tools'], isNotEmpty);
     final firstMessages = requests.first['messages'] as List;
     expect(
@@ -293,16 +288,8 @@ void main() {
       ),
       isTrue,
     );
-    final followUpMessages = requests[1]['messages'] as List;
-    expect(
-      followUpMessages.any((message) => message['role'] == 'tool'),
-      isTrue,
-    );
-    final toolMessage = followUpMessages.firstWhere(
-      (message) => message['role'] == 'tool',
-    );
-    expect(toolMessage['content'], contains('"merchant":"Cafe"'));
-    expect(toolMessage['content'], isNot(contains('private raw sms')));
+    expect(requests.single['think'], 'low');
+    expect(requests.single['keep_alive'], '10m');
   });
 
   test(
@@ -315,31 +302,18 @@ void main() {
           apiKey: 'test',
           client: MockClient((_) async {
             call++;
-            final message = switch (call) {
-              1 => {
-                'role': 'assistant',
-                'content': '',
-                'tool_calls': [
-                  {
-                    'type': 'function',
-                    'function': {
-                      'name': 'set_theme',
-                      'arguments': {'mode': 'dark'},
-                    },
+            final message = {
+              'role': 'assistant',
+              'content': '',
+              'tool_calls': [
+                {
+                  'type': 'function',
+                  'function': {
+                    'name': 'set_theme',
+                    'arguments': {'mode': 'dark'},
                   },
-                ],
-              },
-              2 => {
-                'role': 'assistant',
-                'content': 'The app theme is now dark.',
-              },
-              _ => {
-                'role': 'assistant',
-                'content': jsonEncode({
-                  'valid': true,
-                  'answer': 'The app theme is now dark.',
-                }),
-              },
+                },
+              ],
             };
             return http.Response(jsonEncode({'message': message}), 200);
           }),
@@ -352,6 +326,7 @@ void main() {
       expect(mcp.calledTools, ['set_theme']);
       expect(answer.text, contains('dark'));
       expect(answer.verified, isTrue);
+      expect(call, 1);
     },
   );
 

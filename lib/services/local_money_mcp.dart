@@ -125,7 +125,8 @@ class LocalMoneyMcpServer {
     if (records.any((record) => !query.matches(record))) {
       return _toolError('Database result failed local filter validation.');
     }
-    final structured = _searchResult(query, records);
+    final summary = await database.summarizeTransactions(query);
+    final structured = _searchResult(query, records, summary);
     return {
       'content': [
         {'type': 'text', 'text': jsonEncode(structured)},
@@ -259,12 +260,14 @@ class LocalMoneyMcpServer {
   Map<String, dynamic> _searchResult(
     TransactionQuery query,
     List<Expense> records,
+    Map<String, dynamic> summary,
   ) => {
     'applied_filter': query.toJson(),
-    'matched_count': records.length,
-    'totals_by_currency': _totals(records),
-    'records_truncated': records.length > query.limit,
-    'records': records.take(query.limit).map(_record).toList(),
+    'matched_count': summary['matched_count'],
+    'totals_by_currency': summary['totals_by_currency'],
+    'records_truncated':
+        (summary['matched_count'] as num? ?? 0).toInt() > records.length,
+    'records': records.map(_record).toList(),
   };
 
   Map<String, dynamic> _record(Expense record) => {
@@ -278,18 +281,6 @@ class LocalMoneyMcpServer {
     'tags': record.tagList,
     'recurring': record.isRecurring,
   };
-
-  Map<String, Map<String, double>> _totals(List<Expense> records) {
-    final totals = <String, Map<String, double>>{};
-    for (final record in records) {
-      final currency = totals.putIfAbsent(
-        record.currency,
-        () => {'income': 0, 'expense': 0},
-      );
-      currency[record.type] = (currency[record.type] ?? 0) + record.amount;
-    }
-    return totals;
-  }
 
   Map<String, dynamic> _toolError(String message) => {
     'content': [
@@ -602,6 +593,11 @@ class LocalMoneyMcpServer {
         'minimum': 0,
       },
       'limit': {'type': 'integer', 'minimum': 1, 'maximum': 200},
+      'continue_with_model': {
+        'type': 'boolean',
+        'description':
+            'True only when records need further AI analysis or another tool call. Omit for ordinary lists and totals.',
+      },
     },
     'additionalProperties': false,
   };

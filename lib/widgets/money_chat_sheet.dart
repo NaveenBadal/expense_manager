@@ -9,7 +9,6 @@ import '../providers/assistant_conversation_provider.dart';
 import '../services/app_control_service.dart';
 import '../services/local_money_mcp.dart';
 import '../services/money_chat_service.dart';
-import '../services/ollama_cloud_service.dart';
 import '../theme/app_tokens.dart';
 
 class MoneyChatSheet extends ConsumerStatefulWidget {
@@ -29,6 +28,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   final _scrollController = ScrollController();
   bool _thinking = false;
   String _stage = 'Understanding your request…';
+  late final LocalMoneyMcpClient _mcp;
 
   static const _prompts = [
     'Summarize this month',
@@ -39,6 +39,12 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   @override
   void initState() {
     super.initState();
+    _mcp = LocalMoneyMcpClient(
+      LocalMoneyMcpServer(
+        ref.read(databaseProvider),
+        appToolHandler: _handleAppTool,
+      ),
+    );
     final prompt = widget.initialPrompt?.trim();
     if (prompt != null && prompt.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _ask(prompt));
@@ -73,17 +79,8 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
     _scrollToLatest();
     try {
       final service = MoneyChatService(
-        OllamaCloudService(
-          apiKey: ref.read(ollamaApiKeyProvider),
-          baseUrl: ref.read(ollamaBaseUrlProvider),
-          model: ref.read(ollamaModelProvider),
-        ),
-        mcpClient: LocalMoneyMcpClient(
-          LocalMoneyMcpServer(
-            ref.read(databaseProvider),
-            appToolHandler: _handleAppTool,
-          ),
-        ),
+        ref.read(ollamaCloudProvider),
+        mcpClient: _mcp,
         approveTool: _approveTool,
         onProgress: (stage) {
           if (mounted) setState(() => _stage = stage);

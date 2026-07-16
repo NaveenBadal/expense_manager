@@ -414,6 +414,7 @@ CREATE TABLE IF NOT EXISTS app_metadata (
       where: filter.where,
       whereArgs: filter.arguments,
       orderBy: 'date DESC',
+      limit: query.limit,
     );
     return rows.map(Expense.fromMap).toList();
   }

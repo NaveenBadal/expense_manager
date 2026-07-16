@@ -76,6 +76,14 @@ void main() {
           .firstWhere((transaction) => transaction.merchant == 'Cafe One')
           .id!;
       final mcp = LocalMoneyMcpClient(LocalMoneyMcpServer(database));
+      final limited = await mcp.callTool('search_transactions', {
+        'category': 'Food',
+        'limit': 1,
+      });
+      expect(limited.structuredContent['matched_count'], 2);
+      expect(limited.structuredContent['records_truncated'], isTrue);
+      expect(limited.structuredContent['records'], hasLength(1));
+
       final source = await mcp.callTool('reanalyze_transaction_sms', {
         'id': transactionId,
       });

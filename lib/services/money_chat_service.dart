@@ -1,10 +1,13 @@
 import 'dart:convert';
 
+import 'package:intl/intl.dart';
+
 import '../models/expense.dart';
 import '../models/assistant_message.dart';
 import '../models/transaction_query.dart';
 import 'local_money_mcp.dart';
 import 'ollama_cloud_service.dart';
+import '../utils/currency_utils.dart';
 
 typedef ToolApproval =
     Future<bool> Function(String name, Map<String, dynamic> arguments);
@@ -74,44 +77,27 @@ class MoneyChatService {
       {
         'role': 'system',
         'content':
-            'You are Flow, the single authoritative assistant for a private '
-            'personal-finance app. Today is ${now.toIso8601String()} and the device timezone '
-            'offset is ${now.timeZoneOffset}. For every question that depends on '
-            'transaction data, you MUST call the provided tools before answering. '
-            'Use search_transactions for transaction lists and '
-            'summarize_transactions for authoritative counts and totals. For '
-            'comparisons, call tools once for each period. Resolve relative dates '
-            'from today and expand a requested day to local start/end timestamps. '
-            'For every request to inspect or change app settings, use the relevant '
-            'app tool. Never claim a setting changed unless its tool returned '
-            'changed=true. If asked what you can do or which tools are available, '
-            'explain the provided tools accurately without inventing capabilities. '
-            'For transaction corrections, creation, deletion, recurring flags, or '
-            'budgets, first search when an id or exact target is not already known, '
-            'then call the matching mutation tool. The host will request confirmation. '
-            'When the user explicitly asks to re-analyze a transaction from its original '
-            'SMS, first find its id, call reanalyze_transaction_sms, and infer only fields '
-            'supported by that SMS. Treat merchant as the counterparty: for outgoing money it '
-            'is the destination/recipient, and for incoming money it is the source/sender. It '
-            'does not have to be a shop. Then show the current and proposed values and ask whether '
-            'the user wants to update them. STOP and wait for their reply. Never call '
-            'update_transaction in the same user turn as reanalyze_transaction_sms. If the '
-            'user replies yes, call update_transaction using the previously proposed values. '
-            'Never inspect source SMS for an ordinary search or summary. '
-            'Never imply a mutation succeeded unless changed=true was returned. '
-            'If essential date information is genuinely ambiguous, ask one short '
-            'clarifying question without calling a tool. Never write SQL. Never '
-            'invent transactions, totals, balances, or tool results. Mention when '
-            'records are truncated. Questions about app settings, privacy, imports, '
-            'updates, and usage do not require a transaction tool unless an app '
-            'state tool is relevant. Politely refuse requests unrelated to this '
-            'app or the user’s personal finances, but understand natural wording '
-            'rather than relying on keywords. Be concise and use mobile-friendly '
-            'Markdown with short paragraphs and bullets. NEVER use Markdown tables. '
-            'Never quote raw SMS in your answer or retain it beyond the tool interaction.',
+            'You are Flow, the assistant for a private finance app. Local time: '
+            '${now.toIso8601String()} (UTC${now.timeZoneOffset}). Use tools for every '
+            'transaction fact or app-state action; never invent data or claim a change '
+            'unless changed=true. Use search_transactions for lists and '
+            'summarize_transactions for totals; call once per comparison period. Resolve '
+            'relative dates locally and use full-day start/end times. Set '
+            'continue_with_model=true only when results need further AI analysis or another '
+            'tool call. Use limit 5 when locating an id to change. Otherwise omit it so the app can '
+            'render verified results immediately. For mutations, search first only when the '
+            'target id is unknown; confirmation is handled by the host. Re-analyze SMS only '
+            'when explicitly requested: find the id, call reanalyze_transaction_sms, infer '
+            'only supported source/destination fields, show the proposal, and wait for a later '
+            'yes before update_transaction. Never quote raw SMS. Ask one short question only '
+            'when essential details are ambiguous. Explain available tools when asked. Refuse '
+            'unrelated requests. Be concise, mobile-friendly, and never use tables or SQL.',
       },
-      for (final message in history.reversed.take(12).toList().reversed)
-        {'role': message.user ? 'user' : 'assistant', 'content': message.text},
+      for (final message in history.reversed.take(4).toList().reversed)
+        {
+          'role': message.user ? 'user' : 'assistant',
+          'content': _compactHistory(message.text),
+        },
       {'role': 'user', 'content': question},
     ];
     final toolAudit = <Map<String, dynamic>>[];
@@ -192,6 +178,7 @@ class MoneyChatService {
           'tool': call.name,
           'arguments': call.arguments,
           'result': structured,
+          'content': result.content,
           'is_error': result.isError,
         });
         messages.add({
@@ -202,27 +189,28 @@ class MoneyChatService {
               : jsonEncode(structured),
         });
       }
+      if (!reanalyzedSmsThisTurn && _canFinishLocally(response.toolCalls)) {
+        onProgress?.call('Formatting verified results…');
+        return _renderToolAnswer(
+          audit: toolAudit,
+          sources: sourceByKey.values.toList(),
+          checkedRecords: checkedRecords,
+          filters: appliedFilters,
+        );
+      }
     }
     if (draft == null) {
       throw const FormatException('The model exceeded the tool-call limit.');
     }
 
-    onProgress?.call('Verifying every claim…');
-    final verification = await _verify(
-      question: question,
-      toolAudit: toolAudit,
-      draft: draft,
-    );
-    final safelyGrounded = _deterministicallyGrounded(
-      verification.answer,
-      toolAudit,
-    );
     return MoneyChatAnswer(
-      text: safelyGrounded ? verification.answer : _safeFallback(toolAudit),
+      text: draft,
       sources: sourceByKey.values.toList(),
       checkedRecords: checkedRecords,
       appliedFilters: appliedFilters,
-      verified: verification.valid,
+      verified:
+          toolAudit.isNotEmpty &&
+          toolAudit.every((entry) => entry['is_error'] != true),
     );
   }
 
@@ -244,38 +232,165 @@ class MoneyChatService {
     _ => name.replaceAll('_', ' '),
   };
 
-  bool _deterministicallyGrounded(
-    String answer,
-    List<Map<String, dynamic>> audit,
-  ) {
-    if (audit.isEmpty) return true;
-    final evidence = jsonEncode(audit).toLowerCase();
-    final financialClaims = RegExp(
-      r'(?:₹|\$|€|£)\s*[\d,]+(?:\.\d+)?|\b[\d,]+(?:\.\d+)?\s*(?:inr|usd|eur|gbp|aed|sgd)\b',
-      caseSensitive: false,
-    ).allMatches(answer);
-    for (final claim in financialClaims) {
-      final normalized = claim
-          .group(0)!
-          .toLowerCase()
-          .replaceAll(RegExp(r'[^\d.]'), '');
-      if (normalized.isNotEmpty && !evidence.contains(normalized)) return false;
-    }
-    if (RegExp(
-          r'\b(changed|enabled|disabled|now (?:dark|light))\b',
-          caseSensitive: false,
-        ).hasMatch(answer) &&
-        !evidence.contains('"changed":true')) {
-      return false;
-    }
-    return true;
+  static String _compactHistory(String value) {
+    const limit = 600;
+    final compact = value.trim();
+    return compact.length <= limit
+        ? compact
+        : '${compact.substring(0, limit)}…';
   }
 
-  String _safeFallback(List<Map<String, dynamic>> audit) {
-    final cancelled = audit.any((entry) => entry['is_error'] == true);
-    return cancelled
-        ? 'I could not safely complete that request. No unverified change was applied.'
-        : 'I found relevant local information, but I could not verify every figure in the generated response. Please narrow the request and try again.';
+  bool _canFinishLocally(List<OllamaToolCall> calls) {
+    if (calls.isEmpty) return false;
+    const locallyRendered = {
+      'search_transactions',
+      'summarize_transactions',
+      'set_theme',
+      'set_amount_visibility',
+      'set_app_lock',
+      'set_notification_capture',
+      'set_currency',
+      'set_sync_lookback',
+      'create_transaction',
+      'update_transaction',
+      'delete_transaction',
+      'manage_budget',
+    };
+    return calls.every(
+      (call) =>
+          locallyRendered.contains(call.name) &&
+          call.arguments['continue_with_model'] != true,
+    );
+  }
+
+  MoneyChatAnswer _renderToolAnswer({
+    required List<Map<String, dynamic>> audit,
+    required List<Expense> sources,
+    required int checkedRecords,
+    required List<TransactionQuery> filters,
+  }) {
+    final errors = audit.where((entry) => entry['is_error'] == true).toList();
+    if (errors.isNotEmpty) {
+      final message = errors.first['content']?.toString().trim();
+      return MoneyChatAnswer(
+        text: message == null || message.isEmpty
+            ? 'I could not safely complete that request. Nothing was changed.'
+            : message,
+        sources: sources,
+        checkedRecords: checkedRecords,
+        appliedFilters: filters,
+      );
+    }
+
+    final sections = <String>[];
+    for (final entry in audit) {
+      final name = entry['tool']?.toString() ?? '';
+      final result =
+          (entry['result'] as Map?)?.cast<String, dynamic>() ?? const {};
+      if (name == 'search_transactions') {
+        sections.add(_renderSearch(result));
+      } else if (name == 'summarize_transactions') {
+        sections.add(_renderSummary(result));
+      } else {
+        sections.add(_renderAction(name, result));
+      }
+    }
+    return MoneyChatAnswer(
+      text: sections.where((value) => value.isNotEmpty).join('\n\n'),
+      sources: sources,
+      checkedRecords: checkedRecords,
+      appliedFilters: filters,
+      verified: true,
+    );
+  }
+
+  String _renderSearch(Map<String, dynamic> result) {
+    final count = (result['matched_count'] as num?)?.toInt() ?? 0;
+    final records = result['records'] as List<dynamic>? ?? const [];
+    if (count == 0) return 'No matching transactions found.';
+    final lines = <String>[
+      '**$count matching transaction${count == 1 ? '' : 's'}**',
+    ];
+    for (final raw in records.whereType<Map>()) {
+      final item = raw.cast<String, dynamic>();
+      final date = DateTime.tryParse(item['date']?.toString() ?? '');
+      final amount = (item['amount'] as num?)?.toDouble() ?? 0;
+      final currency = item['currency']?.toString() ?? '';
+      final merchant = item['merchant']?.toString() ?? 'Unknown';
+      final category = item['category']?.toString() ?? 'Others';
+      final direction = item['direction'] == 'income' ? 'Received' : 'Paid';
+      final when = date == null
+          ? ''
+          : DateFormat('d MMM · h:mm a').format(date);
+      lines.add(
+        '- **$merchant** · $direction ${formatAmount(amount, currency)}'
+        '${when.isEmpty ? '' : ' · $when'} · $category',
+      );
+    }
+    if (result['records_truncated'] == true) {
+      lines.add('_Showing the first ${records.length} of $count matches._');
+    }
+    return lines.join('\n');
+  }
+
+  String _renderSummary(Map<String, dynamic> result) {
+    final count = (result['matched_count'] as num?)?.toInt() ?? 0;
+    final totals = (result['totals_by_currency'] as Map?) ?? const {};
+    if (count == 0) return 'No matching transactions found.';
+    final lines = <String>[
+      '**$count matching transaction${count == 1 ? '' : 's'}**',
+    ];
+    for (final entry in totals.entries) {
+      final values = (entry.value as Map).cast<String, dynamic>();
+      final income = (values['income'] as num?)?.toDouble() ?? 0;
+      final expense = (values['expense'] as num?)?.toDouble() ?? 0;
+      if (expense > 0) {
+        lines.add('- Paid: ${formatAmount(expense, entry.key.toString())}');
+      }
+      if (income > 0) {
+        lines.add('- Received: ${formatAmount(income, entry.key.toString())}');
+      }
+    }
+    return lines.join('\n');
+  }
+
+  String _renderAction(String name, Map<String, dynamic> result) {
+    if (result['changed'] != true) {
+      return result['cancelled'] == true
+          ? 'No change was made.'
+          : 'The requested change was not applied.';
+    }
+    return switch (name) {
+      'set_theme' =>
+        'Theme changed to **${result['theme'] ?? result['mode'] ?? 'the requested mode'}**.',
+      'set_amount_visibility' =>
+        result['amounts_visible'] == true
+            ? 'Amounts are now visible.'
+            : 'Amounts are now hidden.',
+      'set_app_lock' =>
+        result['app_lock_enabled'] == true
+            ? 'App lock is enabled.'
+            : 'App lock is disabled.',
+      'set_notification_capture' =>
+        result['notification_capture_enabled'] == true
+            ? 'Notification capture is enabled.'
+            : 'Notification capture is disabled.',
+      'set_currency' =>
+        'Preferred currency changed to **${result['preferred_currency']}**.',
+      'set_sync_lookback' =>
+        'SMS sync will now check the last **${result['sync_lookback_days']} days**.',
+      'create_transaction' =>
+        'Transaction #${result['transaction_id']} created.',
+      'update_transaction' =>
+        'Transaction #${result['transaction_id']} updated.',
+      'delete_transaction' =>
+        'Transaction #${result['transaction_id']} deleted.',
+      'manage_budget' =>
+        result['removed'] == true
+            ? '${result['category']} budget removed.'
+            : '${result['category']} budget updated.',
+      _ => 'Done.',
+    };
   }
 
   Expense _expenseFromTool(Map<String, dynamic> json) => Expense(
@@ -290,54 +405,4 @@ class MoneyChatService {
     tags: (json['tags'] as List<dynamic>? ?? const []).join(','),
     isRecurring: json['recurring'] == true,
   );
-
-  Future<_Verification> _verify({
-    required String question,
-    required List<Map<String, dynamic>> toolAudit,
-    required String draft,
-  }) async {
-    final raw = await cloud.answer(
-      systemPrompt:
-          'Audit a financial answer against the user question and authoritative '
-          'MCP tool results. Return JSON only: '
-          '{"valid":true,"answer":"final answer","issue":null}. Mark invalid '
-          'if the draft fails the question, changes filters/dates/counts/totals, '
-          'invents facts, or omits important insufficiency or truncation. If '
-          'invalid, correct it using only the MCP results. If no tool was needed '
-          'for an app-help or clarification response, verify relevance and do not '
-          'invent transaction facts. Never include or quote an original_sms value '
-          'in the answer.',
-      userPrompt:
-          'QUESTION: $question\nMCP_TOOL_AUDIT: ${jsonEncode(toolAudit)}'
-          '\nDRAFT: $draft',
-    );
-    final json = _jsonObject(raw);
-    final answer = json['answer']?.toString().trim();
-    return _Verification(
-      valid: json['valid'] == true,
-      answer: answer == null || answer.isEmpty ? draft : answer,
-    );
-  }
-
-  static Map<String, dynamic> _jsonObject(String raw) {
-    var value = raw.trim();
-    if (value.startsWith('```')) {
-      value = value
-          .replaceFirst(RegExp(r'^```(?:json)?\s*'), '')
-          .replaceFirst(RegExp(r'\s*```$'), '');
-    }
-    final start = value.indexOf('{');
-    final end = value.lastIndexOf('}');
-    if (start < 0 || end <= start) {
-      throw const FormatException('AI returned invalid verification output.');
-    }
-    return (jsonDecode(value.substring(start, end + 1)) as Map)
-        .cast<String, dynamic>();
-  }
-}
-
-class _Verification {
-  const _Verification({required this.valid, required this.answer});
-  final bool valid;
-  final String answer;
 }
