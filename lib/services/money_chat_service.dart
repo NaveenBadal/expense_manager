@@ -28,50 +28,9 @@ class MoneyChatService {
   final OllamaCloudService cloud;
   final MoneyMcpClient? mcpClient;
 
-  static const outOfScopeReply =
-      'I’m built only for your money and this app. Ask me about transactions, '
-      'spending, income, budgets, categories, merchants, trends, imports, '
-      'privacy, settings, or how Flow works.';
-
-  static final _financeLanguage = RegExp(
-    r'\b(transaction|transactions|expense|expenses|spend|spending|spent|income|'
-    r'salary|money|budget|balance|payment|paid|pay|purchase|bought|buy|merchant|'
-    r'category|categories|subscription|subscriptions|recurring|refund|debit|'
-    r'credit|cash|bank|upi|card|transfer|saving|savings|cost|price|amount|total|'
-    r'month|monthly|week|weekly|year|today|yesterday|recent|latest|flow|app|'
-    r'setting|settings|update|notification|sms|import|export|csv|privacy|lock|'
-    r'currency|inr|usd|eur|gbp|aed|sgd)\b',
-    caseSensitive: false,
-  );
-  static final _outsideIntent = RegExp(
-    r'\b(python|javascript|typescript|java|c\+\+|html|css|code|coding|'
-    r'program|script|essay|poem|story|recipe|weather|sports|politics|medical|'
-    r'legal|homework|translate|translation|image|draw)\b',
-    caseSensitive: false,
-  );
-
-  static bool isInScope(
-    String question, [
-    List<Expense> transactions = const [],
-  ]) {
-    final text = question.trim();
-    if (text.isEmpty || _outsideIntent.hasMatch(text)) return false;
-    if (_financeLanguage.hasMatch(text)) return true;
-    final normalized = text.toLowerCase();
-    return transactions.any((expense) {
-      final merchant = expense.displayMerchant.trim().toLowerCase();
-      final category = expense.category.trim().toLowerCase();
-      return (merchant.length > 2 && normalized.contains(merchant)) ||
-          (category.length > 2 && normalized.contains(category));
-    });
-  }
-
-  Future<MoneyChatAnswer> ask(
-    String question, [
-    List<Expense> knownTransactions = const [],
-  ]) async {
-    if (!isInScope(question, knownTransactions)) {
-      return const MoneyChatAnswer(text: outOfScopeReply, sources: []);
+  Future<MoneyChatAnswer> ask(String question) async {
+    if (question.trim().isEmpty) {
+      throw ArgumentError('Question cannot be empty.');
     }
     final mcp = mcpClient;
     if (mcp == null) throw StateError('The local MCP client is unavailable.');
@@ -87,20 +46,28 @@ class MoneyChatService {
       {
         'role': 'system',
         'content':
-            'You are Flow, a precise financial assistant inside a private money '
-            'app. Today is ${now.toIso8601String()} and the device timezone '
+            'You are Flow, the single authoritative assistant for a private '
+            'personal-finance app. Today is ${now.toIso8601String()} and the device timezone '
             'offset is ${now.timeZoneOffset}. For every question that depends on '
             'transaction data, you MUST call the provided tools before answering. '
             'Use search_transactions for transaction lists and '
             'summarize_transactions for authoritative counts and totals. For '
             'comparisons, call tools once for each period. Resolve relative dates '
             'from today and expand a requested day to local start/end timestamps. '
+            'For every request to inspect or change app settings, use the relevant '
+            'app tool. Never claim a setting changed unless its tool returned '
+            'changed=true. If asked what you can do or which tools are available, '
+            'explain the provided tools accurately without inventing capabilities. '
             'If essential date information is genuinely ambiguous, ask one short '
             'clarifying question without calling a tool. Never write SQL. Never '
             'invent transactions, totals, balances, or tool results. Mention when '
             'records are truncated. Questions about app settings, privacy, imports, '
-            'updates, and usage do not require a transaction tool. Be concise and '
-            'use Markdown. Never expose raw SMS.',
+            'updates, and usage do not require a transaction tool unless an app '
+            'state tool is relevant. Politely refuse requests unrelated to this '
+            'app or the user’s personal finances, but understand natural wording '
+            'rather than relying on keywords. Be concise and use mobile-friendly '
+            'Markdown with short paragraphs and bullets. NEVER use Markdown tables. '
+            'Never expose raw SMS.',
       },
       {'role': 'user', 'content': question},
     ];

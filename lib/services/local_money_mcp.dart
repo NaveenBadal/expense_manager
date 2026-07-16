@@ -4,14 +4,21 @@ import '../models/expense.dart';
 import '../models/transaction_query.dart';
 import 'database_helper.dart';
 
+typedef AppToolHandler =
+    Future<Map<String, dynamic>> Function(
+      String name,
+      Map<String, dynamic> arguments,
+    );
+
 /// Embedded MCP server for private, read-only financial tools.
 ///
 /// It implements the MCP 2025-11-25 lifecycle and tool methods over an
 /// in-process JSON-RPC transport, keeping SQLite inaccessible to the model.
 class LocalMoneyMcpServer {
-  const LocalMoneyMcpServer(this.database);
+  const LocalMoneyMcpServer(this.database, {this.appToolHandler});
 
   final DatabaseHelper database;
+  final AppToolHandler? appToolHandler;
 
   static const protocolVersion = '2025-11-25';
 
@@ -25,7 +32,7 @@ class LocalMoneyMcpServer {
     try {
       final result = switch (method) {
         'initialize' => _initialize(request['params']),
-        'tools/list' => {'tools': _tools},
+        'tools/list' => {'tools': _availableTools},
         'tools/call' => await _callTool(request['params']),
         _ => null,
       };
@@ -65,12 +72,32 @@ class LocalMoneyMcpServer {
       throw const _McpProtocolError(-32602, 'Missing tool parameters');
     }
     final name = params['name']?.toString();
-    if (name != 'search_transactions' && name != 'summarize_transactions') {
+    final isTransactionTool =
+        name == 'search_transactions' || name == 'summarize_transactions';
+    final isAppTool = _appToolNames.contains(name) && appToolHandler != null;
+    if (!isTransactionTool && !isAppTool) {
       throw _McpProtocolError(-32602, 'Unknown tool: $name');
     }
     final arguments = params['arguments'];
     if (arguments is! Map) {
       return _toolError('Tool arguments must be an object.');
+    }
+    if (isAppTool) {
+      try {
+        final structured = await appToolHandler!(
+          name!,
+          arguments.cast<String, dynamic>(),
+        );
+        return {
+          'content': [
+            {'type': 'text', 'text': jsonEncode(structured)},
+          ],
+          'structuredContent': structured,
+          'isError': false,
+        };
+      } catch (error) {
+        return _toolError('App action failed: $error');
+      }
     }
     final query = TransactionQuery.fromJson(arguments.cast<String, dynamic>());
     final records = await database.queryTransactions(query);
@@ -146,7 +173,12 @@ class LocalMoneyMcpServer {
     'error': {'code': code, 'message': message},
   };
 
-  static final List<Map<String, dynamic>> _tools = [
+  List<Map<String, dynamic>> get _availableTools => [
+    ..._transactionTools,
+    if (appToolHandler != null) ..._appTools,
+  ];
+
+  static final List<Map<String, dynamic>> _transactionTools = [
     {
       'name': 'search_transactions',
       'title': 'Search local transactions',
@@ -185,6 +217,118 @@ class LocalMoneyMcpServer {
           'totals_by_currency': {'type': 'object'},
         },
         'required': ['applied_filter', 'matched_count', 'totals_by_currency'],
+      },
+    },
+  ];
+
+  static const _appToolNames = {
+    'get_app_state',
+    'set_theme',
+    'set_amount_visibility',
+    'set_app_lock',
+    'set_notification_capture',
+    'set_currency',
+    'set_sync_lookback',
+  };
+
+  static final List<Map<String, dynamic>> _appTools = [
+    {
+      'name': 'get_app_state',
+      'title': 'Read current app settings',
+      'description':
+          'Read the current theme, amount visibility, app lock, notification capture, currency, and SMS lookback settings.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': <String, dynamic>{},
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'set_theme',
+      'title': 'Change app theme',
+      'description':
+          'Actually change and persist the app appearance. Use only when the user asks to change the theme.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'mode': {
+            'type': 'string',
+            'enum': ['system', 'light', 'dark'],
+          },
+        },
+        'required': ['mode'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'set_amount_visibility',
+      'title': 'Show or hide money amounts',
+      'description':
+          'Actually show or mask monetary amounts throughout the app.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'visible': {'type': 'boolean'},
+        },
+        'required': ['visible'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'set_app_lock',
+      'title': 'Enable or disable app lock',
+      'description': 'Actually enable or disable the app authentication lock.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'enabled': {'type': 'boolean'},
+        },
+        'required': ['enabled'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'set_notification_capture',
+      'title': 'Control notification transaction capture',
+      'description':
+          'Actually enable or disable automatic transaction capture from notifications. Enabling may open Android permission settings.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'enabled': {'type': 'boolean'},
+        },
+        'required': ['enabled'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'set_currency',
+      'title': 'Change preferred currency',
+      'description': 'Actually change and persist the preferred app currency.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'currency': {
+            'type': 'string',
+            'enum': ['INR', 'USD', 'EUR', 'GBP', 'SGD', 'AED'],
+          },
+        },
+        'required': ['currency'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'set_sync_lookback',
+      'title': 'Change SMS sync lookback',
+      'description':
+          'Actually change how many historical days SMS synchronization scans, from 7 through 180 days.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'days': {'type': 'integer', 'minimum': 7, 'maximum': 180},
+        },
+        'required': ['days'],
+        'additionalProperties': false,
       },
     },
   ];

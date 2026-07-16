@@ -23,7 +23,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  final _intent = TextEditingController();
   late final TextEditingController _key;
   late final TextEditingController _url;
   late final TextEditingController _income;
@@ -36,7 +35,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _testing = false;
   bool _connected = false;
   bool _importing = false;
-  String _response = 'Tell Flow what should change. No hunting through menus.';
 
   @override
   void initState() {
@@ -57,7 +55,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
-    _intent.dispose();
     _key.dispose();
     _url.dispose();
     _income.dispose();
@@ -74,16 +71,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       eyebrow: 'Configuration without configuration screens',
       title: 'Flow DNA',
       slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _IntentConsole(
-              controller: _intent,
-              response: _response,
-              onSubmit: _applyIntent,
-            ),
-          ),
-        ),
         const SliverToBoxAdapter(
           child: SectionLabel('Current genetic expression'),
         ),
@@ -98,12 +85,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   label: private ? 'AMOUNTS VEILED' : 'AMOUNTS VISIBLE',
                   active: private,
                   onTap: () =>
-                      _applyIntent(private ? 'show amounts' : 'hide amounts'),
+                      ref.read(privateModeProvider.notifier).set(!private),
                 ),
                 _Expression(
                   label: locked ? 'IDENTITY LOCKED' : 'QUICK ENTRY',
                   active: locked,
-                  onTap: () => _applyIntent(locked ? 'unlock app' : 'lock app'),
+                  onTap: () => ref
+                      .read(appLockEnabledProvider.notifier)
+                      .setEnabled(!locked),
                 ),
                 _Expression(
                   label: capture ? 'SIGNALS LISTENING' : 'SIGNALS MANUAL',
@@ -308,50 +297,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Future<void> _applyIntent(String raw) async {
-    final text = raw.trim().toLowerCase();
-    if (text.isEmpty) return;
-    _intent.clear();
-    if (text.contains('hide') && text.contains('amount')) {
-      await ref.read(privateModeProvider.notifier).set(true);
-      _say('Amounts are now veiled everywhere.');
-    } else if ((text.contains('show') || text.contains('reveal')) &&
-        text.contains('amount')) {
-      await ref.read(privateModeProvider.notifier).set(false);
-      _say('Amounts are visible again.');
-    } else if (text.contains('dark')) {
-      await _setTheme(ThemeMode.dark);
-      _say('Flow now inhabits dark space.');
-    } else if (text.contains('light')) {
-      await _setTheme(ThemeMode.light);
-      _say('Flow now inhabits light space.');
-    } else if (text.contains('lock') && !text.contains('unlock')) {
-      await ref.read(appLockEnabledProvider.notifier).setEnabled(true);
-      _say('Identity protection is active.');
-    } else if (text.contains('unlock')) {
-      await ref.read(appLockEnabledProvider.notifier).setEnabled(false);
-      _say('Identity protection is disabled.');
-    } else if (RegExp(r'\b(inr|usd|eur|gbp|sgd|aed)\b').firstMatch(text)
-        case final match?) {
-      _currency = match.group(0)!.toUpperCase();
-      await ref.read(preferredCurrencyProvider.notifier).setCurrency(_currency);
-      _say('Your financial reality now speaks $_currency.');
-    } else if (RegExp(r'(\d{1,3})\s*days?').firstMatch(text)
-        case final match?) {
-      _lookback = (int.tryParse(match.group(1)!) ?? 30).clamp(7, 180);
-      await _saveMemory();
-      _say('Signal memory now reaches back $_lookback days.');
-    } else if (text.contains('ai') ||
-        text.contains('model') ||
-        text.contains('key')) {
-      setState(() => _open = 'intelligence');
-      _say('I opened the intelligence strand for the private credential.');
-    } else {
-      _say('I cannot safely translate that yet. Open a DNA strand below.');
-    }
+  void _notify(String value) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
   }
-
-  void _say(String value) => setState(() => _response = value);
 
   Future<void> _setTheme(ThemeMode mode) async {
     ref.read(themeModeProvider.notifier).setThemeMode(mode);
@@ -372,7 +321,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           income: double.tryParse(_income.text.trim()) ?? 0,
           buffer: double.tryParse(_buffer.text.trim()) ?? 0,
         );
-    _say('Reality model recalibrated.');
+    _notify('Reality model recalibrated.');
   }
 
   Future<void> _saveMemory() async {
@@ -400,7 +349,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ref.read(ollamaApiKeyProvider.notifier).set(_key.text.trim());
     ref.read(ollamaBaseUrlProvider.notifier).set(url);
     ref.read(ollamaModelProvider.notifier).set(_model);
-    _say('The intelligence strand remembers this model.');
+    _notify('The intelligence strand remembers this model.');
   }
 
   Future<void> _test() async {
@@ -417,7 +366,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       _testing = false;
       _connected = ok;
     });
-    _say(
+    _notify(
       ok
           ? 'The private intelligence connection is alive.'
           : 'The model did not answer. Check its key and endpoint.',
@@ -438,9 +387,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         currency: _currency,
       );
       await ref.read(expenseListProvider.notifier).addExpenses(expenses);
-      _say('Flow absorbed ${expenses.length} historical movements.');
+      _notify('Flow absorbed ${expenses.length} historical movements.');
     } catch (_) {
-      _say('That history could not be absorbed safely. Nothing changed.');
+      _notify('That history could not be absorbed safely. Nothing changed.');
     } finally {
       if (mounted) setState(() => _importing = false);
     }
@@ -448,68 +397,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _push(Widget page) =>
       Navigator.push(context, MaterialPageRoute(builder: (_) => page));
-}
-
-class _IntentConsole extends StatelessWidget {
-  const _IntentConsole({
-    required this.controller,
-    required this.response,
-    required this.onSubmit,
-  });
-  final TextEditingController controller;
-  final String response;
-  final ValueChanged<String> onSubmit;
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: const Color(0xFF090D16),
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(8),
-        topRight: Radius.circular(38),
-        bottomLeft: Radius.circular(38),
-        bottomRight: Radius.circular(8),
-      ),
-      border: Border.all(color: Colors.white12),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'SPEAK AN INTENT',
-          style: TextStyle(
-            color: Color(0xFFC7FF4A),
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.4,
-          ),
-        ),
-        const SizedBox(height: 14),
-        TextField(
-          controller: controller,
-          onSubmitted: onSubmit,
-          style: const TextStyle(color: Colors.white, fontSize: 18),
-          decoration: InputDecoration(
-            hintText: '“Hide amounts” or “scan 60 days”…',
-            hintStyle: const TextStyle(color: Colors.white30),
-            suffixIcon: IconButton(
-              onPressed: () => onSubmit(controller.text),
-              icon: const Icon(
-                Icons.arrow_forward_rounded,
-                color: Color(0xFFC7FF4A),
-              ),
-            ),
-            border: InputBorder.none,
-          ),
-        ),
-        const Divider(color: Colors.white12),
-        Text(
-          response,
-          style: const TextStyle(color: Colors.white54, fontSize: 11),
-        ),
-      ],
-    ),
-  );
 }
 
 class _Expression extends StatelessWidget {

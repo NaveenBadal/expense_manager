@@ -4,13 +4,31 @@ import 'package:expense_manager/services/money_chat_service.dart';
 import 'package:expense_manager/services/local_money_mcp.dart';
 import 'package:expense_manager/services/ollama_cloud_service.dart';
 import 'package:expense_manager/services/database_helper.dart';
+import 'package:expense_manager/widgets/money_chat_sheet.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('chat converts markdown tables into mobile-friendly rows', () {
+    final result = mobileFriendlyMarkdown(
+      '| Date | Amount |\n| --- | --- |\n| 20 Jun | ₹450 |',
+    );
+
+    expect(result, contains('**Date:** 20 Jun'));
+    expect(result, contains('**Amount:** ₹450'));
+    expect(result, isNot(contains('| --- |')));
+  });
+
   test('local money server negotiates MCP and lists typed tools', () async {
-    final server = LocalMoneyMcpServer(DatabaseHelper.instance);
+    String? appCall;
+    final server = LocalMoneyMcpServer(
+      DatabaseHelper.instance,
+      appToolHandler: (name, arguments) async {
+        appCall = name;
+        return {'changed': true, ...arguments};
+      },
+    );
     final initialized = await server.handle({
       'jsonrpc': '2.0',
       'id': 1,
@@ -33,10 +51,29 @@ void main() {
         .cast<Map<String, dynamic>>();
     expect(
       tools.map((tool) => tool['name']),
-      containsAll(['search_transactions', 'summarize_transactions']),
+      containsAll([
+        'search_transactions',
+        'summarize_transactions',
+        'set_theme',
+        'set_amount_visibility',
+      ]),
     );
     expect(tools.first['inputSchema'], isA<Map<String, dynamic>>());
     expect(tools.first['outputSchema'], isA<Map<String, dynamic>>());
+    final changed = await server.handle({
+      'jsonrpc': '2.0',
+      'id': 3,
+      'method': 'tools/call',
+      'params': {
+        'name': 'set_theme',
+        'arguments': {'mode': 'dark'},
+      },
+    });
+    expect(appCall, 'set_theme');
+    expect(
+      ((changed?['result'] as Map)['structuredContent'] as Map)['changed'],
+      isTrue,
+    );
   });
 
   test('parses an out-of-order AI batch using stable ids', () async {
@@ -120,36 +157,42 @@ void main() {
     expect((requestBody['messages'] as List), hasLength(2));
   });
 
-  test('money chat rejects unrelated work without contacting AI', () async {
-    var requests = 0;
-    final service = MoneyChatService(
-      OllamaCloudService(
-        apiKey: 'test',
-        client: MockClient((_) async {
-          requests++;
-          return http.Response('{}', 200);
-        }),
-      ),
-    );
+  test(
+    'money chat uses role context instead of a manual prompt gate',
+    () async {
+      var requests = 0;
+      final mcp = _FakeMoneyMcpClient();
+      final service = MoneyChatService(
+        OllamaCloudService(
+          apiKey: 'test',
+          client: MockClient((_) async {
+            requests++;
+            final content = requests == 1
+                ? 'I can only help with Flow and your personal finances.'
+                : jsonEncode({
+                    'valid': true,
+                    'answer':
+                        'I can only help with Flow and your personal finances.',
+                  });
+            return http.Response(
+              jsonEncode({
+                'message': {'role': 'assistant', 'content': content},
+              }),
+              200,
+            );
+          }),
+        ),
+        mcpClient: mcp,
+      );
 
-    final answer = await service.ask('Create a Python game for me', const []);
+      final answer = await service.ask('Create a Python game for me');
 
-    expect(answer.text, MoneyChatService.outOfScopeReply);
-    expect(answer.sources, isEmpty);
-    expect(requests, 0);
-  });
-
-  test('money chat recognizes finance and app questions', () {
-    expect(
-      MoneyChatService.isInScope('What did I spend this month?', const []),
-      isTrue,
-    );
-    expect(
-      MoneyChatService.isInScope('How do I update this app?', const []),
-      isTrue,
-    );
-    expect(MoneyChatService.isInScope('Write me a poem', const []), isFalse);
-  });
+      expect(answer.text, contains('personal finances'));
+      expect(answer.sources, isEmpty);
+      expect(requests, 2);
+      expect(mcp.calledTools, isEmpty);
+    },
+  );
 
   test('money chat runs an Ollama-native MCP tool loop and verifies', () async {
     final requests = <Map<String, dynamic>>[];
@@ -220,6 +263,56 @@ void main() {
     expect(toolMessage['content'], contains('"merchant":"Cafe"'));
     expect(toolMessage['content'], isNot(contains('private raw sms')));
   });
+
+  test(
+    'main chat changes settings only through a successful app tool',
+    () async {
+      var call = 0;
+      final mcp = _FakeMoneyMcpClient();
+      final service = MoneyChatService(
+        OllamaCloudService(
+          apiKey: 'test',
+          client: MockClient((_) async {
+            call++;
+            final message = switch (call) {
+              1 => {
+                'role': 'assistant',
+                'content': '',
+                'tool_calls': [
+                  {
+                    'type': 'function',
+                    'function': {
+                      'name': 'set_theme',
+                      'arguments': {'mode': 'dark'},
+                    },
+                  },
+                ],
+              },
+              2 => {
+                'role': 'assistant',
+                'content': 'The app theme is now dark.',
+              },
+              _ => {
+                'role': 'assistant',
+                'content': jsonEncode({
+                  'valid': true,
+                  'answer': 'The app theme is now dark.',
+                }),
+              },
+            };
+            return http.Response(jsonEncode({'message': message}), 200);
+          }),
+        ),
+        mcpClient: mcp,
+      );
+
+      final answer = await service.ask('Make this easier on my eyes at night');
+
+      expect(mcp.calledTools, ['set_theme']);
+      expect(answer.text, contains('dark'));
+      expect(answer.verified, isTrue);
+    },
+  );
 }
 
 class _FakeMoneyMcpClient implements MoneyMcpClient {
@@ -243,6 +336,20 @@ class _FakeMoneyMcpClient implements MoneyMcpClient {
         },
       },
     },
+    {
+      'name': 'set_theme',
+      'description': 'Actually change the app theme.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'mode': {
+            'type': 'string',
+            'enum': ['system', 'light', 'dark'],
+          },
+        },
+        'required': ['mode'],
+      },
+    },
   ];
 
   @override
@@ -251,6 +358,14 @@ class _FakeMoneyMcpClient implements MoneyMcpClient {
     Map<String, dynamic> arguments,
   ) async {
     calledTools.add(name);
+    if (name == 'set_theme') {
+      final result = {'changed': true, 'theme': arguments['mode']};
+      return McpToolResult(
+        content: jsonEncode(result),
+        structuredContent: result,
+        isError: false,
+      );
+    }
     final result = {
       'applied_filter': arguments,
       'matched_count': 1,

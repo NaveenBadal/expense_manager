@@ -3,6 +3,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/expense_provider.dart';
+import '../providers/notification_ingestion_provider.dart';
 import '../services/local_money_mcp.dart';
 import '../services/money_chat_service.dart';
 import '../services/ollama_cloud_service.dart';
@@ -56,7 +57,10 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
           model: ref.read(ollamaModelProvider),
         ),
         mcpClient: LocalMoneyMcpClient(
-          LocalMoneyMcpServer(ref.read(databaseProvider)),
+          LocalMoneyMcpServer(
+            ref.read(databaseProvider),
+            appToolHandler: _handleAppTool,
+          ),
         ),
       );
       final answer = await service.ask(question);
@@ -87,6 +91,77 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
     }
   }
 
+  Future<Map<String, dynamic>> _handleAppTool(
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    switch (name) {
+      case 'get_app_state':
+        return {
+          'theme': ref.read(themeModeProvider).name,
+          'amounts_visible': !ref.read(privateModeProvider),
+          'app_lock_enabled': ref.read(appLockEnabledProvider),
+          'notification_capture_enabled': ref.read(
+            notificationParsingEnabledProvider,
+          ),
+          'preferred_currency': ref.read(preferredCurrencyProvider),
+          'sync_lookback_days': ref.read(syncLookbackProvider),
+        };
+      case 'set_theme':
+        final value = arguments['mode']?.toString();
+        final mode = switch (value) {
+          'dark' => ThemeMode.dark,
+          'light' => ThemeMode.light,
+          'system' => ThemeMode.system,
+          _ => throw ArgumentError('mode must be system, light, or dark'),
+        };
+        ref.read(themeModeProvider.notifier).setThemeMode(mode);
+        await ref
+            .read(secureStorageProvider)
+            .write(key: 'theme_mode', value: mode.toString());
+        return {'changed': true, 'theme': mode.name};
+      case 'set_amount_visibility':
+        final visible = arguments['visible'];
+        if (visible is! bool) throw ArgumentError('visible must be boolean');
+        await ref.read(privateModeProvider.notifier).set(!visible);
+        return {'changed': true, 'amounts_visible': visible};
+      case 'set_app_lock':
+        final enabled = arguments['enabled'];
+        if (enabled is! bool) throw ArgumentError('enabled must be boolean');
+        await ref.read(appLockEnabledProvider.notifier).setEnabled(enabled);
+        return {'changed': true, 'app_lock_enabled': enabled};
+      case 'set_notification_capture':
+        final enabled = arguments['enabled'];
+        if (enabled is! bool) throw ArgumentError('enabled must be boolean');
+        await ref
+            .read(notificationIngestionProvider.notifier)
+            .setEnabled(enabled);
+        return {'changed': true, 'notification_capture_enabled': enabled};
+      case 'set_currency':
+        final currency = arguments['currency']?.toString().toUpperCase();
+        const allowed = {'INR', 'USD', 'EUR', 'GBP', 'SGD', 'AED'};
+        if (!allowed.contains(currency)) {
+          throw ArgumentError('unsupported currency');
+        }
+        await ref
+            .read(preferredCurrencyProvider.notifier)
+            .setCurrency(currency!);
+        return {'changed': true, 'preferred_currency': currency};
+      case 'set_sync_lookback':
+        final days = (arguments['days'] as num?)?.toInt();
+        if (days == null || days < 7 || days > 180) {
+          throw ArgumentError('days must be between 7 and 180');
+        }
+        ref.read(syncLookbackProvider.notifier).setDays(days);
+        await ref
+            .read(secureStorageProvider)
+            .write(key: 'sync_lookback_days', value: '$days');
+        return {'changed': true, 'sync_lookback_days': days};
+      default:
+        throw ArgumentError('unknown app tool');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
@@ -108,7 +183,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Ask your money',
+                      'Ask Flow',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 19,
@@ -116,7 +191,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                       ),
                     ),
                     Text(
-                      'Grounded in your private transaction memory',
+                      'Your transactions and app controls, in one place',
                       style: TextStyle(color: Colors.white38, fontSize: 11),
                     ),
                   ],
@@ -201,7 +276,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                 )
                               else
                                 MarkdownBody(
-                                  data: message.text,
+                                  data: mobileFriendlyMarkdown(message.text),
                                   selectable: true,
                                   styleSheet: MarkdownStyleSheet(
                                     p: const TextStyle(
@@ -268,7 +343,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                   onSubmitted: (_) => _ask(),
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'Ask about any transaction…',
+                    hintText: 'Ask about your money or control the app…',
                     hintStyle: const TextStyle(color: Colors.white38),
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: .07),
@@ -295,4 +370,49 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
       ),
     );
   }
+}
+
+/// Converts model-produced Markdown tables into stacked, phone-friendly rows.
+/// The prompt forbids tables, but this keeps responses readable if a model
+/// ignores that instruction.
+String mobileFriendlyMarkdown(String input) {
+  final lines = input.split('\n');
+  final output = <String>[];
+  var index = 0;
+  List<String> cells(String line) => line
+      .split('|')
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .toList();
+  bool separator(String line) {
+    final values = cells(line);
+    return values.isNotEmpty &&
+        values.every((value) => RegExp(r'^:?-{3,}:?$').hasMatch(value));
+  }
+
+  while (index < lines.length) {
+    if (index + 1 < lines.length &&
+        lines[index].contains('|') &&
+        separator(lines[index + 1])) {
+      final headers = cells(lines[index]);
+      index += 2;
+      while (index < lines.length && lines[index].contains('|')) {
+        final values = cells(lines[index]);
+        final fields = <String>[];
+        for (
+          var cellIndex = 0;
+          cellIndex < values.length && cellIndex < headers.length;
+          cellIndex++
+        ) {
+          fields.add('**${headers[cellIndex]}:** ${values[cellIndex]}');
+        }
+        if (fields.isNotEmpty) output.add('- ${fields.join(' · ')}');
+        index++;
+      }
+      continue;
+    }
+    output.add(lines[index]);
+    index++;
+  }
+  return output.join('\n');
 }
