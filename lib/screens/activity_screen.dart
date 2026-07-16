@@ -7,8 +7,10 @@ import '../providers/expense_provider.dart';
 import '../theme/app_tokens.dart';
 import '../utils/category_utils.dart';
 import '../utils/currency_utils.dart';
+import '../widgets/development_update_ui.dart';
 import '../widgets/expense_form_sheet.dart';
 import '../widgets/ui/command_ui.dart';
+import 'settings_screen.dart';
 
 class ActivityScreen extends ConsumerStatefulWidget {
   const ActivityScreen({super.key});
@@ -33,8 +35,26 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     final hidden = ref.watch(privateModeProvider);
     return CommandScaffold(
       eyebrow: 'Observed · inferred · verified',
-      title: 'Money memory',
+      title: 'Total Activity',
+      actions: [
+        IconButton(
+          tooltip: hidden ? 'Show amounts' : 'Hide amounts',
+          onPressed: () => ref.read(privateModeProvider.notifier).toggle(),
+          icon: Icon(
+            hidden ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+          ),
+        ),
+        IconButton(
+          tooltip: 'Settings',
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SettingsScreen()),
+          ),
+          icon: const Icon(Icons.tune_rounded),
+        ),
+      ],
       slivers: [
+        const SliverToBoxAdapter(child: DevelopmentUpdateBanner()),
         async.when(
           loading: () => const SliverFillRemaining(
             child: Center(child: CircularProgressIndicator()),

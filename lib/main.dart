@@ -9,7 +9,6 @@ import 'providers/development_update_provider.dart';
 import 'providers/notification_ingestion_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/activity_screen.dart';
-import 'screens/dashboard_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/notification_service.dart';
 import 'services/drive_backup_service.dart';
@@ -288,11 +287,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
-  int _index = 0;
   final _ask = TextEditingController();
-  bool _spacesOpen = false;
-
-  static const _pages = [DashboardScreen(), ActivityScreen()];
 
   @override
   void initState() {
@@ -328,41 +323,19 @@ class _AppShellState extends ConsumerState<AppShell>
 
   @override
   Widget build(BuildContext context) {
-    final body = IndexedStack(index: _index, children: _pages);
     return Scaffold(
       extendBody: true,
-      body: GestureDetector(
-        onHorizontalDragEnd: (details) {
-          final velocity = details.primaryVelocity ?? 0;
-          if (velocity < -350 && _index < _pages.length - 1) {
-            setState(() => _index++);
-          } else if (velocity > 350 && _index > 0) {
-            setState(() => _index--);
-          }
-        },
-        child: Stack(
-          children: [
-            Positioned.fill(child: body),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: SafeArea(
-                minimum: const EdgeInsets.fromLTRB(18, 0, 18, 14),
-                child: _DirectAskBar(
-                  controller: _ask,
-                  spacesOpen: _spacesOpen,
-                  selectedIndex: _index,
-                  onAsk: _openChat,
-                  onToggleSpaces: () =>
-                      setState(() => _spacesOpen = !_spacesOpen),
-                  onSelected: (index) => setState(() {
-                    _index = index;
-                    _spacesOpen = false;
-                  }),
-                ),
-              ),
+      body: Stack(
+        children: [
+          const Positioned.fill(child: ActivityScreen()),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SafeArea(
+              minimum: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+              child: _DirectAskBar(controller: _ask, onAsk: _openChat),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -381,23 +354,10 @@ class _AppShellState extends ConsumerState<AppShell>
 }
 
 class _DirectAskBar extends StatelessWidget {
-  const _DirectAskBar({
-    required this.controller,
-    required this.spacesOpen,
-    required this.selectedIndex,
-    required this.onAsk,
-    required this.onToggleSpaces,
-    required this.onSelected,
-  });
+  const _DirectAskBar({required this.controller, required this.onAsk});
 
   final TextEditingController controller;
-  final bool spacesOpen;
-  final int selectedIndex;
   final ValueChanged<String?> onAsk;
-  final VoidCallback onToggleSpaces;
-  final ValueChanged<int> onSelected;
-
-  static const _spaces = ['DASHBOARD', 'TOTAL ACTIVITY'];
 
   @override
   Widget build(BuildContext context) {
@@ -421,129 +381,40 @@ class _DirectAskBar extends StatelessWidget {
           ),
         ],
       ),
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 360),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: SizeTransition(
-            sizeFactor: animation,
-            axis: Axis.horizontal,
-            child: child,
+      child: Row(
+        children: [
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.auto_awesome_rounded,
+            color: Color(0xFFC7FF4A),
+            size: 20,
           ),
-        ),
-        child: spacesOpen
-            ? SizedBox(
-                key: const ValueKey('spaces'),
-                height: 48,
-                child: Row(
-                  children: [
-                    const SizedBox(width: 7),
-                    for (var index = 0; index < _spaces.length; index++) ...[
-                      Expanded(
-                        child: InkWell(
-                          onTap: () => onSelected(index),
-                          borderRadius: BorderRadius.circular(20),
-                          child: Container(
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: index == selectedIndex
-                                  ? const Color(
-                                      0xFFC7FF4A,
-                                    ).withValues(alpha: .12)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _spaces[index],
-                              style: TextStyle(
-                                color: index == selectedIndex
-                                    ? const Color(0xFFC7FF4A)
-                                    : Colors.white54,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: .7,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (index == 0) const SizedBox(width: 5),
-                    ],
-                    IconButton(
-                      onPressed: onToggleSpaces,
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            : Row(
-                key: const ValueKey('composer'),
-                children: [
-                  InkWell(
-                    onTap: onToggleSpaces,
-                    borderRadius: BorderRadius.circular(20),
-                    child: SizedBox(
-                      width: 50,
-                      height: 48,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          for (var i = 0; i < 2; i++)
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 260),
-                              width: i == selectedIndex ? 20 : 7,
-                              height: 4,
-                              margin: const EdgeInsets.symmetric(vertical: 2.5),
-                              decoration: BoxDecoration(
-                                color: i == selectedIndex
-                                    ? const Color(0xFFC7FF4A)
-                                    : Colors.white24,
-                                borderRadius: BorderRadius.circular(9),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Container(width: 1, height: 28, color: Colors.white12),
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.auto_awesome_rounded,
-                    color: Color(0xFFC7FF4A),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      maxLines: 1,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: onAsk,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration.collapsed(
-                        hintText: 'Ask your money anything…',
-                        hintStyle: TextStyle(color: Colors.white38),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Ask Flow',
-                    onPressed: () => onAsk(controller.text),
-                    style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFC7FF4A),
-                      foregroundColor: Colors.black,
-                    ),
-                    icon: const Icon(Icons.arrow_upward_rounded),
-                  ),
-                  const SizedBox(width: 4),
-                  const GlobalQuickActionButton(small: true),
-                ],
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              maxLines: 1,
+              textInputAction: TextInputAction.send,
+              onSubmitted: onAsk,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration.collapsed(
+                hintText: 'Ask your money anything…',
+                hintStyle: TextStyle(color: Colors.white38),
               ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Ask Flow',
+            onPressed: () => onAsk(controller.text),
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFC7FF4A),
+              foregroundColor: Colors.black,
+            ),
+            icon: const Icon(Icons.arrow_upward_rounded),
+          ),
+          const SizedBox(width: 4),
+          const GlobalQuickActionButton(small: true),
+        ],
       ),
     );
   }
