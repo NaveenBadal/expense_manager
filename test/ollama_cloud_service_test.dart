@@ -137,8 +137,13 @@ void main() {
     expect(results[0]?.amount, 1249.5);
     expect(results[0]?.category, 'Food');
     expect(results[1]?.type, 'not_financial');
-    expect(requestBody['think'], 'low');
+    expect(requestBody['think'], 'medium');
     expect(requestBody['stream'], false);
+    final systemPrompt =
+        ((requestBody['messages'] as List).first as Map)['content'].toString();
+    expect(systemPrompt, contains('WHERE THE MONEY WENT'));
+    expect(systemPrompt, contains('WHERE THE MONEY CAME FROM'));
+    expect(systemPrompt, contains('does not mean only a retail shop'));
   });
 
   test('rejects batches above the optimized maximum', () async {

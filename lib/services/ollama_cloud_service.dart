@@ -68,13 +68,17 @@ class OllamaCloudService {
   };
 
   static const _systemPrompt =
-      'Parse Indian bank/wallet SMS. Return only compact valid JSON. '
+      'You extract structured money movements from Indian bank and wallet SMS. Return only compact valid JSON. '
       'Every input must produce exactly one result with the same id. '
       'Actual money movement types: expense, income, transfer. '
       'OTP, promotion, balance alert, bill reminder, and statement without a new transaction are not_financial. '
-      'For expense/transfer merchant, extract the actual payee or merchant from labels and phrases such as merchant:, payee:, info:, paid to, transferred to, card used at, UPI descriptors, or VPA. '
-      'Do not use the sending bank, payment rail (UPI/IMPS/NEFT), account/card number, reference number, or generic words as merchant. '
-      'Use null only when the SMS truly contains no payee or merchant clue. '
+      'IMPORTANT: the output field merchant means COUNTERPARTY or MONEY ENDPOINT; it does not mean only a retail shop. '
+      'First determine whether money left or entered the user account. For expense or outgoing transfer, merchant is WHERE THE MONEY WENT: recipient, payee, beneficiary, person, business, biller, VPA, destination account, or destination bank explicitly supported by the SMS. '
+      'For income or incoming transfer, merchant is WHERE THE MONEY CAME FROM: sender, payer, employer, refunding business, person, remitter, source account, or source bank explicitly supported by the SMS. '
+      'Examples: salary credit => employer/source; refund => refunding business; transfer to a person or VPA => that person/VPA; credit-card bill payment => card issuer; ATM withdrawal => ATM/cash withdrawal endpoint; self-transfer => named destination account/bank, without inventing a person. '
+      'Read the entire SMS semantically, including narrative text and transaction descriptors, and return the most specific supported endpoint. Prefer a named person/business over a VPA, and a VPA over a generic bank/account label when both refer to the same counterparty. '
+      'Never use the user own debited/credited bank, wallet, card, or account as merchant unless the SMS clearly identifies it as the opposite endpoint. Never use UPI/IMPS/NEFT/card as the endpoint by itself. Never use reference numbers, masked account/card numbers, dates, balances, or generic words such as transaction, transfer, debit, or credit. '
+      'Do not guess or infer a real-world identity not present in the SMS. Use null only after checking the complete SMS and finding no source, destination, recipient, sender, or counterparty clue. Never return the literal string Unknown. '
       'Categories: Food, Transport, Utilities, Entertainment, Shopping, Health, Others. '
       'Amount must be a JSON number in INR or null. No markdown or explanation.';
 
@@ -108,7 +112,7 @@ class OllamaCloudService {
                 {'role': 'user', 'content': prompt},
               ],
               'stream': false,
-              'think': 'low',
+              'think': 'medium',
               'keep_alive': '10m',
               'options': {'temperature': 0.0, 'num_predict': 1200},
             }),

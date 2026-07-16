@@ -115,42 +115,4 @@ class MerchantNormalizer {
         )
         .join(' ');
   }
-
-  /// Best-effort fallback for models that omit a merchant even though the SMS
-  /// contains a conventional Indian card/UPI descriptor.
-  static String? extractFromSms(String sms) {
-    final patterns = <RegExp>[
-      RegExp(
-        r'\b(?:merchant|payee)\s*[:\-]\s*([^,;\n]{2,60})',
-        caseSensitive: false,
-      ),
-      RegExp(r'\binfo\s*[:\-]\s*([^,;\n]{2,60})', caseSensitive: false),
-      RegExp(r'\bUPI/(?:DR|CR)/[^/]+/([^/]{2,60})/', caseSensitive: false),
-      RegExp(
-        r'\bto\s+VPA\s+([A-Z0-9._\-]{2,}@[A-Z][A-Z0-9.\-]{1,})',
-        caseSensitive: false,
-      ),
-      RegExp(
-        r'\b(?:paid\s+to|payment\s+to|transferred\s+to|at)\s+([A-Z0-9][A-Z0-9 .&@_\-]{1,59}?)(?=\s+(?:on|via|using|ref|reference|txn|transaction|upi|avl|available|bal|balance)\b|[,.;\n]|$)',
-        caseSensitive: false,
-      ),
-    ];
-    for (final pattern in patterns) {
-      final match = pattern.firstMatch(sms);
-      final candidate = match?.group(1)?.trim();
-      if (candidate == null || candidate.length < 2) continue;
-      final cleaned = candidate
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .replaceAll(RegExp(r'[.,;:\-]+$'), '')
-          .trim();
-      if (cleaned.isEmpty || _looksLikeNonMerchant(cleaned)) continue;
-      return normalize(cleaned);
-    }
-    return null;
-  }
-
-  static bool _looksLikeNonMerchant(String value) => RegExp(
-    r'^(?:a/c|acct|account|card|your|inr|rs\.?|upi|vpa|bank)$',
-    caseSensitive: false,
-  ).hasMatch(value.trim());
 }

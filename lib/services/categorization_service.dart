@@ -2,7 +2,6 @@ import '../models/expense.dart';
 import '../models/ai_log.dart';
 import '../models/ai_provider.dart';
 import 'database_helper.dart';
-import 'merchant_normalizer.dart';
 import 'ollama_cloud_service.dart';
 
 /// Result of a batch parse: extracted expenses + per-body skip reasons.
@@ -84,17 +83,14 @@ class CategorizationService {
           return;
         }
 
-        final modelMerchant = result.merchant?.trim();
+        final extractedCounterparty = result.merchant?.trim();
         final merchant =
-            modelMerchant == null ||
-                modelMerchant.isEmpty ||
-                modelMerchant.toLowerCase() == 'unknown'
-            ? MerchantNormalizer.extractFromSms(body) ?? 'Unknown'
-            : modelMerchant;
-        final normalized = MerchantNormalizer.normalize(merchant);
+            extractedCounterparty == null || extractedCounterparty.isEmpty
+            ? 'Unknown'
+            : extractedCounterparty;
 
         String category = result.category ?? 'Others';
-        final learned = learnedMap[normalized.toLowerCase().trim()];
+        final learned = learnedMap[merchant.toLowerCase()];
         if (learned != null && learned.isNotEmpty) category = learned;
 
         expenses.add(
@@ -102,7 +98,7 @@ class CategorizationService {
             amount: amount,
             currency: currency,
             merchant: merchant,
-            normalizedMerchant: normalized != merchant ? normalized : null,
+            normalizedMerchant: null,
             category: category,
             date: DateTime.parse(sms['date'] as String),
             originalSms: body,
