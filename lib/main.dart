@@ -391,28 +391,10 @@ class _AppShellState extends ConsumerState<AppShell>
         }
         return Scaffold(
           body: pages,
-          bottomNavigationBar: NavigationBar(
+          extendBody: true,
+          bottomNavigationBar: FloatingGlassNavigationBar(
             selectedIndex: _destination,
-            backgroundColor: scheme.surfaceContainer,
-            indicatorColor: scheme.secondaryContainer,
             onDestinationSelected: _selectDestination,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Activity',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.auto_awesome_outlined),
-                selectedIcon: Icon(Icons.auto_awesome_rounded),
-                label: 'Ask Flow',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.tune_outlined),
-                selectedIcon: Icon(Icons.tune_rounded),
-                label: 'Settings',
-              ),
-            ],
           ),
         );
       },
@@ -455,6 +437,87 @@ class _DestinationLayer extends StatelessWidget {
                 child: child,
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class FloatingGlassNavigationBar extends StatelessWidget {
+  const FloatingGlassNavigationBar({
+    super.key,
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final items = const [
+      (Icons.receipt_long_outlined, Icons.receipt_long_rounded, 'Activity'),
+      (Icons.auto_awesome_outlined, Icons.auto_awesome_rounded, 'Ask Flow'),
+      (Icons.tune_outlined, Icons.tune_rounded, 'Settings'),
+    ];
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        child: GlassmorphicContainer(
+          height: 68,
+          borderRadius: BorderRadius.circular(32),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: List.generate(items.length, (index) {
+              final item = items[index];
+              final active = index == selectedIndex;
+              final color = active ? scheme.primary : scheme.onSurfaceVariant;
+              
+              return Expanded(
+                child: BouncyInkWell(
+                  onTap: () => onDestinationSelected(index),
+                  borderRadius: BorderRadius.circular(24),
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      curve: AppMotion.emphasizedDecelerate,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: active
+                            ? scheme.primary.withValues(alpha: 0.1)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            active ? item.1 : item.0,
+                            color: color,
+                            size: 22,
+                          ),
+                          if (active) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              item.2,
+                              style: TextStyle(
+                                color: color,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
         ),
       ),

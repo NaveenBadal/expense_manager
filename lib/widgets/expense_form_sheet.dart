@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../models/expense.dart';
 import '../providers/expense_provider.dart';
 import '../theme/app_tokens.dart';
+import '../theme/app_theme.dart';
 import '../utils/category_utils.dart';
 
 class ExpenseFormSheet extends ConsumerStatefulWidget {
@@ -173,36 +174,39 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              DropdownButtonHideUnderline(
-                                child: DropdownButton<String>(
-                                  value: _currency,
-                                  dropdownColor: scheme.surfaceContainer,
-                                  style: Theme.of(context).textTheme.titleLarge
-                                      ?.copyWith(
-                                        color: scheme.onSurface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                  items:
-                                      const [
-                                            'INR',
-                                            'USD',
-                                            'EUR',
-                                            'GBP',
-                                            'SGD',
-                                            'AED',
-                                          ]
-                                          .map(
-                                            (value) => DropdownMenuItem(
-                                              value: value,
-                                              child: Text(value),
-                                            ),
-                                          )
-                                          .toList(),
-                                  onChanged: (value) =>
-                                      setState(() => _currency = value!),
+                              _BouncyPrefix(
+                                controller: _amount,
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String>(
+                                    value: _currency,
+                                    dropdownColor: scheme.surfaceContainer,
+                                    style: Theme.of(context).textTheme.titleLarge
+                                        ?.copyWith(
+                                          color: scheme.onSurface,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                    items:
+                                        const [
+                                              'INR',
+                                              'USD',
+                                              'EUR',
+                                              'GBP',
+                                              'SGD',
+                                              'AED',
+                                            ]
+                                            .map(
+                                              (value) => DropdownMenuItem(
+                                                value: value,
+                                                child: Text(value),
+                                              ),
+                                            )
+                                            .toList(),
+                                    onChanged: (value) =>
+                                        setState(() => _currency = value!),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: TextField(
                                   controller: _amount,
@@ -225,18 +229,20 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                                       RegExp(r'^\d*\.?\d{0,2}'),
                                     ),
                                   ],
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .displaySmall
-                                      ?.copyWith(
-                                        color: scheme.onSurface,
-                                        fontWeight: FontWeight.w700,
-                                      ),
+                                  style: AppTheme.money(
+                                    Theme.of(context)
+                                        .textTheme
+                                        .displayMedium
+                                        ?.copyWith(
+                                          color: scheme.onSurface,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
                                   decoration: InputDecoration.collapsed(
                                     hintText: '0.00',
                                     hintStyle: TextStyle(
                                       color: scheme.onSurface.withValues(
-                                        alpha: .35,
+                                        alpha: .24,
                                       ),
                                     ),
                                   ),
@@ -592,6 +598,58 @@ class _SourcePanel extends StatelessWidget {
               ),
             )
           : Padding(padding: const EdgeInsets.all(16), child: identity),
+    );
+  }
+}
+
+class _BouncyPrefix extends StatefulWidget {
+  const _BouncyPrefix({required this.child, required this.controller});
+  final Widget child;
+  final TextEditingController controller;
+
+  @override
+  State<_BouncyPrefix> createState() => _BouncyPrefixState();
+}
+
+class _BouncyPrefixState extends State<_BouncyPrefix> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 90),
+    );
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.15), weight: 50),
+      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+    
+    widget.controller.addListener(_triggerBounce);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_triggerBounce);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _triggerBounce() {
+    if (_controller.isAnimating) {
+      _controller.stop();
+    }
+    _controller.forward(from: 0.0);
+    HapticFeedback.lightImpact();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: widget.child,
     );
   }
 }

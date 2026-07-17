@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -230,12 +231,15 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
               itemCount: groups.length,
               itemBuilder: (context, index) {
                 final group = groups.entries.elementAt(index);
-                return _TransactionGroup(
-                  day: group.key,
-                  transactions: group.value,
-                  hidden: hidden,
-                  onTap: _showDetails,
-                  onEdit: _edit,
+                return _StaggeredReveal(
+                  index: index,
+                  child: _TransactionGroup(
+                    day: group.key,
+                    transactions: group.value,
+                    hidden: hidden,
+                    onTap: _showDetails,
+                    onEdit: _edit,
+                  ),
                 );
               },
             ),
@@ -1493,4 +1497,70 @@ class _ActivityLoading extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _StaggeredReveal extends StatefulWidget {
+  const _StaggeredReveal({
+    super.key,
+    required this.index,
+    required this.child,
+  });
+
+  final int index;
+  final Widget child;
+
+  @override
+  State<_StaggeredReveal> createState() => _StaggeredRevealState();
+}
+
+class _StaggeredRevealState extends State<_StaggeredReveal>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(0.0, 0.08),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: AppMotion.emphasizedDecelerate,
+      ),
+    );
+    
+    Future.delayed(
+      Duration(milliseconds: math.min(widget.index * 60, 300)),
+      () {
+        if (mounted) _controller.forward();
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: widget.child,
+      ),
+    );
+  }
 }
