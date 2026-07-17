@@ -496,14 +496,14 @@ class FloatingGlassNavigationBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            active ? item.1 : item.0,
+                            active ? item.$2 : item.$1,
                             color: color,
                             size: 22,
                           ),
                           if (active) ...[
                             const SizedBox(width: 8),
                             Text(
-                              item.2,
+                              item.$3,
                               style: TextStyle(
                                 color: color,
                                 fontWeight: FontWeight.w700,
