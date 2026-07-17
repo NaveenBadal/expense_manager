@@ -3,13 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
+import 'package:dynamic_color/dynamic_color.dart';
 import 'providers/expense_provider.dart';
 import 'providers/development_update_provider.dart';
 import 'providers/notification_ingestion_provider.dart';
 import 'theme/app_theme.dart';
 import 'screens/activity_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/settings_screen.dart';
 import 'services/notification_service.dart';
+import 'theme/app_tokens.dart';
+import 'widgets/money_chat_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,13 +34,15 @@ class ExpenseManagerApp extends ConsumerWidget {
     ref.watch(settingsInitializer);
     final themeMode = ref.watch(themeModeProvider);
 
-    return MaterialApp(
-      title: 'Fund Flow',
-      debugShowCheckedModeBanner: false,
-      themeMode: themeMode,
-      theme: AppTheme.light(null),
-      darkTheme: AppTheme.dark(null),
-      home: const _AppGate(),
+    return DynamicColorBuilder(
+      builder: (lightDynamic, darkDynamic) => MaterialApp(
+        title: 'Fund Flow',
+        debugShowCheckedModeBanner: false,
+        themeMode: themeMode,
+        theme: AppTheme.light(lightDynamic),
+        darkTheme: AppTheme.dark(darkDynamic),
+        home: const _AppGate(),
+      ),
     );
   }
 }
@@ -279,9 +285,13 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell>
     with WidgetsBindingObserver {
+  int _destination = 0;
+  late final PageController _pageController;
+
   @override
   void initState() {
     super.initState();
+    _pageController = PageController();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       ref.read(developmentUpdateProvider.notifier).check(silent: true);
@@ -293,6 +303,7 @@ class _AppShellState extends ConsumerState<AppShell>
 
   @override
   void dispose() {
+    _pageController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -310,6 +321,97 @@ class _AppShellState extends ConsumerState<AppShell>
     }
   }
 
+  void _selectDestination(int value) {
+    if (value == _destination) return;
+    HapticFeedback.selectionClick();
+    setState(() => _destination = value);
+    _pageController.animateToPage(
+      value,
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : AppMotion.medium,
+      curve: AppMotion.emphasizedDecelerate,
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => const ActivityScreen();
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final pages = PageView(
+      controller: _pageController,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        ActivityScreen(onOpenSettings: () => _selectDestination(2)),
+        MoneyChatSheet(
+          fullScreen: true,
+          onOpenSettings: () => _selectDestination(2),
+        ),
+        const SettingsScreen(),
+      ],
+    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 840;
+        if (wide) {
+          return Scaffold(
+            body: Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: _destination,
+                  extended: constraints.maxWidth >= 1100,
+                  groupAlignment: -.72,
+                  onDestinationSelected: _selectDestination,
+                  destinations: const [
+                    NavigationRailDestination(
+                      icon: Icon(Icons.receipt_long_outlined),
+                      selectedIcon: Icon(Icons.receipt_long_rounded),
+                      label: Text('Activity'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.auto_awesome_outlined),
+                      selectedIcon: Icon(Icons.auto_awesome_rounded),
+                      label: Text('Ask Flow'),
+                    ),
+                    NavigationRailDestination(
+                      icon: Icon(Icons.tune_outlined),
+                      selectedIcon: Icon(Icons.tune_rounded),
+                      label: Text('Settings'),
+                    ),
+                  ],
+                ),
+                VerticalDivider(width: 1, color: scheme.outlineVariant),
+                Expanded(child: pages),
+              ],
+            ),
+          );
+        }
+        return Scaffold(
+          body: pages,
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _destination,
+            backgroundColor: scheme.surfaceContainer,
+            indicatorColor: scheme.secondaryContainer,
+            onDestinationSelected: _selectDestination,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long_rounded),
+                label: 'Activity',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.auto_awesome_outlined),
+                selectedIcon: Icon(Icons.auto_awesome_rounded),
+                label: 'Ask Flow',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.tune_outlined),
+                selectedIcon: Icon(Icons.tune_rounded),
+                label: 'Settings',
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }

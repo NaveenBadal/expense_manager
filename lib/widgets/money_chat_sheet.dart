@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -10,15 +11,18 @@ import '../services/app_control_service.dart';
 import '../services/local_money_mcp.dart';
 import '../services/money_chat_service.dart';
 import '../theme/app_tokens.dart';
+import '../screens/settings_screen.dart';
 
 class MoneyChatSheet extends ConsumerStatefulWidget {
   const MoneyChatSheet({
     super.key,
     this.initialPrompt,
     this.fullScreen = false,
+    this.onOpenSettings,
   });
   final String? initialPrompt;
   final bool fullScreen;
+  final VoidCallback? onOpenSettings;
   @override
   ConsumerState<MoneyChatSheet> createState() => _MoneyChatSheetState();
 }
@@ -27,6 +31,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   bool _thinking = false;
+  String? _failedQuestion;
   bool _didScrollToInitialHistory = false;
   String _stage = 'Understanding your request…';
   late final LocalMoneyMcpClient _mcp;
@@ -87,13 +92,19 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
     WidgetsBinding.instance.scheduleFrame();
   }
 
-  Future<void> _ask([String? suggested]) async {
+  Future<void> _ask([String? suggested, bool recordUser = true]) async {
     final question = (suggested ?? _controller.text).trim();
     if (question.isEmpty || _thinking) return;
     final history = ref.read(assistantConversationProvider).value ?? const [];
     _controller.clear();
-    setState(() => _thinking = true);
-    await ref.read(assistantConversationProvider.notifier).addUser(question);
+    setState(() {
+      _thinking = true;
+      _failedQuestion = null;
+      _stage = 'Understanding your request…';
+    });
+    if (recordUser) {
+      await ref.read(assistantConversationProvider.notifier).addUser(question);
+    }
     _scrollToLatest();
     try {
       final service = MoneyChatService(
@@ -129,18 +140,10 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
       if (!mounted) return;
       setState(() {});
       _scrollToLatest();
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
-      final missingKey = ref.read(ollamaApiKeyProvider).trim().isEmpty;
-      await ref
-          .read(assistantConversationProvider.notifier)
-          .addAssistant(
-            text: missingKey
-                ? 'Connect your AI model in Settings, then I can reason over your money.'
-                : 'I could not complete that analysis. Your transaction data was not changed.',
-            sources: 0,
-            verified: false,
-          );
+      setState(() => _failedQuestion = question);
+      _scrollToLatest();
     } finally {
       if (mounted) setState(() => _thinking = false);
     }
@@ -184,6 +187,54 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
         false;
   }
 
+  void _openSettings() {
+    final callback = widget.onOpenSettings;
+    if (callback != null) {
+      callback();
+      return;
+    }
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+
+  Future<void> _clearConversation() async {
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            icon: const Icon(Icons.delete_sweep_outlined),
+            title: const Text('Clear conversation?'),
+            content: const Text(
+              'This removes your Ask Flow history from this device.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Clear'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!confirmed || !mounted) return;
+    await ref.read(assistantConversationProvider.notifier).clear();
+    if (mounted) setState(() => _failedQuestion = null);
+  }
+
+  Future<void> _copyAnswer(String answer) async {
+    await Clipboard.setData(ClipboardData(text: answer));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Answer copied')));
+  }
+
   Future<Map<String, dynamic>> _handleAppTool(
     String name,
     Map<String, dynamic> arguments,
@@ -204,31 +255,32 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(assistantConversationProvider).value ?? const [];
+    final connected = ref.watch(ollamaApiKeyProvider).trim().isNotEmpty;
     if (messages.isNotEmpty && !_didScrollToInitialHistory) {
       _didScrollToInitialHistory = true;
       _scrollToLatest(animate: false);
     }
     final scheme = Theme.of(context).colorScheme;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final contentInset = screenWidth > 760 ? (screenWidth - 720) / 2 : 20.0;
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: const Text('Ask Flow'),
         actions: [
-          IconButton(
-            tooltip: 'Clear conversation',
-            onPressed: messages.isEmpty
-                ? null
-                : () =>
-                      ref.read(assistantConversationProvider.notifier).clear(),
-            icon: const Icon(Icons.delete_sweep_outlined),
-          ),
+          if (messages.isNotEmpty)
+            IconButton(
+              tooltip: 'Clear conversation',
+              onPressed: _clearConversation,
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
           const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
         top: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+          padding: EdgeInsets.fromLTRB(contentInset, 14, contentInset, 16),
           child: Column(
             children: [
               Expanded(
@@ -272,6 +324,64 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                               ],
                             ),
                           ),
+                          if (!connected)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 14),
+                              child: Material(
+                                color: scheme.tertiaryContainer,
+                                shape: ExpressiveShape.card(
+                                  radius: AppRadius.xl,
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: InkWell(
+                                  onTap: _openSettings,
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.cloud_outlined,
+                                          color: scheme.onTertiaryContainer,
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Connect Ask Flow',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .titleSmall
+                                                    ?.copyWith(
+                                                      color: scheme
+                                                          .onTertiaryContainer,
+                                                    ),
+                                              ),
+                                              Text(
+                                                'Add your Ollama Cloud key in Settings.',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: scheme
+                                                          .onTertiaryContainer,
+                                                    ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.arrow_forward_rounded,
+                                          color: scheme.onTertiaryContainer,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           for (final prompt in _prompts)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 10),
@@ -282,7 +392,9 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                 ),
                                 clipBehavior: Clip.antiAlias,
                                 child: InkWell(
-                                  onTap: () => _ask(prompt.$2),
+                                  onTap: connected
+                                      ? () => _ask(prompt.$2)
+                                      : _openSettings,
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 16,
@@ -322,9 +434,16 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.only(top: 8, bottom: 16),
-                        itemCount: messages.length + (_thinking ? 1 : 0),
+                        itemCount:
+                            messages.length +
+                            (_thinking || _failedQuestion != null ? 1 : 0),
                         itemBuilder: (_, index) {
                           if (index == messages.length) {
+                            if (!_thinking) {
+                              return _RetryMessage(
+                                onRetry: () => _ask(_failedQuestion, false),
+                              );
+                            }
                             return Padding(
                               padding: const EdgeInsets.all(18),
                               child: Row(
@@ -417,13 +536,29 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                     ),
                                   if (message.sources > 0) ...[
                                     const SizedBox(height: 10),
-                                    Text(
-                                      '${message.verified ? 'Verified' : 'Checked'} against '
-                                      '${message.sources} matching local records',
-                                      style: TextStyle(
-                                        color: scheme.onSurfaceVariant,
-                                        fontSize: 10,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          message.verified
+                                              ? Icons.verified_outlined
+                                              : Icons.fact_check_outlined,
+                                          size: 16,
+                                          color: scheme.primary,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Text(
+                                            '${message.verified ? 'Verified' : 'Checked'} with ${message.sources} local records',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .labelSmall
+                                                ?.copyWith(
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                     if (message.filterDetails.isNotEmpty)
                                       Theme(
@@ -460,6 +595,22 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                         ),
                                       ),
                                   ],
+                                  if (!message.user) ...[
+                                    const SizedBox(height: 6),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: IconButton(
+                                        tooltip: 'Copy answer',
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: () =>
+                                            _copyAnswer(message.text),
+                                        icon: const Icon(
+                                          Icons.content_copy_rounded,
+                                          size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -472,10 +623,12 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      enabled: !_thinking,
+                      enabled: connected && !_thinking,
                       onSubmitted: (_) => _ask(),
                       decoration: InputDecoration(
-                        hintText: 'Ask about your activity…',
+                        hintText: connected
+                            ? 'Ask about your activity…'
+                            : 'Connect Ask Flow in Settings',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(28),
                           borderSide: BorderSide.none,
@@ -485,7 +638,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                   ),
                   const SizedBox(width: 8),
                   IconButton.filled(
-                    onPressed: _thinking ? null : _ask,
+                    onPressed: !connected || _thinking ? null : _ask,
                     style: IconButton.styleFrom(
                       backgroundColor: scheme.primary,
                       foregroundColor: scheme.onPrimary,
@@ -495,6 +648,53 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                   ),
                 ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RetryMessage extends StatelessWidget {
+  const _RetryMessage({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Material(
+        color: scheme.errorContainer,
+        shape: ExpressiveShape.card(radius: AppRadius.xl),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+          child: Row(
+            children: [
+              Icon(Icons.wifi_off_rounded, color: scheme.onErrorContainer),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Flow couldn’t answer',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: scheme.onErrorContainer,
+                      ),
+                    ),
+                    Text(
+                      'Nothing was changed. Check your connection and try again.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onErrorContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              TextButton(onPressed: onRetry, child: const Text('Retry')),
             ],
           ),
         ),

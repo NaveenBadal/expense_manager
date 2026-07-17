@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../models/expense.dart';
 import '../providers/expense_provider.dart';
@@ -14,7 +16,9 @@ import '../widgets/money_chat_sheet.dart';
 import 'settings_screen.dart';
 
 class ActivityScreen extends ConsumerStatefulWidget {
-  const ActivityScreen({super.key});
+  const ActivityScreen({super.key, this.onOpenSettings});
+
+  final VoidCallback? onOpenSettings;
 
   @override
   ConsumerState<ActivityScreen> createState() => _ActivityScreenState();
@@ -45,7 +49,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Your activity'),
+            const Text('Activity'),
             Text(
               _greetingSubtitle(),
               style: TextStyle(
@@ -68,40 +72,15 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   : Icons.visibility_outlined,
             ),
           ),
-          IconButton(
-            tooltip: 'Settings',
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
-            ),
-            icon: const Icon(Icons.settings_outlined),
-          ),
           const SizedBox(width: 8),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'ask-flow',
-            elevation: 0,
-            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
-            foregroundColor: Theme.of(
-              context,
-            ).colorScheme.onSecondaryContainer,
-            tooltip: 'Ask Flow',
-            onPressed: _openChat,
-            child: const Icon(Icons.auto_awesome_outlined),
-          ),
-          const SizedBox(height: 12),
-          FloatingActionButton.extended(
-            heroTag: 'add-transaction',
-            onPressed: _add,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Add'),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'add-transaction',
+        tooltip: 'Add transaction',
+        onPressed: _add,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Add transaction'),
       ),
       body: async.when(
         loading: () => const _ActivityLoading(),
@@ -149,13 +128,42 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     }
     final categories = all.map((item) => item.category).toSet().toList()
       ..sort();
+    final importSetupRequired = ref.watch(ollamaApiKeyProvider).trim().isEmpty;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final contentInset = screenWidth > 760 ? (screenWidth - 720) / 2 : 16.0;
+    final filtersActive =
+        _direction != 'all' || _dateRange != null || _category != null;
+
+    if (all.isEmpty) {
+      return CustomScrollView(
+        slivers: [
+          const SliverToBoxAdapter(child: DevelopmentUpdateBanner()),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(contentInset, 12, contentInset, 132),
+            sliver: SliverList.list(
+              children: [
+                const _FirstRunOverview(),
+                const SizedBox(height: 16),
+                _SmsSyncCard(
+                  state: sync,
+                  onSync: _startSmsSync,
+                  onStop: () => ref.read(syncProvider.notifier).cancel(),
+                  onSetup: _openSettings,
+                  setupRequired: importSetupRequired,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return CustomScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       slivers: [
         const SliverToBoxAdapter(child: DevelopmentUpdateBanner()),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: EdgeInsets.fromLTRB(contentInset, 8, contentInset, 0),
           sliver: SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,9 +171,20 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                 _SearchField(
                   controller: _search,
                   query: _query,
+                  filtersActive: filtersActive,
+                  onFilter: () => _showFilters(categories),
                   onChanged: (value) =>
                       setState(() => _query = value.trim().toLowerCase()),
                 ),
+                if (filtersActive) ...[
+                  const SizedBox(height: 10),
+                  _FilterSummary(
+                    direction: _direction,
+                    dateRange: _dateRange,
+                    category: _category,
+                    onClear: _clearFilters,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _MonthlySummary(
                   spent: spent,
@@ -176,22 +195,16 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   onReceived: () => setState(() => _direction = 'in'),
                 ),
                 const SizedBox(height: 16),
-                _SmsSyncCard(
-                  state: sync,
-                  onSync: () => ref.read(syncProvider.notifier).sync(),
-                  onStop: () => ref.read(syncProvider.notifier).cancel(),
-                ),
-                const SizedBox(height: 16),
-                _FilterBar(
-                  direction: _direction,
-                  dateRange: _dateRange,
-                  category: _category,
-                  categories: categories,
-                  onDirection: (value) => setState(() => _direction = value),
-                  onDate: _pickDateRange,
-                  onCategory: (value) => setState(() => _category = value),
-                  onClear: _clearFilters,
-                ),
+                if (sync.phase != SyncPhase.idle) ...[
+                  _SmsSyncCard(
+                    state: sync,
+                    onSync: _startSmsSync,
+                    onStop: () => ref.read(syncProvider.notifier).cancel(),
+                    onSetup: _openSettings,
+                    setupRequired: importSetupRequired,
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 const SizedBox(height: 24),
               ],
             ),
@@ -201,20 +214,16 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
           SliverFillRemaining(
             hasScrollBody: false,
             child: _EmptyState(
-              icon: all.isEmpty
-                  ? Icons.receipt_long_outlined
-                  : Icons.search_off_rounded,
-              title: all.isEmpty ? 'No transactions yet' : 'No results',
-              message: all.isEmpty
-                  ? 'Add a transaction or sync your bank messages to get started.'
-                  : 'Try another search or clear the filters.',
-              action: all.isEmpty ? 'Add transaction' : 'Clear filters',
-              onAction: all.isEmpty ? _add : _clearFilters,
+              icon: Icons.search_off_rounded,
+              title: 'No matching transactions',
+              message: 'Adjust your search or filters to see more activity.',
+              action: 'Clear filters',
+              onAction: _clearFilters,
             ),
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 136),
+            padding: EdgeInsets.fromLTRB(contentInset, 0, contentInset, 136),
             sliver: SliverList.builder(
               itemCount: groups.length,
               itemBuilder: (context, index) {
@@ -259,24 +268,177 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     _category = null;
   });
 
-  Future<void> _pickDateRange() async {
-    final now = DateTime.now();
-    final value = await showDateRangePicker(
+  Future<void> _showFilters(List<String> categories) async {
+    var direction = _direction;
+    var dateRange = _dateRange;
+    var category = _category;
+    await showModalBottomSheet<void>(
       context: context,
-      firstDate: DateTime(now.year - 10),
-      lastDate: now.add(const Duration(days: 1)),
-      initialDateRange: _dateRange,
-      helpText: 'Choose date range',
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Filter activity',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                    if (direction != 'all' ||
+                        dateRange != null ||
+                        category != null)
+                      TextButton(
+                        onPressed: () => setSheetState(() {
+                          direction = 'all';
+                          dateRange = null;
+                          category = null;
+                        }),
+                        child: const Text('Reset'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Direction',
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+                const SizedBox(height: 10),
+                SegmentedButton<String>(
+                  expandedInsets: EdgeInsets.zero,
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: 'all', label: Text('All')),
+                    ButtonSegment(value: 'out', label: Text('Money out')),
+                    ButtonSegment(value: 'in', label: Text('Money in')),
+                  ],
+                  selected: {direction},
+                  onSelectionChanged: (value) =>
+                      setSheetState(() => direction = value.first),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final value = await showDateRangePicker(
+                            context: context,
+                            firstDate: DateTime(now.year - 10),
+                            lastDate: now.add(const Duration(days: 1)),
+                            initialDateRange: dateRange,
+                            helpText: 'Choose date range',
+                          );
+                          if (value != null) {
+                            setSheetState(() => dateRange = value);
+                          }
+                        },
+                        icon: const Icon(Icons.calendar_today_outlined),
+                        label: Text(
+                          dateRange == null
+                              ? 'Any date'
+                              : '${DateFormat('d MMM').format(dateRange!.start)}–${DateFormat('d MMM').format(dateRange!.end)}',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<String?>(
+                        initialValue: category,
+                        decoration: const InputDecoration(
+                          labelText: 'Category',
+                          contentPadding: EdgeInsets.symmetric(horizontal: 14),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('Any'),
+                          ),
+                          for (final value in categories)
+                            DropdownMenuItem(value: value, child: Text(value)),
+                        ],
+                        onChanged: (value) =>
+                            setSheetState(() => category = value),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      setState(() {
+                        _direction = direction;
+                        _dateRange = dateRange;
+                        _category = category;
+                      });
+                      Navigator.pop(sheetContext);
+                    },
+                    child: const Text('Show results'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
-    if (value != null && mounted) setState(() => _dateRange = value);
   }
 
-  void _openChat() => Navigator.push<void>(
-    context,
-    MaterialPageRoute(builder: (_) => const MoneyChatSheet(fullScreen: true)),
-  );
+  Future<void> _add() async {
+    await HapticFeedback.mediumImpact();
+    await _openForm();
+  }
 
-  Future<void> _add() => _openForm();
+  Future<void> _startSmsSync() async {
+    final status = await Permission.sms.status;
+    if (!status.isGranted && mounted) {
+      final proceed =
+          await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              icon: const Icon(Icons.sms_outlined),
+              title: const Text('Import bank messages?'),
+              content: const Text(
+                'Flow scans recent SMS on this device for supported transaction messages. Other conversations are ignored. Transaction messages are sent to your configured AI only when you start an import.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Not now'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Continue'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!proceed) return;
+    }
+    await ref.read(syncProvider.notifier).sync();
+  }
+
+  void _openSettings() {
+    final callback = widget.onOpenSettings;
+    if (callback != null) {
+      callback();
+      return;
+    }
+    Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
 
   Future<void> _edit(Expense expense) => _openForm(expense);
 
@@ -350,10 +512,14 @@ class _SearchField extends StatelessWidget {
   const _SearchField({
     required this.controller,
     required this.query,
+    required this.filtersActive,
+    required this.onFilter,
     required this.onChanged,
   });
   final TextEditingController controller;
   final String query;
+  final bool filtersActive;
+  final VoidCallback onFilter;
   final ValueChanged<String> onChanged;
 
   @override
@@ -371,6 +537,13 @@ class _SearchField extends StatelessWidget {
           },
           icon: const Icon(Icons.close_rounded),
         ),
+      IconButton(
+        tooltip: filtersActive ? 'Change active filters' : 'Filter activity',
+        onPressed: onFilter,
+        icon: Icon(
+          filtersActive ? Icons.filter_alt_rounded : Icons.tune_rounded,
+        ),
+      ),
     ],
     elevation: const WidgetStatePropertyAll(0),
     backgroundColor: WidgetStatePropertyAll(
@@ -401,7 +574,6 @@ class _MonthlySummary extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final net = received - spent;
     final positive = net >= 0;
-    final netColor = positive ? context.finance.income : context.finance.expense;
     return Material(
       color: scheme.primaryContainer,
       shape: ExpressiveShape.hero(),
@@ -416,62 +588,19 @@ class _MonthlySummary extends StatelessWidget {
               size: 168,
             ),
           ),
-          Positioned(
-            right: 40,
-            bottom: -60,
-            child: _HeroOrb(
-              color: scheme.tertiary.withValues(alpha: .12),
-              size: 120,
-            ),
-          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      'This month',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: scheme.onPrimaryContainer.withValues(alpha: .8),
-                        letterSpacing: .3,
-                      ),
-                    ),
-                    const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: scheme.surface.withValues(alpha: .55),
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            positive
-                                ? Icons.trending_up_rounded
-                                : Icons.trending_down_rounded,
-                            size: 15,
-                            color: netColor,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            positive ? 'Net positive' : 'Net negative',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  color: netColor,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                Text(
+                  'This month',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: scheme.onPrimaryContainer.withValues(alpha: .8),
+                    letterSpacing: .3,
+                  ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 AnimatedSwitcher(
                   duration: AppMotion.medium,
                   switchInCurve: AppMotion.emphasizedDecelerate,
@@ -507,7 +636,11 @@ class _MonthlySummary extends StatelessWidget {
                     color: scheme.onPrimaryContainer.withValues(alpha: .7),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
+                Divider(
+                  color: scheme.onPrimaryContainer.withValues(alpha: .16),
+                ),
+                const SizedBox(height: 2),
                 Row(
                   children: [
                     Expanded(
@@ -518,11 +651,15 @@ class _MonthlySummary extends StatelessWidget {
                         hidden: hidden,
                         icon: Icons.north_east_rounded,
                         color: context.finance.expense,
-                        containerColor: scheme.surface.withValues(alpha: .72),
                         onTap: onSpent,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    SizedBox(
+                      height: 52,
+                      child: VerticalDivider(
+                        color: scheme.onPrimaryContainer.withValues(alpha: .16),
+                      ),
+                    ),
                     Expanded(
                       child: _SummaryValue(
                         label: 'Money in',
@@ -531,7 +668,6 @@ class _MonthlySummary extends StatelessWidget {
                         hidden: hidden,
                         icon: Icons.south_west_rounded,
                         color: context.finance.income,
-                        containerColor: scheme.surface.withValues(alpha: .72),
                         onTap: onReceived,
                       ),
                     ),
@@ -567,7 +703,6 @@ class _SummaryValue extends StatelessWidget {
     required this.hidden,
     required this.icon,
     required this.color,
-    required this.containerColor,
     required this.onTap,
   });
   final String label;
@@ -576,18 +711,16 @@ class _SummaryValue extends StatelessWidget {
   final bool hidden;
   final IconData icon;
   final Color color;
-  final Color containerColor;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: containerColor,
-    shape: ExpressiveShape.card(radius: AppRadius.lg),
-    clipBehavior: Clip.antiAlias,
-    child: InkWell(
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
       onTap: onTap,
+      borderRadius: AppRadius.all(AppRadius.md),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -598,7 +731,7 @@ class _SummaryValue extends StatelessWidget {
                 Text(
                   label,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: scheme.onPrimaryContainer.withValues(alpha: .72),
                   ),
                 ),
               ],
@@ -611,7 +744,7 @@ class _SummaryValue extends StatelessWidget {
                 hidden ? maskAmount(currency) : formatAmount(amount, currency),
                 style: AppTheme.money(
                   Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: scheme.onPrimaryContainer,
                   ),
                 ),
               ),
@@ -619,8 +752,8 @@ class _SummaryValue extends StatelessWidget {
           ],
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _SmsSyncCard extends StatelessWidget {
@@ -628,11 +761,15 @@ class _SmsSyncCard extends StatelessWidget {
     required this.state,
     required this.onSync,
     required this.onStop,
+    required this.onSetup,
+    required this.setupRequired,
   });
 
   final SyncState state;
   final VoidCallback onSync;
   final VoidCallback onStop;
+  final VoidCallback onSetup;
+  final bool setupRequired;
 
   bool get _active =>
       state.phase == SyncPhase.requestingPermissions ||
@@ -651,22 +788,80 @@ class _SmsSyncCard extends StatelessWidget {
         child: FadeTransition(opacity: animation, child: child),
       ),
       child: idle
-          ? _CompactSync(key: const ValueKey('idle'), onSync: onSync)
+          ? _CompactSync(
+              key: const ValueKey('idle'),
+              onSync: setupRequired ? onSetup : onSync,
+              setupRequired: setupRequired,
+            )
           : _ActiveSync(
               key: const ValueKey('active'),
               state: state,
               active: _active,
               onSync: onSync,
               onStop: onStop,
+              onSetup: onSetup,
             ),
+    );
+  }
+}
+
+class _FirstRunOverview extends StatelessWidget {
+  const _FirstRunOverview();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.primaryContainer,
+      shape: ExpressiveShape.hero(),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 30),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: scheme.onPrimaryContainer.withValues(alpha: .1),
+                borderRadius: AppRadius.all(AppRadius.lg),
+              ),
+              child: Icon(
+                Icons.insights_rounded,
+                color: scheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Your money,\none clear timeline',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: scheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Add your first transaction or import supported bank messages. Flow will organise the rest.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: scheme.onPrimaryContainer.withValues(alpha: .78),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 /// Slim, unobtrusive sync affordance shown when no sync is running.
 class _CompactSync extends StatelessWidget {
-  const _CompactSync({super.key, required this.onSync});
+  const _CompactSync({
+    super.key,
+    required this.onSync,
+    required this.setupRequired,
+  });
   final VoidCallback onSync;
+  final bool setupRequired;
 
   @override
   Widget build(BuildContext context) {
@@ -685,7 +880,9 @@ class _CompactSync extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Sync bank SMS for new transactions',
+                  setupRequired
+                      ? 'Set up bank SMS import'
+                      : 'Sync bank SMS for new transactions',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
@@ -694,8 +891,13 @@ class _CompactSync extends StatelessWidget {
               const SizedBox(width: 8),
               FilledButton.tonalIcon(
                 onPressed: onSync,
-                icon: const Icon(Icons.sync_rounded, size: 18),
-                label: const Text('Sync'),
+                icon: Icon(
+                  setupRequired
+                      ? Icons.arrow_forward_rounded
+                      : Icons.sync_rounded,
+                  size: 18,
+                ),
+                label: Text(setupRequired ? 'Set up' : 'Sync'),
               ),
             ],
           ),
@@ -713,11 +915,13 @@ class _ActiveSync extends StatelessWidget {
     required this.active,
     required this.onSync,
     required this.onStop,
+    required this.onSetup,
   });
   final SyncState state;
   final bool active;
   final VoidCallback onSync;
   final VoidCallback onStop;
+  final VoidCallback onSetup;
 
   @override
   Widget build(BuildContext context) {
@@ -732,7 +936,7 @@ class _ActiveSync extends StatelessWidget {
       SyncPhase.fetchingSms => 'Reading bank messages',
       SyncPhase.analyzing => 'Understanding transactions',
       SyncPhase.complete => 'SMS sync complete',
-      SyncPhase.error => 'SMS sync needs attention',
+      SyncPhase.error => 'Finish SMS import setup',
       SyncPhase.idle => 'Sync bank SMS',
     };
     final detail = error
@@ -741,7 +945,7 @@ class _ActiveSync extends StatelessWidget {
 
     return Material(
       color: error
-          ? scheme.errorContainer
+          ? context.finance.warningSurface
           : complete
           ? scheme.tertiaryContainer
           : scheme.secondaryContainer,
@@ -761,7 +965,7 @@ class _ActiveSync extends StatelessWidget {
                         : error
                         ? Icons.sms_failed_outlined
                         : Icons.sms_outlined,
-                    color: error ? scheme.error : scheme.primary,
+                    color: error ? context.finance.warning : scheme.primary,
                   ),
                 ),
                 const SizedBox(width: 14),
@@ -790,9 +994,11 @@ class _ActiveSync extends StatelessWidget {
                   )
                 else
                   FilledButton.tonalIcon(
-                    onPressed: onSync,
-                    icon: const Icon(Icons.sync_rounded),
-                    label: Text(error ? 'Retry' : 'Again'),
+                    onPressed: error ? onSetup : onSync,
+                    icon: Icon(
+                      error ? Icons.arrow_forward_rounded : Icons.sync_rounded,
+                    ),
+                    label: Text(error ? 'Set up' : 'Again'),
                   ),
               ],
             ),
@@ -800,10 +1006,7 @@ class _ActiveSync extends StatelessWidget {
               const SizedBox(height: 14),
               ClipRRect(
                 borderRadius: BorderRadius.circular(AppRadius.pill),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 6,
-                ),
+                child: LinearProgressIndicator(value: progress, minHeight: 6),
               ),
             ],
           ],
@@ -813,73 +1016,47 @@ class _ActiveSync extends StatelessWidget {
   }
 }
 
-class _FilterBar extends StatelessWidget {
-  const _FilterBar({
+class _FilterSummary extends StatelessWidget {
+  const _FilterSummary({
     required this.direction,
     required this.dateRange,
     required this.category,
-    required this.categories,
-    required this.onDirection,
-    required this.onDate,
-    required this.onCategory,
     required this.onClear,
   });
   final String direction;
   final DateTimeRange? dateRange;
   final String? category;
-  final List<String> categories;
-  final ValueChanged<String> onDirection;
-  final VoidCallback onDate;
-  final ValueChanged<String?> onCategory;
   final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
-    final active = dateRange != null || category != null || direction != 'all';
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final value in const [
-            ('all', 'All'),
-            ('out', 'Money out'),
-            ('in', 'Money in'),
-          ]) ...[
-            FilterChip(
-              label: Text(value.$2),
-              selected: direction == value.$1,
-              onSelected: (_) => onDirection(value.$1),
-            ),
-            const SizedBox(width: 8),
-          ],
-          ActionChip(
-            avatar: const Icon(Icons.calendar_today_outlined, size: 18),
-            label: Text(
-              dateRange == null
-                  ? 'Date'
-                  : '${DateFormat('d MMM').format(dateRange!.start)}–${DateFormat('d MMM').format(dateRange!.end)}',
-            ),
-            onPressed: onDate,
-          ),
-          const SizedBox(width: 8),
-          PopupMenuButton<String?>(
-            onSelected: onCategory,
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: null, child: Text('All categories')),
-              for (final value in categories)
-                PopupMenuItem(value: value, child: Text(value)),
-            ],
-            child: Chip(
-              avatar: const Icon(Icons.category_outlined, size: 18),
-              label: Text(category ?? 'Category'),
+    final labels = <String>[
+      if (direction == 'out') 'Money out',
+      if (direction == 'in') 'Money in',
+      if (dateRange != null)
+        '${DateFormat('d MMM').format(dateRange!.start)}–${DateFormat('d MMM').format(dateRange!.end)}',
+    ];
+    if (category != null) labels.add(category!);
+    return Row(
+      children: [
+        Icon(
+          Icons.filter_alt_rounded,
+          size: 18,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            labels.join(' · '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
-          if (active) ...[
-            const SizedBox(width: 4),
-            TextButton(onPressed: onClear, child: const Text('Clear')),
-          ],
-        ],
-      ),
+        ),
+        TextButton(onPressed: onClear, child: const Text('Clear')),
+      ],
     );
   }
 }
@@ -1025,11 +1202,20 @@ class _TransactionRow extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  amount,
-                  style: AppTheme.money(
-                    Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: item.isIncome ? context.finance.income : null,
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * .38,
+                  ),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      amount,
+                      style: AppTheme.money(
+                        Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: item.isIncome ? context.finance.income : null,
+                        ),
+                      ),
                     ),
                   ),
                 ),

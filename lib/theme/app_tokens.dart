@@ -63,13 +63,15 @@ class ExpressiveShape {
 
   /// Content role — every list card, tile, and settings surface. One calm,
   /// generous continuous radius so scrolling lists feel like a single rhythm.
-  static OutlinedBorder card({Color color = Colors.transparent, double? radius}) =>
-      ContinuousRectangleBorder(
-        borderRadius: BorderRadius.circular(radius ?? 30),
-        side: color == Colors.transparent
-            ? BorderSide.none
-            : BorderSide(color: color),
-      );
+  static OutlinedBorder card({
+    Color color = Colors.transparent,
+    double? radius,
+  }) => ContinuousRectangleBorder(
+    borderRadius: BorderRadius.circular(radius ?? 30),
+    side: color == Colors.transparent
+        ? BorderSide.none
+        : BorderSide(color: color),
+  );
 
   /// Control role — buttons, chips, FABs. Near-pill continuous shape.
   static OutlinedBorder soft({Color color = Colors.transparent}) =>

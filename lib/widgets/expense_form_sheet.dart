@@ -26,11 +26,15 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
   late final TextEditingController _amount;
   late final TextEditingController _merchant;
   late final TextEditingController _tags;
+  late final FocusNode _amountFocus;
+  late final FocusNode _merchantFocus;
   late String _type;
   late String _category;
   late String _currency;
   late DateTime _date;
   bool _saving = false;
+  String? _amountError;
+  String? _merchantError;
 
   @override
   void initState() {
@@ -41,6 +45,8 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
     );
     _merchant = TextEditingController(text: item?.merchant ?? '');
     _tags = TextEditingController(text: item?.tags ?? '');
+    _amountFocus = FocusNode();
+    _merchantFocus = FocusNode();
     _type = item?.type ?? 'expense';
     _category = item?.category ?? 'Others';
     _currency = item?.currency ?? ref.read(preferredCurrencyProvider);
@@ -52,6 +58,8 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
     _amount.dispose();
     _merchant.dispose();
     _tags.dispose();
+    _amountFocus.dispose();
+    _merchantFocus.dispose();
     super.dispose();
   }
 
@@ -96,7 +104,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                             const SizedBox(height: 3),
                             Text(
                               widget.initialExpense == null
-                                  ? 'Enter the amount and where it came from or went'
+                                  ? 'Enter the amount and where it came from or went to'
                                   : 'Update the transaction details',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: scheme.onSurfaceVariant),
@@ -198,7 +206,16 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                               Expanded(
                                 child: TextField(
                                   controller: _amount,
+                                  focusNode: _amountFocus,
                                   autofocus: widget.initialExpense == null,
+                                  textInputAction: TextInputAction.next,
+                                  onSubmitted: (_) =>
+                                      _merchantFocus.requestFocus(),
+                                  onChanged: (_) {
+                                    if (_amountError != null) {
+                                      setState(() => _amountError = null);
+                                    }
+                                  },
                                   keyboardType:
                                       const TextInputType.numberWithOptions(
                                         decimal: true,
@@ -230,14 +247,34 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                         ],
                       ),
                     ),
+                    if (_amountError != null) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 16),
+                        child: Text(
+                          _amountError!,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(color: scheme.error),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     TextField(
                       controller: _merchant,
+                      focusNode: _merchantFocus,
                       textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) {
+                        if (_merchantError != null) {
+                          setState(() => _merchantError = null);
+                        }
+                      },
+                      decoration: InputDecoration(
                         labelText: 'Source or destination',
                         hintText: 'Person, business, account, or bank',
-                        prefixIcon: Icon(Icons.swap_horiz_rounded),
+                        prefixIcon: const Icon(Icons.swap_horiz_rounded),
+                        errorText: _merchantError,
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -327,31 +364,50 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2000),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked != null) {
-      setState(
-        () => _date = DateTime(
-          picked.year,
-          picked.month,
-          picked.day,
-          _date.hour,
-          _date.minute,
-        ),
-      );
-    }
+    if (pickedDate == null || !mounted) return;
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_date),
+      helpText: 'Choose transaction time',
+    );
+    if (!mounted) return;
+    final time = pickedTime ?? TimeOfDay.fromDateTime(_date);
+    setState(
+      () => _date = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        time.hour,
+        time.minute,
+      ),
+    );
   }
 
   Future<void> _save() async {
     final value = double.tryParse(_amount.text.trim());
-    if (value == null || value <= 0 || _merchant.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter an amount and description.')),
-      );
+    final amountError = value == null || value <= 0
+        ? 'Enter an amount greater than zero'
+        : null;
+    final merchantError = _merchant.text.trim().isEmpty
+        ? 'Enter where this money came from or went to'
+        : null;
+    if (amountError != null || merchantError != null) {
+      setState(() {
+        _amountError = amountError;
+        _merchantError = merchantError;
+      });
+      if (amountError != null) {
+        _amountFocus.requestFocus();
+      } else {
+        _merchantFocus.requestFocus();
+      }
+      await HapticFeedback.heavyImpact();
       return;
     }
     setState(() => _saving = true);
@@ -359,7 +415,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
     await widget.onSave(
       Expense(
         id: old?.id,
-        amount: value,
+        amount: value!,
         currency: _currency,
         merchant: _merchant.text.trim(),
         category: _category,
@@ -370,6 +426,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
         normalizedMerchant: old?.normalizedMerchant,
       ),
     );
+    await HapticFeedback.lightImpact();
     if (mounted) setState(() => _saving = false);
   }
 
@@ -380,7 +437,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
           builder: (context) => AlertDialog(
             title: const Text('Delete transaction?'),
             content: const Text(
-              'This will remove it from every report and budget.',
+              'This permanently removes it from your activity.',
             ),
             actions: [
               TextButton(
@@ -389,6 +446,10 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
               ),
               FilledButton(
                 onPressed: () => Navigator.pop(context, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: Theme.of(context).colorScheme.onError,
+                ),
                 child: const Text('Delete'),
               ),
             ],

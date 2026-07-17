@@ -52,6 +52,7 @@ dependencies:
   package_info_plus: ^10.2.0
   crypto: ^3.0.7
   flutter_markdown_plus: ^1.0.12
+  dynamic_color: ^1.8.1
 
 dev_dependencies:
   flutter_test:

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../main.dart';
 import '../providers/expense_provider.dart';
@@ -28,10 +27,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     ),
     _Step(
       number: '02',
-      title: 'Find transactions automatically',
+      title: 'Private by design',
       body:
-          'Import supported bank messages, avoid duplicates, and review where each transaction came from.',
-      icon: Icons.sms_outlined,
+          'Your financial records stay on this device. Flow only requests access when a feature needs it.',
+      icon: Icons.shield_outlined,
     ),
     _Step(
       number: '03',
@@ -39,13 +38,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       body:
           'Choose your currency and add an optional income estimate and safety buffer.',
       icon: Icons.tune_rounded,
-    ),
-    _Step(
-      number: '04',
-      title: 'Private AI assistance',
-      body:
-          'Allow SMS access to import bank transactions. You choose when original messages can be shared with your configured AI.',
-      icon: Icons.privacy_tip_outlined,
     ),
   ];
 
@@ -90,8 +82,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () => _finish(requestPermission: false),
-                    child: Text(last ? 'Not now' : 'Skip'),
+                    onPressed: _finish,
+                    child: Text(last ? 'Use defaults' : 'Skip'),
                   ),
                 ],
               ),
@@ -118,7 +110,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 children: [
                   for (var index = 0; index < _steps.length; index++)
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 250),
                       width: index == _page ? 34 : 8,
                       height: 8,
                       margin: const EdgeInsets.only(right: 7),
@@ -131,13 +125,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     ),
                   const Spacer(),
                   FloatingActionButton.extended(
-                    onPressed: last
-                        ? () => _finish(requestPermission: true)
-                        : _next,
+                    onPressed: last ? _finish : _next,
                     icon: Icon(
                       last ? Icons.check_rounded : Icons.arrow_forward_rounded,
                     ),
-                    label: Text(last ? 'Allow and continue' : 'Continue'),
+                    label: Text(last ? 'Start using Flow' : 'Continue'),
                   ),
                 ],
               ),
@@ -149,11 +141,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   void _next() => _controller.nextPage(
-    duration: const Duration(milliseconds: 420),
+    duration: MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 420),
     curve: Curves.easeOutCubic,
   );
 
-  Future<void> _finish({required bool requestPermission}) async {
+  Future<void> _finish() async {
     await ref.read(preferredCurrencyProvider.notifier).setCurrency(_currency);
     await ref
         .read(monthlyPlanProvider.notifier)
@@ -161,9 +155,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           income: double.tryParse(_income.text.trim()) ?? 0,
           buffer: double.tryParse(_buffer.text.trim()) ?? 0,
         );
-    if (requestPermission) {
-      await Permission.sms.request();
-    }
     await markOnboardingDone(ref.read(secureStorageProvider));
     if (mounted) {
       Navigator.pushReplacement(
@@ -291,7 +282,9 @@ class _StepView extends StatelessWidget {
           TweenAnimationBuilder<double>(
             key: ValueKey(step.icon.codePoint),
             tween: Tween(begin: 0, end: 1),
-            duration: AppMotion.slow,
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : AppMotion.slow,
             curve: AppMotion.emphasizedDecelerate,
             builder: (context, t, child) => Opacity(
               opacity: t.clamp(0, 1),
@@ -337,9 +330,9 @@ class _StepView extends StatelessWidget {
           const Spacer(),
           Text(
             step.title,
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              height: 1.1,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineMedium?.copyWith(height: 1.1),
           ),
           const SizedBox(height: 18),
           Text(

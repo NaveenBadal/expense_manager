@@ -62,13 +62,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final private = ref.watch(privateModeProvider);
     final locked = ref.watch(appLockEnabledProvider);
     final capture = ref.watch(notificationParsingEnabledProvider);
+    final ingestion = ref.watch(notificationIngestionProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final aiConfigured = ref.watch(ollamaApiKeyProvider).trim().isNotEmpty;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final contentInset = screenWidth > 760 ? (screenWidth - 720) / 2 : 16.0;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
+        padding: EdgeInsets.fromLTRB(contentInset, 0, contentInset, 40),
         children: [
-          const _SettingsHero(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Text(
+              'Choose how Flow works for you.',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
           const _SectionTitle('Appearance'),
           _SettingsCard(
             children: [
@@ -140,7 +152,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: const Text('Notification capture'),
                 subtitle: Text(
                   capture
-                      ? 'Automatically detect supported transaction notifications'
+                      ? ingestion.accessEnabled
+                            ? 'Automatically detect supported transaction notifications'
+                            : 'Finish granting notification access in Android settings'
                       : 'Only import when you start an SMS sync',
                 ),
                 value: capture,
@@ -197,55 +211,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const _SectionTitle('Money preferences'),
           _SettingsCard(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      initialValue: _currency,
-                      decoration: const InputDecoration(labelText: 'Currency'),
-                      items: [
-                        for (final value in const [
-                          'INR',
-                          'USD',
-                          'EUR',
-                          'GBP',
-                          'SGD',
-                          'AED',
-                        ])
-                          DropdownMenuItem(value: value, child: Text(value)),
-                      ],
-                      onChanged: (value) => setState(() => _currency = value!),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _income,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Expected monthly income',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _buffer,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Protected safety buffer',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                        onPressed: _saveMoneyPreferences,
-                        child: const Text('Save preferences'),
-                      ),
-                    ),
-                  ],
-                ),
+              ListTile(
+                leading: const Icon(Icons.payments_outlined),
+                title: const Text('Planning and currency'),
+                subtitle: Text('$_currency · Income and safety buffer'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _showMoneyPreferences,
               ),
-              const Divider(height: 1),
+              const Divider(height: 1, indent: 56),
               ListTile(
                 leading: const Icon(Icons.category_outlined),
                 title: const Text('Categories'),
@@ -258,90 +231,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const _SectionTitle('AI connection'),
           _SettingsCard(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _connected
-                                ? context.finance.income
-                                : Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            _connected
-                                ? 'Ollama connected'
-                                : 'Ollama connection',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _key,
-                      obscureText: _obscure,
-                      decoration: InputDecoration(
-                        labelText: 'API key',
-                        suffixIcon: IconButton(
-                          tooltip: _obscure ? 'Show API key' : 'Hide API key',
-                          onPressed: () => setState(() => _obscure = !_obscure),
-                          icon: Icon(
-                            _obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      initialValue: _model,
-                      decoration: const InputDecoration(labelText: 'Model'),
-                      items: [
-                        for (final value in ollamaModelChoices)
-                          DropdownMenuItem(value: value, child: Text(value)),
-                      ],
-                      onChanged: (value) => setState(() => _model = value!),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _url,
-                      keyboardType: TextInputType.url,
-                      decoration: const InputDecoration(labelText: 'Endpoint'),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _testing ? null : _test,
-                            child: Text(
-                              _testing ? 'Testing…' : 'Test connection',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: FilledButton(
-                            onPressed: _saveAi,
-                            child: const Text('Save'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+              ListTile(
+                leading: Icon(
+                  _connected || aiConfigured
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_outlined,
                 ),
+                title: const Text('Ollama Cloud'),
+                subtitle: Text(
+                  _connected
+                      ? 'Connection verified · $_model'
+                      : aiConfigured
+                      ? 'Configured · $_model'
+                      : 'Connect Ask Flow and SMS import',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: _showAiConnection,
               ),
-              const Divider(height: 1),
+              const Divider(height: 1, indent: 56),
               ListTile(
                 leading: const Icon(Icons.terminal_outlined),
                 title: const Text('AI activity log'),
@@ -377,6 +284,190 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _showMoneyPreferences() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              8,
+              20,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Money preferences',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Planning guides only—these do not change your balances.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                DropdownButtonFormField<String>(
+                  initialValue: _currency,
+                  decoration: const InputDecoration(labelText: 'Currency'),
+                  items: [
+                    for (final value in const [
+                      'INR',
+                      'USD',
+                      'EUR',
+                      'GBP',
+                      'SGD',
+                      'AED',
+                    ])
+                      DropdownMenuItem(value: value, child: Text(value)),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _currency = value);
+                    setSheetState(() {});
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _income,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Expected monthly income',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _buffer,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Protected safety buffer',
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () async {
+                      await _saveMoneyPreferences();
+                      if (sheetContext.mounted) Navigator.pop(sheetContext);
+                    },
+                    child: const Text('Save preferences'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAiConnection() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              8,
+              20,
+              24 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Connect Ollama Cloud',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Used only for features you start, including Ask Flow and SMS understanding.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _key,
+                  obscureText: _obscure,
+                  decoration: InputDecoration(
+                    labelText: 'API key',
+                    suffixIcon: IconButton(
+                      tooltip: _obscure ? 'Show API key' : 'Hide API key',
+                      onPressed: () {
+                        setState(() => _obscure = !_obscure);
+                        setSheetState(() {});
+                      },
+                      icon: Icon(
+                        _obscure
+                            ? Icons.visibility_outlined
+                            : Icons.visibility_off_outlined,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _model,
+                  decoration: const InputDecoration(labelText: 'Model'),
+                  items: [
+                    for (final value in ollamaModelChoices)
+                      DropdownMenuItem(value: value, child: Text(value)),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _model = value);
+                    setSheetState(() {});
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _url,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(labelText: 'Endpoint'),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _testing
+                            ? null
+                            : () async {
+                                await _test();
+                                setSheetState(() {});
+                              },
+                        child: Text(_testing ? 'Testing…' : 'Test'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () async {
+                          await _saveAi();
+                          if (sheetContext.mounted) Navigator.pop(sheetContext);
+                        },
+                        child: const Text('Save'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _notify(String value) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
@@ -390,6 +481,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _toggleCapture(bool value) async {
+    if (value) {
+      final proceed =
+          await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              icon: const Icon(Icons.notifications_active_outlined),
+              title: const Text('Allow transaction capture?'),
+              content: const Text(
+                'Android will ask you to grant notification access. Flow keeps supported bank notification text on this device and ignores unrelated notifications.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Open Android settings'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!proceed) return;
+    }
     await ref.read(notificationIngestionProvider.notifier).setEnabled(value);
   }
 
@@ -513,64 +629,13 @@ class _SectionTitle extends StatelessWidget {
   );
 }
 
-class _SettingsHero extends StatelessWidget {
-  const _SettingsHero();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 4),
-      child: Material(
-        color: scheme.secondaryContainer,
-        shape: ExpressiveShape.hero(),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            Positioned(
-              right: -30,
-              top: -36,
-              child: CircleAvatar(
-                radius: 62,
-                backgroundColor: scheme.primary.withValues(alpha: .1),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 26, 92, 26),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.tune_rounded, color: scheme.onSecondaryContainer),
-                  const SizedBox(height: 28),
-                  Text(
-                    'Make Flow yours',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: scheme.onSecondaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Your appearance, privacy, imports and AI connection — all in one place.',
-                    style: TextStyle(color: scheme.onSecondaryContainer),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({required this.children});
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) => Card(
-    shape: ExpressiveShape.soft(),
+    shape: ExpressiveShape.card(),
     clipBehavior: Clip.antiAlias,
     child: Column(children: children),
   );

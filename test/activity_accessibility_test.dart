@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:expense_manager/models/expense.dart';
+import 'package:expense_manager/providers/expense_provider.dart';
 import 'package:expense_manager/screens/activity_screen.dart';
 import 'package:expense_manager/screens/settings_screen.dart';
 import 'package:expense_manager/services/database_helper.dart';
 import 'package:expense_manager/theme/app_theme.dart';
 import 'package:expense_manager/widgets/money_chat_sheet.dart';
+import 'package:expense_manager/widgets/expense_form_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,9 +66,8 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Your activity'), findsOneWidget);
-    expect(find.byTooltip('Ask Flow'), findsOneWidget);
-    expect(find.byTooltip('Settings'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
+    expect(find.byTooltip('Add transaction'), findsOneWidget);
     expect(find.byTooltip('Hide amounts'), findsOneWidget);
     semantics.dispose();
   });
@@ -97,7 +98,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('Make Flow yours'), findsOneWidget);
+    expect(find.text('Choose how Flow works for you.'), findsOneWidget);
   });
 
   testWidgets('Ask Flow input stays visible when the keyboard opens', (
@@ -122,6 +123,111 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Ask Flow'), findsOneWidget);
-    expect(find.text('Ask about your activity…'), findsOneWidget);
+    expect(find.text('Connect Ask Flow in Settings'), findsOneWidget);
   });
+
+  testWidgets('Transaction form gives field-specific validation', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light(null),
+          home: Scaffold(body: ExpenseFormSheet(onSave: (_) async {})),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final save = find.text('Add transaction').last;
+    await tester.tap(save);
+    await tester.pump();
+
+    expect(find.text('Enter an amount greater than zero'), findsOneWidget);
+    expect(
+      find.text('Enter where this money came from or went to'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Activity filters open in a focused sheet', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [expenseListProvider.overrideWith(_PopulatedExpenses.new)],
+        child: MaterialApp(
+          theme: AppTheme.light(null),
+          home: const ActivityScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+
+    await tester.tap(find.byTooltip('Filter activity'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Filter activity'), findsOneWidget);
+    expect(find.text('Show results'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Activity stays bounded on a tablet layout', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light(null),
+          home: const ActivityScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Activity'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Activity supports right-to-left layout', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light(null),
+          home: const Directionality(
+            textDirection: TextDirection.rtl,
+            child: ActivityScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Activity'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+}
+
+class _PopulatedExpenses extends ExpenseListNotifier {
+  @override
+  Future<List<Expense>> build() async => [
+    Expense(
+      amount: 125,
+      currency: 'INR',
+      merchant: 'Filter Test',
+      category: 'Others',
+      date: DateTime(2026, 7, 17),
+      originalSms: '',
+    ),
+  ];
 }

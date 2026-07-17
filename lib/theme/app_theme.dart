@@ -21,44 +21,7 @@ class AppTheme {
       dynamicSchemeVariant: DynamicSchemeVariant.expressive,
       contrastLevel: .15,
     );
-    final source = dynamic ?? generated;
-    final scheme = source.copyWith(
-      primary: dark ? const Color(0xFFC7BFFF) : const Color(0xFF5545D6),
-      onPrimary: dark ? const Color(0xFF281A93) : Colors.white,
-      primaryContainer: dark
-          ? const Color(0xFF3D2EB1)
-          : const Color(0xFFE5DEFF),
-      onPrimaryContainer: dark
-          ? const Color(0xFFE5DEFF)
-          : const Color(0xFF1A0065),
-      secondary: dark ? const Color(0xFF80D5C7) : const Color(0xFF006B5F),
-      secondaryContainer: dark
-          ? const Color(0xFF005047)
-          : const Color(0xFFA1F2E3),
-      tertiary: dark ? const Color(0xFFFFB77C) : const Color(0xFF9A4600),
-      tertiaryContainer: dark
-          ? const Color(0xFF713200)
-          : const Color(0xFFFFDCC3),
-      surface: dark ? const Color(0xFF121118) : const Color(0xFFFFF8FF),
-      surfaceContainerLowest: dark
-          ? const Color(0xFF0C0B12)
-          : const Color(0xFFFFFFFF),
-      surfaceContainerLow: dark
-          ? const Color(0xFF1A181F)
-          : const Color(0xFFFBF4FD),
-      surfaceContainer: dark
-          ? const Color(0xFF211F27)
-          : const Color(0xFFF7F0FA),
-      surfaceContainerHigh: dark
-          ? const Color(0xFF2C2932)
-          : const Color(0xFFEFE7F2),
-      onSurface: dark ? const Color(0xFFECE7F0) : const Color(0xFF211F24),
-      onSurfaceVariant: dark
-          ? const Color(0xFFCCC4D0)
-          : const Color(0xFF625D66),
-      outlineVariant: dark ? const Color(0xFF3A3640) : const Color(0xFFDDD5E1),
-      error: dark ? const Color(0xFFFFB4AB) : const Color(0xFFBA1A1A),
-    );
+    final scheme = dynamic ?? generated;
     final base = ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -74,16 +37,13 @@ class AppTheme {
     );
     // Space Grotesk is reserved for display, headline, and big numbers — the
     // expressive voice. Titles/labels/body stay Inter for calm legibility.
-    TextStyle? display(
-      TextStyle? style,
-      FontWeight weight,
-      double tracking,
-    ) => style?.copyWith(
-      fontFamily: 'Space Grotesk',
-      fontWeight: weight,
-      letterSpacing: tracking,
-      height: 1.04,
-    );
+    TextStyle? display(TextStyle? style, FontWeight weight, double tracking) =>
+        style?.copyWith(
+          fontFamily: 'Space Grotesk',
+          fontWeight: weight,
+          letterSpacing: tracking,
+          height: 1.04,
+        );
     return base.copyWith(
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
@@ -151,7 +111,14 @@ class AppTheme {
         side: BorderSide(color: scheme.outlineVariant),
         showCheckmark: false,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+        labelStyle: TextStyle(
+          color: scheme.onSurface,
+          fontWeight: FontWeight.w600,
+        ),
+        secondaryLabelStyle: TextStyle(
+          color: scheme.onSecondaryContainer,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       segmentedButtonTheme: SegmentedButtonThemeData(
         style: ButtonStyle(
@@ -159,7 +126,9 @@ class AppTheme {
             TextStyle(fontWeight: FontWeight.w600),
           ),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
           ),
         ),
       ),
