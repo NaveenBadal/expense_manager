@@ -197,17 +197,14 @@ class _SetupView extends StatelessWidget {
           '03',
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
             color: Theme.of(context).colorScheme.primary,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w700,
             letterSpacing: 1.4,
           ),
         ),
         const SizedBox(height: 34),
         Text(
           'Choose your money preferences',
-          style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1.1,
-          ),
+          style: Theme.of(context).textTheme.headlineLarge,
         ),
         const SizedBox(height: 10),
         Text(
@@ -286,56 +283,54 @@ class _StepView extends StatelessWidget {
             step.number,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: scheme.primary,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w700,
               letterSpacing: 1.4,
             ),
           ),
           const Spacer(),
-          SizedBox(
-            height: 220,
-            width: double.infinity,
-            child: Material(
-              color: scheme.primaryContainer,
-              shape: ExpressiveShape.hero(),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                children: [
-                  Positioned(
-                    right: -24,
-                    top: -34,
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: scheme.tertiaryContainer,
-                        shape: BoxShape.circle,
+          TweenAnimationBuilder<double>(
+            key: ValueKey(step.icon.codePoint),
+            tween: Tween(begin: 0, end: 1),
+            duration: AppMotion.slow,
+            curve: AppMotion.emphasizedDecelerate,
+            builder: (context, t, child) => Opacity(
+              opacity: t.clamp(0, 1),
+              child: Transform.scale(scale: 0.9 + 0.1 * t, child: child),
+            ),
+            child: SizedBox(
+              height: 240,
+              width: double.infinity,
+              child: Material(
+                color: scheme.primaryContainer,
+                shape: ExpressiveShape.hero(),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: -40,
+                      top: -46,
+                      child: Container(
+                        width: 150,
+                        height: 150,
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withValues(alpha: .14),
+                          shape: BoxShape.circle,
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: -18,
-                    bottom: -30,
-                    child: Container(
-                      width: 90,
-                      height: 90,
-                      decoration: BoxDecoration(
-                        color: scheme.secondaryContainer,
-                        shape: BoxShape.circle,
+                    Center(
+                      child: Container(
+                        width: 112,
+                        height: 112,
+                        decoration: BoxDecoration(
+                          color: scheme.surface.withValues(alpha: .8),
+                          borderRadius: AppRadius.all(AppRadius.xxl),
+                        ),
+                        child: Icon(step.icon, size: 46, color: scheme.primary),
                       ),
                     ),
-                  ),
-                  Center(
-                    child: Container(
-                      width: 104,
-                      height: 104,
-                      decoration: BoxDecoration(
-                        color: scheme.surfaceContainer,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(step.icon, size: 44, color: scheme.primary),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -343,7 +338,6 @@ class _StepView extends StatelessWidget {
           Text(
             step.title,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w600,
               height: 1.1,
             ),
           ),

@@ -1,13 +1,9 @@
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/ai_provider.dart';
 import '../providers/expense_provider.dart';
 import '../providers/notification_ingestion_provider.dart';
-import '../services/bank_csv_importer.dart';
 import '../services/development_update_service.dart';
 import '../services/ollama_cloud_service.dart';
 import '../theme/app_tokens.dart';
@@ -34,7 +30,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _obscure = true;
   bool _testing = false;
   bool _connected = false;
-  bool _importing = false;
 
   @override
   void initState() {
@@ -186,15 +181,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 label: '$_lookback days',
                 onChanged: (value) => setState(() => _lookback = value.round()),
                 onChangeEnd: (_) => _saveMemory(),
-              ),
-              const Divider(height: 1, indent: 56),
-              ListTile(
-                leading: const Icon(Icons.upload_file_outlined),
-                title: Text(_importing ? 'Importing…' : 'Import bank CSV'),
-                subtitle: const Text('Add historical transactions from a file'),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                enabled: !_importing,
-                onTap: _importing ? null : _importCsv,
               ),
               const Divider(height: 1, indent: 56),
               ListTile(
@@ -467,28 +453,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Future<void> _importCsv() async {
-    final picked = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['csv'],
-    );
-    final path = picked?.files.firstOrNull?.path;
-    if (path == null) return;
-    setState(() => _importing = true);
-    try {
-      final expenses = await BankCsvImporter.parse(
-        File(path),
-        currency: _currency,
-      );
-      await ref.read(expenseListProvider.notifier).addExpenses(expenses);
-      _notify('Imported ${expenses.length} transactions.');
-    } catch (_) {
-      _notify('That CSV could not be imported. Nothing changed.');
-    } finally {
-      if (mounted) setState(() => _importing = false);
-    }
-  }
-
   Future<void> _showPrivacy() => showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -564,11 +528,11 @@ class _SettingsHero extends StatelessWidget {
         child: Stack(
           children: [
             Positioned(
-              right: -22,
-              top: -28,
+              right: -30,
+              top: -36,
               child: CircleAvatar(
-                radius: 54,
-                backgroundColor: scheme.tertiaryContainer,
+                radius: 62,
+                backgroundColor: scheme.primary.withValues(alpha: .1),
               ),
             ),
             Padding(

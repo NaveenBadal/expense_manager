@@ -27,13 +27,14 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   bool _thinking = false;
+  bool _didScrollToInitialHistory = false;
   String _stage = 'Understanding your request…';
   late final LocalMoneyMcpClient _mcp;
 
-  static const _prompts = [
-    'Summarize this month',
-    'Find transactions that need review',
-    'Where can I spend less?',
+  static const _prompts = <(IconData, String)>[
+    (Icons.calendar_month_rounded, 'Summarize this month'),
+    (Icons.rule_rounded, 'Find transactions that need review'),
+    (Icons.savings_outlined, 'Where can I spend less?'),
   ];
 
   @override
@@ -58,15 +59,32 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
     super.dispose();
   }
 
-  void _scrollToLatest() {
+  void _scrollToLatest({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOut,
-      );
+      if (animate) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOut,
+        );
+        return;
+      }
+      _jumpToLatestAfterLayout(3);
     });
+  }
+
+  void _jumpToLatestAfterLayout(int remainingFrames) {
+    if (!mounted || !_scrollController.hasClients) return;
+    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    if (remainingFrames <= 1) return;
+
+    // A lazily built list can discover a larger extent after the first jump.
+    // Repeat across layout frames so a long conversation reaches its true end.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _jumpToLatestAfterLayout(remainingFrames - 1),
+    );
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   Future<void> _ask([String? suggested]) async {
@@ -94,7 +112,6 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
           }.contains(name)) {
             ref.invalidate(expenseListProvider);
           }
-          if (name == 'manage_budget') ref.invalidate(budgetListProvider);
         },
       );
       final answer = await service.ask(question, history: history);
@@ -143,10 +160,6 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
       'update_transaction' => 'change transaction #${arguments['id'] ?? ''}',
       'delete_transaction' =>
         'permanently delete transaction #${arguments['id'] ?? ''}',
-      'manage_budget' =>
-        arguments['remove'] == true
-            ? 'remove the ${arguments['category']} budget'
-            : 'set the ${arguments['category']} budget',
       'reanalyze_transaction_sms' =>
         'send transaction #${arguments['id'] ?? ''} original SMS to your configured Ollama endpoint for re-analysis',
       _ => 'perform this sensitive action',
@@ -191,6 +204,10 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   @override
   Widget build(BuildContext context) {
     final messages = ref.watch(assistantConversationProvider).value ?? const [];
+    if (messages.isNotEmpty && !_didScrollToInitialHistory) {
+      _didScrollToInitialHistory = true;
+      _scrollToLatest(animate: false);
+    }
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -220,14 +237,22 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                         controller: _scrollController,
                         children: [
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(4, 40, 4, 28),
+                            padding: const EdgeInsets.fromLTRB(4, 32, 4, 26),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  Icons.auto_awesome_outlined,
-                                  size: 34,
-                                  color: scheme.primary,
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    color: scheme.primaryContainer,
+                                    borderRadius: AppRadius.all(AppRadius.lg),
+                                  ),
+                                  child: Icon(
+                                    Icons.auto_awesome_outlined,
+                                    size: 28,
+                                    color: scheme.onPrimaryContainer,
+                                  ),
                                 ),
                                 const SizedBox(height: 20),
                                 Text(
@@ -249,14 +274,45 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                           ),
                           for (final prompt in _prompts)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 9),
-                              child: OutlinedButton(
-                                onPressed: () => _ask(prompt),
-                                style: OutlinedButton.styleFrom(
-                                  alignment: Alignment.centerLeft,
-                                  padding: const EdgeInsets.all(17),
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Material(
+                                color: scheme.surfaceContainerHigh,
+                                shape: ExpressiveShape.card(
+                                  radius: AppRadius.xl,
                                 ),
-                                child: Text(prompt),
+                                clipBehavior: Clip.antiAlias,
+                                child: InkWell(
+                                  onTap: () => _ask(prompt.$2),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 16,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          prompt.$1,
+                                          size: 20,
+                                          color: scheme.primary,
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Text(
+                                            prompt.$2,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyLarge,
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.arrow_outward_rounded,
+                                          size: 18,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                         ],

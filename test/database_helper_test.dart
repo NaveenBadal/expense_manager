@@ -93,20 +93,10 @@ void main() {
       final correction = await mcp.callTool('update_transaction', {
         'id': transactionId,
         'category': 'Dining',
-        'recurring': true,
       });
       expect(correction.isError, isFalse);
       final corrected = await database.getExpenseById(transactionId);
       expect(corrected?.category, 'Dining');
-      expect(corrected?.isRecurring, isTrue);
-
-      final budget = await mcp.callTool('manage_budget', {
-        'category': 'Dining',
-        'limit_amount': 3000,
-        'currency': 'INR',
-      });
-      expect(budget.isError, isFalse);
-      expect((await database.getAllBudgets()).single.limitAmount, 3000);
 
       await database.insertAssistantMessage(
         AssistantMessage(

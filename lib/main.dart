@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 import 'providers/expense_provider.dart';
@@ -11,21 +10,15 @@ import 'theme/app_theme.dart';
 import 'screens/activity_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/notification_service.dart';
-import 'services/drive_backup_service.dart';
-import 'widgets/money_chat_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   runApp(const ProviderScope(child: ExpenseManagerApp()));
   // Non-essential integrations initialize after the first frame. This keeps
-  // cold start independent of plugin and account-service latency.
+  // cold start independent of plugin latency.
   WidgetsBinding.instance.addPostFrameCallback((_) async {
-    await Future.wait([
-      NotificationService.instance.init(),
-      GoogleSignIn.instance.initialize(),
-    ]);
-    DriveBackupService.instance;
+    await NotificationService.instance.init();
   });
 }
 
@@ -318,33 +311,5 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      extendBody: true,
-      body: Stack(
-        children: [
-          const Positioned.fill(child: ActivityScreen()),
-          Align(
-            alignment: Alignment.bottomRight,
-            child: SafeArea(
-              minimum: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: FloatingActionButton.extended(
-                heroTag: 'ask-flow',
-                onPressed: _openChat,
-                icon: const Icon(Icons.auto_awesome_outlined),
-                label: const Text('Ask Flow'),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _openChat() {
-    Navigator.push<void>(
-      context,
-      MaterialPageRoute(builder: (_) => const MoneyChatSheet(fullScreen: true)),
-    );
-  }
+  Widget build(BuildContext context) => const ActivityScreen();
 }

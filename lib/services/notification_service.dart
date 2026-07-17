@@ -11,7 +11,6 @@ class NotificationService {
   bool _initialized = false;
 
   static const _dailyDigestId = 1;
-  static const _budgetAlertBaseId = 100;
   static const _syncReminderId = 200;
 
   Future<void> init() async {
@@ -65,25 +64,6 @@ class NotificationService {
   Future<void> cancelDailyDigest() async {
     await _ensureInit();
     await _plugin.cancel(id: _dailyDigestId);
-  }
-
-  Future<void> sendBudgetProximityAlert(String category, double pct) async {
-    await _ensureInit();
-    final id = _budgetAlertBaseId + category.hashCode % 50;
-    await _plugin.show(
-      id: id,
-      title: 'Budget alert: $category',
-      body: '${pct.toStringAsFixed(0)}% of your monthly $category budget used.',
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'budget_alerts',
-          'Budget Alerts',
-          channelDescription: 'Alerts when budget thresholds are crossed',
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-      ),
-    );
   }
 
   Future<void> checkAndSendSyncReminder() async {

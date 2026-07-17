@@ -40,35 +40,25 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     final sync = ref.watch(syncProvider);
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 72,
-        title: const Column(
+        toolbarHeight: 76,
+        titleSpacing: 20,
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Your activity'),
+            const Text('Your activity'),
             Text(
-              'Money in motion',
+              _greetingSubtitle(),
               style: TextStyle(
                 fontFamily: 'Inter',
-                fontSize: 12,
+                fontSize: 12.5,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: _isSyncActive(sync) ? 'SMS sync in progress' : 'Sync SMS',
-            onPressed: _isSyncActive(sync)
-                ? null
-                : () => ref.read(syncProvider.notifier).sync(),
-            icon: _isSyncActive(sync)
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.sync_rounded),
-          ),
           IconButton(
             tooltip: hidden ? 'Show amounts' : 'Hide amounts',
             onPressed: () => ref.read(privateModeProvider.notifier).toggle(),
@@ -79,11 +69,6 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             ),
           ),
           IconButton(
-            tooltip: 'Add transaction',
-            onPressed: _add,
-            icon: const Icon(Icons.add_rounded),
-          ),
-          IconButton(
             tooltip: 'Settings',
             onPressed: () => Navigator.push(
               context,
@@ -91,7 +76,31 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             ),
             icon: const Icon(Icons.settings_outlined),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 8),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'ask-flow',
+            elevation: 0,
+            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+            foregroundColor: Theme.of(
+              context,
+            ).colorScheme.onSecondaryContainer,
+            tooltip: 'Ask Flow',
+            onPressed: _openChat,
+            child: const Icon(Icons.auto_awesome_outlined),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'add-transaction',
+            onPressed: _add,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Add'),
+          ),
         ],
       ),
       body: async.when(
@@ -108,10 +117,15 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     );
   }
 
-  bool _isSyncActive(SyncState state) =>
-      state.phase == SyncPhase.requestingPermissions ||
-      state.phase == SyncPhase.fetchingSms ||
-      state.phase == SyncPhase.analyzing;
+  String _greetingSubtitle() {
+    final hour = DateTime.now().hour;
+    final part = hour < 12
+        ? 'Good morning'
+        : hour < 17
+        ? 'Good afternoon'
+        : 'Good evening';
+    return '$part · ${DateFormat('EEEE, d MMM').format(DateTime.now())}';
+  }
 
   Widget _content(List<Expense> all, bool hidden, SyncState sync) {
     final now = DateTime.now();
@@ -200,7 +214,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
           )
         else
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 112),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 136),
             sliver: SliverList.builder(
               itemCount: groups.length,
               itemBuilder: (context, index) {
@@ -257,6 +271,11 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     if (value != null && mounted) setState(() => _dateRange = value);
   }
 
+  void _openChat() => Navigator.push<void>(
+    context,
+    MaterialPageRoute(builder: (_) => const MoneyChatSheet(fullScreen: true)),
+  );
+
   Future<void> _add() => _openForm();
 
   Future<void> _edit(Expense expense) => _openForm(expense);
@@ -265,6 +284,11 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      sheetAnimationStyle: AnimationStyle(
+        duration: AppMotion.medium,
+        reverseDuration: AppMotion.fast,
+        curve: AppMotion.emphasizedDecelerate,
+      ),
       builder: (sheetContext) => ExpenseFormSheet(
         initialExpense: expense,
         onSave: (value) async {
@@ -291,6 +315,11 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      sheetAnimationStyle: AnimationStyle(
+        duration: AppMotion.medium,
+        reverseDuration: AppMotion.fast,
+        curve: AppMotion.emphasizedDecelerate,
+      ),
       builder: (sheetContext) => _TransactionDetails(
         item: item,
         onEdit: () {
@@ -370,6 +399,9 @@ class _MonthlySummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final net = received - spent;
+    final positive = net >= 0;
+    final netColor = positive ? context.finance.income : context.finance.expense;
     return Material(
       color: scheme.primaryContainer,
       shape: ExpressiveShape.hero(),
@@ -377,33 +409,105 @@ class _MonthlySummary extends StatelessWidget {
       child: Stack(
         children: [
           Positioned(
-            right: -34,
-            top: -42,
-            child: _HeroOrb(color: scheme.tertiaryContainer, size: 138),
+            right: -46,
+            top: -54,
+            child: _HeroOrb(
+              color: scheme.primary.withValues(alpha: .14),
+              size: 168,
+            ),
           ),
           Positioned(
-            right: 56,
-            bottom: -48,
-            child: _HeroOrb(color: scheme.secondaryContainer, size: 102),
+            right: 40,
+            bottom: -60,
+            child: _HeroOrb(
+              color: scheme.tertiary.withValues(alpha: .12),
+              size: 120,
+            ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(22, 24, 22, 26),
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.auto_graph_rounded, color: scheme.primary),
-                    const SizedBox(width: 10),
                     Text(
                       'This month',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: scheme.onPrimaryContainer,
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: scheme.onPrimaryContainer.withValues(alpha: .8),
+                        letterSpacing: .3,
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.surface.withValues(alpha: .55),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            positive
+                                ? Icons.trending_up_rounded
+                                : Icons.trending_down_rounded,
+                            size: 15,
+                            color: netColor,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            positive ? 'Net positive' : 'Net negative',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: netColor,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 14),
+                AnimatedSwitcher(
+                  duration: AppMotion.medium,
+                  switchInCurve: AppMotion.emphasizedDecelerate,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: Tween(
+                        begin: const Offset(0, .25),
+                        end: Offset.zero,
+                      ).animate(animation),
+                      child: child,
+                    ),
+                  ),
+                  child: FittedBox(
+                    key: ValueKey(hidden ? 'hidden' : net.toStringAsFixed(2)),
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      hidden
+                          ? maskAmount(currency)
+                          : '${positive ? '+' : '−'}${formatAmount(net.abs(), currency)}',
+                      style: AppTheme.money(
+                        Theme.of(context).textTheme.displaySmall?.copyWith(
+                          color: scheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Net flow so far',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onPrimaryContainer.withValues(alpha: .7),
+                  ),
+                ),
+                const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
@@ -412,20 +516,22 @@ class _MonthlySummary extends StatelessWidget {
                         amount: spent,
                         currency: currency,
                         hidden: hidden,
-                        color: scheme.onSurface,
-                        containerColor: scheme.surface.withValues(alpha: .78),
+                        icon: Icons.north_east_rounded,
+                        color: context.finance.expense,
+                        containerColor: scheme.surface.withValues(alpha: .72),
                         onTap: onSpent,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: _SummaryValue(
                         label: 'Money in',
                         amount: received,
                         currency: currency,
                         hidden: hidden,
+                        icon: Icons.south_west_rounded,
                         color: context.finance.income,
-                        containerColor: scheme.secondaryContainer,
+                        containerColor: scheme.surface.withValues(alpha: .72),
                         onTap: onReceived,
                       ),
                     ),
@@ -459,6 +565,7 @@ class _SummaryValue extends StatelessWidget {
     required this.amount,
     required this.currency,
     required this.hidden,
+    required this.icon,
     required this.color,
     required this.containerColor,
     required this.onTap,
@@ -467,6 +574,7 @@ class _SummaryValue extends StatelessWidget {
   final double amount;
   final String currency;
   final bool hidden;
+  final IconData icon;
   final Color color;
   final Color containerColor;
   final VoidCallback onTap;
@@ -474,26 +582,37 @@ class _SummaryValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: containerColor,
-    shape: ExpressiveShape.soft(),
+    shape: ExpressiveShape.card(radius: AppRadius.lg),
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(icon, size: 14, color: color),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Text(
                 hidden ? maskAmount(currency) : formatAmount(amount, currency),
                 style: AppTheme.money(
-                  Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(color: color),
+                  Theme.of(context).textTheme.titleLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
               ),
             ),
@@ -522,6 +641,86 @@ class _SmsSyncCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final idle = state.phase == SyncPhase.idle;
+    return AnimatedSwitcher(
+      duration: AppMotion.medium,
+      switchInCurve: AppMotion.emphasizedDecelerate,
+      transitionBuilder: (child, animation) => SizeTransition(
+        sizeFactor: animation,
+        alignment: Alignment.topCenter,
+        child: FadeTransition(opacity: animation, child: child),
+      ),
+      child: idle
+          ? _CompactSync(key: const ValueKey('idle'), onSync: onSync)
+          : _ActiveSync(
+              key: const ValueKey('active'),
+              state: state,
+              active: _active,
+              onSync: onSync,
+              onStop: onStop,
+            ),
+    );
+  }
+}
+
+/// Slim, unobtrusive sync affordance shown when no sync is running.
+class _CompactSync extends StatelessWidget {
+  const _CompactSync({super.key, required this.onSync});
+  final VoidCallback onSync;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainer,
+      shape: ExpressiveShape.card(radius: AppRadius.xl),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onSync,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+          child: Row(
+            children: [
+              Icon(Icons.sms_outlined, size: 20, color: scheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Sync bank SMS for new transactions',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.tonalIcon(
+                onPressed: onSync,
+                icon: const Icon(Icons.sync_rounded, size: 18),
+                label: const Text('Sync'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Full expressive card shown while syncing, or after completion / error.
+class _ActiveSync extends StatelessWidget {
+  const _ActiveSync({
+    super.key,
+    required this.state,
+    required this.active,
+    required this.onSync,
+    required this.onStop,
+  });
+  final SyncState state;
+  final bool active;
+  final VoidCallback onSync;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final error = state.phase == SyncPhase.error;
     final complete = state.phase == SyncPhase.complete;
@@ -538,83 +737,76 @@ class _SmsSyncCard extends StatelessWidget {
     };
     final detail = error
         ? state.errorMessage ?? 'Could not sync messages.'
-        : state.detail ??
-              'Find new transactions from the last configured history range.';
+        : state.detail ?? 'Working through your recent messages.';
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 350),
-      switchInCurve: Curves.easeOutCubic,
-      child: Material(
-        key: ValueKey(state.phase),
-        color: error
-            ? scheme.errorContainer
-            : complete
-            ? scheme.tertiaryContainer
-            : scheme.secondaryContainer,
-        shape: ExpressiveShape.playfulBorder(1),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: scheme.surface.withValues(alpha: .75),
-                    child: Icon(
-                      complete
-                          ? Icons.check_rounded
-                          : error
-                          ? Icons.sms_failed_outlined
-                          : Icons.sms_outlined,
-                      color: error ? scheme.error : scheme.primary,
-                    ),
+    return Material(
+      color: error
+          ? scheme.errorContainer
+          : complete
+          ? scheme.tertiaryContainer
+          : scheme.secondaryContainer,
+      shape: ExpressiveShape.card(),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  backgroundColor: scheme.surface.withValues(alpha: .75),
+                  child: Icon(
+                    complete
+                        ? Icons.check_rounded
+                        : error
+                        ? Icons.sms_failed_outlined
+                        : Icons.sms_outlined,
+                    color: error ? scheme.error : scheme.primary,
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          detail,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (_active)
-                    IconButton.filledTonal(
-                      tooltip: 'Stop SMS sync',
-                      onPressed: onStop,
-                      icon: const Icon(Icons.stop_rounded),
-                    )
-                  else
-                    FilledButton.tonalIcon(
-                      onPressed: onSync,
-                      icon: const Icon(Icons.sync_rounded),
-                      label: Text(
-                        error
-                            ? 'Retry'
-                            : complete
-                            ? 'Again'
-                            : 'Sync',
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    ),
-                ],
-              ),
-              if (_active) ...[
-                const SizedBox(height: 14),
-                LinearProgressIndicator(value: progress),
+                      const SizedBox(height: 3),
+                      Text(
+                        detail,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (active)
+                  IconButton.filledTonal(
+                    tooltip: 'Stop SMS sync',
+                    onPressed: onStop,
+                    icon: const Icon(Icons.stop_rounded),
+                  )
+                else
+                  FilledButton.tonalIcon(
+                    onPressed: onSync,
+                    icon: const Icon(Icons.sync_rounded),
+                    label: Text(error ? 'Retry' : 'Again'),
+                  ),
               ],
+            ),
+            if (active) ...[
+              const SizedBox(height: 14),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 6,
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );

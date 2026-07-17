@@ -1,11 +1,8 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import '../models/budget.dart';
 import '../models/custom_category.dart';
 import '../models/expense.dart';
 import '../models/ai_log.dart';
-import '../models/merchant_stats.dart';
-import '../models/savings_goal.dart';
 import '../models/transaction_query.dart';
 import '../models/assistant_message.dart';
 import 'transaction_duplicate_detector.dart';
@@ -38,12 +35,9 @@ class DatabaseHelper {
     await _createExpensesTable(db);
     await _createAiLogsTable(db);
     await _createParsedSmsTable(db);
-    await _createBudgetsTable(db);
     await _createCustomCategoriesTable(db);
     await _createMerchantCategoryMapTable(db);
     await _createAppMetadataTable(db);
-    await _createSavingsGoalsTable(db);
-    await _createDismissedActionsTable(db);
     await _createExpenseIndexes(db);
     await _createAssistantMessagesTable(db);
   }
@@ -61,7 +55,6 @@ class DatabaseHelper {
       await db.execute(
         "ALTER TABLE expenses ADD COLUMN type TEXT NOT NULL DEFAULT 'expense'",
       );
-      await _createBudgetsTable(db);
     }
     if (oldVersion < 5) {
       await db.execute(
@@ -98,9 +91,6 @@ class DatabaseHelper {
         );
       } catch (_) {}
     }
-    if (oldVersion < 9) {
-      await _createSavingsGoalsTable(db);
-    }
     if (oldVersion < 10) {
       try {
         await db.execute(
@@ -108,7 +98,6 @@ class DatabaseHelper {
         );
       } catch (_) {}
     }
-    if (oldVersion < 11) await _createDismissedActionsTable(db);
     if (oldVersion < 12) await _createExpenseIndexes(db);
     if (oldVersion < 13) await _createAssistantMessagesTable(db);
     if (oldVersion < 14) {
@@ -231,26 +220,6 @@ CREATE TABLE parsed_sms (
 ''');
   }
 
-  Future _createBudgetsTable(Database db) async {
-    await db.execute('''
-CREATE TABLE budgets (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  category     TEXT    NOT NULL UNIQUE,
-  limit_amount REAL    NOT NULL,
-  currency     TEXT    NOT NULL DEFAULT 'INR'
-)
-''');
-  }
-
-  Future _createDismissedActionsTable(Database db) async {
-    await db.execute('''
-CREATE TABLE IF NOT EXISTS dismissed_actions (
-  action_key   TEXT PRIMARY KEY,
-  dismissed_at TEXT NOT NULL
-)
-''');
-  }
-
   Future _createCustomCategoriesTable(Database db) async {
     await db.execute('''
 CREATE TABLE IF NOT EXISTS custom_categories (
@@ -269,19 +238,6 @@ CREATE TABLE IF NOT EXISTS merchant_category_map (
   merchant_key  TEXT    NOT NULL UNIQUE,
   category      TEXT    NOT NULL,
   updated_at    TEXT    NOT NULL
-)
-''');
-  }
-
-  Future _createSavingsGoalsTable(Database db) async {
-    await db.execute('''
-CREATE TABLE IF NOT EXISTS savings_goals (
-  id             INTEGER PRIMARY KEY AUTOINCREMENT,
-  name           TEXT    NOT NULL,
-  target_amount  REAL    NOT NULL,
-  current_amount REAL    NOT NULL DEFAULT 0,
-  deadline       TEXT    DEFAULT NULL,
-  color_value    INTEGER NOT NULL DEFAULT ${0xFF6750A4}
 )
 ''');
   }
@@ -355,22 +311,6 @@ CREATE TABLE IF NOT EXISTS app_metadata (
     );
   }
 
-  /// Batch-update the is_recurring flag for a set of expenses.
-  Future<void> updateRecurringFlags(Map<int, bool> flags) async {
-    if (flags.isEmpty) return;
-    final db = await instance.database;
-    final batch = db.batch();
-    for (final entry in flags.entries) {
-      batch.update(
-        'expenses',
-        {'is_recurring': entry.value ? 1 : 0},
-        where: 'id = ?',
-        whereArgs: [entry.key],
-      );
-    }
-    await batch.commit(noResult: true);
-  }
-
   Future<int> deleteExpense(int id) async {
     final db = await instance.database;
     return await db.delete('expenses', where: 'id = ?', whereArgs: [id]);
@@ -391,17 +331,6 @@ CREATE TABLE IF NOT EXISTS app_metadata (
       limit: 1,
     );
     return rows.isEmpty ? null : Expense.fromMap(rows.single);
-  }
-
-  Future<List<Expense>> getEntriesForPeriod(DateTime from, DateTime to) async {
-    final db = await instance.database;
-    final result = await db.query(
-      'expenses',
-      where: 'date >= ? AND date <= ?',
-      whereArgs: [from.toIso8601String(), to.toIso8601String()],
-      orderBy: 'date DESC',
-    );
-    return result.map(Expense.fromMap).toList();
   }
 
   /// Executes the bounded query language used by the money assistant.
@@ -487,17 +416,6 @@ GROUP BY currency, type
     );
   }
 
-  Future<List<Expense>> getExpensesByMerchant(String merchant) async {
-    final db = await instance.database;
-    final result = await db.query(
-      'expenses',
-      where: "(merchant = ? OR normalized_merchant = ?) AND type = 'expense'",
-      whereArgs: [merchant, merchant],
-      orderBy: 'date DESC',
-    );
-    return result.map(Expense.fromMap).toList();
-  }
-
   Future<bool> smsExists(String originalSms) async {
     final db = await instance.database;
     final result = await db.query(
@@ -508,21 +426,6 @@ GROUP BY currency, type
       limit: 1,
     );
     return result.isNotEmpty;
-  }
-
-  Future<void> markRecurring(Map<int, bool> flags) async {
-    if (flags.isEmpty) return;
-    final db = await instance.database;
-    final batch = db.batch();
-    for (final entry in flags.entries) {
-      batch.update(
-        'expenses',
-        {'is_recurring': entry.value ? 1 : 0},
-        where: 'id = ?',
-        whereArgs: [entry.key],
-      );
-    }
-    await batch.commit(noResult: true);
   }
 
   // ─── Parsed SMS ──────────────────────────────────────────────────────────
@@ -586,28 +489,6 @@ GROUP BY currency, type
       ORDER BY p.parsed_at DESC
     ''');
     return rows;
-  }
-
-  // ─── Budget CRUD ─────────────────────────────────────────────────────────
-
-  Future<void> insertOrUpdateBudget(Budget budget) async {
-    final db = await instance.database;
-    await db.insert(
-      'budgets',
-      budget.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  Future<List<Budget>> getAllBudgets() async {
-    final db = await instance.database;
-    final result = await db.query('budgets', orderBy: 'category ASC');
-    return result.map(Budget.fromMap).toList();
-  }
-
-  Future<void> deleteBudget(String category) async {
-    final db = await instance.database;
-    await db.delete('budgets', where: 'category = ?', whereArgs: [category]);
   }
 
   // ─── Custom Categories ────────────────────────────────────────────────────
@@ -679,285 +560,6 @@ GROUP BY currency, type
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
-  // ─── Analytics queries ───────────────────────────────────────────────────
-
-  Future<List<Map<String, dynamic>>> getMonthlyTotals({int months = 6}) async {
-    final db = await instance.database;
-    final cutoff = DateTime.now().subtract(Duration(days: months * 31));
-    final rows = await db.rawQuery(
-      '''
-      SELECT
-        CAST(strftime('%Y', date) AS INTEGER) AS year,
-        CAST(strftime('%m', date) AS INTEGER) AS month,
-        SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) AS total_expense,
-        SUM(CASE WHEN type = 'income'  THEN amount ELSE 0 END) AS total_income
-      FROM expenses
-      WHERE date >= ?
-      GROUP BY year, month
-      ORDER BY year DESC, month DESC
-    ''',
-      [cutoff.toIso8601String()],
-    );
-    return rows;
-  }
-
-  Future<Map<String, double>> getCategoryTotals(
-    DateTime from,
-    DateTime to,
-  ) async {
-    final db = await instance.database;
-    final rows = await db.rawQuery(
-      '''
-      SELECT category, SUM(amount) AS total
-      FROM expenses
-      WHERE type = 'expense'
-        AND date >= ? AND date <= ?
-      GROUP BY category
-    ''',
-      [from.toIso8601String(), to.toIso8601String()],
-    );
-    return {
-      for (final r in rows)
-        r['category'] as String: (r['total'] as num).toDouble(),
-    };
-  }
-
-  Future<List<Map<String, dynamic>>> getTopMerchants(
-    DateTime from,
-    DateTime to, {
-    int limit = 7,
-  }) async {
-    final db = await instance.database;
-    final rows = await db.rawQuery(
-      '''
-      SELECT
-        COALESCE(normalized_merchant, merchant) AS merchant,
-        SUM(amount)  AS total,
-        COUNT(*)     AS txn_count
-      FROM expenses
-      WHERE type = 'expense'
-        AND date >= ? AND date <= ?
-      GROUP BY COALESCE(normalized_merchant, merchant)
-      ORDER BY total DESC
-      LIMIT ?
-    ''',
-      [from.toIso8601String(), to.toIso8601String(), limit],
-    );
-    return rows;
-  }
-
-  Future<Map<String, double>> getMonthlyBalance(int year, int month) async {
-    final db = await instance.database;
-    final pad = month.toString().padLeft(2, '0');
-    final rows = await db.rawQuery(
-      '''
-      SELECT type, SUM(amount) AS total
-      FROM expenses
-      WHERE strftime('%Y-%m', date) = ?
-      GROUP BY type
-    ''',
-      ['$year-$pad'],
-    );
-    final result = <String, double>{'income': 0, 'expense': 0};
-    for (final r in rows) {
-      result[r['type'] as String] = (r['total'] as num).toDouble();
-    }
-    return result;
-  }
-
-  Future<List<Map<String, dynamic>>> getBudgetProgress(
-    int year,
-    int month,
-  ) async {
-    final db = await instance.database;
-    final pad = month.toString().padLeft(2, '0');
-    final rows = await db.rawQuery(
-      '''
-      SELECT b.category,
-             COALESCE(SUM(e.amount), 0) AS spent,
-             b.limit_amount,
-             b.currency
-      FROM budgets b
-      LEFT JOIN expenses e
-        ON e.category = b.category
-        AND e.type = 'expense'
-        AND strftime('%Y-%m', e.date) = ?
-      GROUP BY b.category
-      ORDER BY b.category
-    ''',
-      ['$year-$pad'],
-    );
-    return rows;
-  }
-
-  /// Daily spend totals for heatmap calendar.
-  Future<Map<DateTime, double>> getDailyTotals(
-    DateTime from,
-    DateTime to,
-  ) async {
-    final db = await instance.database;
-    final rows = await db.rawQuery(
-      '''
-      SELECT date(date) AS day, SUM(amount) AS total
-      FROM expenses
-      WHERE type = 'expense'
-        AND date >= ? AND date <= ?
-      GROUP BY day
-    ''',
-      [from.toIso8601String(), to.toIso8601String()],
-    );
-    final result = <DateTime, double>{};
-    for (final r in rows) {
-      final dayStr = r['day'] as String;
-      final day = DateTime.parse(dayStr);
-      result[day] = (r['total'] as num).toDouble();
-    }
-    return result;
-  }
-
-  /// Aggregate stats + 6-month monthly totals for one merchant.
-  Future<MerchantStats> getMerchantStats(String merchant) async {
-    final db = await instance.database;
-
-    final agg = await db.rawQuery(
-      '''
-      SELECT
-        SUM(amount) AS lifetime_total,
-        COUNT(*) AS txn_count,
-        MIN(date) AS first_date,
-        AVG(amount) AS avg_amount
-      FROM expenses
-      WHERE type = 'expense'
-        AND (LOWER(COALESCE(normalized_merchant, merchant)) = LOWER(?))
-    ''',
-      [merchant],
-    );
-
-    final cutoff = DateTime.now().subtract(const Duration(days: 180));
-    final monthly = await db.rawQuery(
-      '''
-      SELECT
-        CAST(strftime('%Y', date) AS INTEGER) AS year,
-        CAST(strftime('%m', date) AS INTEGER) AS month,
-        SUM(amount) AS total
-      FROM expenses
-      WHERE type = 'expense'
-        AND date >= ?
-        AND (LOWER(COALESCE(normalized_merchant, merchant)) = LOWER(?))
-      GROUP BY year, month
-      ORDER BY year ASC, month ASC
-    ''',
-      [cutoff.toIso8601String(), merchant],
-    );
-
-    final aggRow = agg.isNotEmpty ? agg.first : {};
-    return MerchantStats(
-      merchant: merchant,
-      lifetimeTotal: (aggRow['lifetime_total'] as num?)?.toDouble() ?? 0.0,
-      transactionCount: (aggRow['txn_count'] as int?) ?? 0,
-      firstTransactionDate: aggRow['first_date'] != null
-          ? DateTime.tryParse(aggRow['first_date'] as String)
-          : null,
-      averageAmount: (aggRow['avg_amount'] as num?)?.toDouble() ?? 0.0,
-      monthlyTotals: monthly
-          .map(
-            (r) => MonthlyMerchantTotal(
-              year: r['year'] as int,
-              month: r['month'] as int,
-              total: (r['total'] as num).toDouble(),
-            ),
-          )
-          .toList(),
-    );
-  }
-
-  /// Year in review data.
-  Future<Map<String, dynamic>> getYearInReview(int year) async {
-    final db = await instance.database;
-
-    final topMerchantRows = await db.rawQuery(
-      '''
-      SELECT COALESCE(normalized_merchant, merchant) AS merchant, SUM(amount) AS total
-      FROM expenses
-      WHERE type = 'expense' AND strftime('%Y', date) = ?
-      GROUP BY merchant ORDER BY total DESC LIMIT 1
-    ''',
-      ['$year'],
-    );
-
-    final topCategoryRows = await db.rawQuery(
-      '''
-      SELECT category, SUM(amount) AS total
-      FROM expenses
-      WHERE type = 'expense' AND strftime('%Y', date) = ?
-      GROUP BY category ORDER BY total DESC LIMIT 1
-    ''',
-      ['$year'],
-    );
-
-    final totalRows = await db.rawQuery(
-      '''
-      SELECT SUM(amount) AS total FROM expenses
-      WHERE type = 'expense' AND strftime('%Y', date) = ?
-    ''',
-      ['$year'],
-    );
-
-    final maxDayRows = await db.rawQuery(
-      '''
-      SELECT date(date) AS day, SUM(amount) AS total
-      FROM expenses
-      WHERE type = 'expense' AND strftime('%Y', date) = ?
-      GROUP BY day ORDER BY total DESC LIMIT 1
-    ''',
-      ['$year'],
-    );
-
-    // Days with at least one expense
-    final activeDayRows = await db.rawQuery(
-      '''
-      SELECT COUNT(DISTINCT date(date)) AS active_days
-      FROM expenses
-      WHERE type = 'expense' AND strftime('%Y', date) = ?
-    ''',
-      ['$year'],
-    );
-
-    return {
-      'topMerchant': topMerchantRows.isNotEmpty
-          ? topMerchantRows.first['merchant'] as String?
-          : null,
-      'topMerchantTotal': topMerchantRows.isNotEmpty
-          ? (topMerchantRows.first['total'] as num?)?.toDouble() ?? 0.0
-          : 0.0,
-      'topCategory': topCategoryRows.isNotEmpty
-          ? topCategoryRows.first['category'] as String?
-          : null,
-      'totalSpent':
-          (totalRows.isNotEmpty
-              ? (totalRows.first['total'] as num?)?.toDouble()
-              : null) ??
-          0.0,
-      'maxSpendDay': maxDayRows.isNotEmpty
-          ? maxDayRows.first['day'] as String?
-          : null,
-      'maxSpendAmount': maxDayRows.isNotEmpty
-          ? (maxDayRows.first['total'] as num?)?.toDouble() ?? 0.0
-          : 0.0,
-      'activeDays':
-          (activeDayRows.isNotEmpty
-              ? activeDayRows.first['active_days'] as int?
-              : null) ??
-          0,
-      'zeroSpendDays':
-          365 -
-          ((activeDayRows.isNotEmpty
-                  ? activeDayRows.first['active_days'] as int?
-                  : null) ??
-              0),
-    };
-  }
-
   // ─── AI Log methods ──────────────────────────────────────────────────────
 
   Future<int> insertAiLog(AiLog log) async {
@@ -976,28 +578,6 @@ GROUP BY currency, type
     await db.delete('ai_logs');
   }
 
-  // ─── Savings Goals CRUD ──────────────────────────────────────────────────
-
-  Future<int> insertOrUpdateSavingsGoal(SavingsGoal goal) async {
-    final db = await instance.database;
-    return await db.insert(
-      'savings_goals',
-      goal.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  Future<List<SavingsGoal>> getAllSavingsGoals() async {
-    final db = await instance.database;
-    final result = await db.query('savings_goals', orderBy: 'name ASC');
-    return result.map(SavingsGoal.fromMap).toList();
-  }
-
-  Future<void> deleteSavingsGoal(int id) async {
-    final db = await instance.database;
-    await db.delete('savings_goals', where: 'id = ?', whereArgs: [id]);
-  }
-
   // ─── Parsed SMS retry ────────────────────────────────────────────────────
 
   Future<void> unmarkSmsParsed(List<String> bodies) async {
@@ -1007,31 +587,6 @@ GROUP BY currency, type
     await db.rawDelete(
       'DELETE FROM parsed_sms WHERE body IN ($placeholders)',
       bodies,
-    );
-  }
-
-  // ─── Action inbox dismissals ────────────────────────────────────────────
-
-  Future<Set<String>> getDismissedActionKeys() async {
-    final db = await instance.database;
-    final rows = await db.query('dismissed_actions', columns: ['action_key']);
-    return rows.map((row) => row['action_key'] as String).toSet();
-  }
-
-  Future<void> dismissAction(String key) async {
-    final db = await instance.database;
-    await db.insert('dismissed_actions', {
-      'action_key': key,
-      'dismissed_at': DateTime.now().toIso8601String(),
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
-
-  Future<void> restoreAction(String key) async {
-    final db = await instance.database;
-    await db.delete(
-      'dismissed_actions',
-      where: 'action_key = ?',
-      whereArgs: [key],
     );
   }
 

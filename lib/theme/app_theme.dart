@@ -40,6 +40,12 @@ class AppTheme {
           ? const Color(0xFF713200)
           : const Color(0xFFFFDCC3),
       surface: dark ? const Color(0xFF121118) : const Color(0xFFFFF8FF),
+      surfaceContainerLowest: dark
+          ? const Color(0xFF0C0B12)
+          : const Color(0xFFFFFFFF),
+      surfaceContainerLow: dark
+          ? const Color(0xFF1A181F)
+          : const Color(0xFFFBF4FD),
       surfaceContainer: dark
           ? const Color(0xFF211F27)
           : const Color(0xFFF7F0FA),
@@ -50,7 +56,7 @@ class AppTheme {
       onSurfaceVariant: dark
           ? const Color(0xFFCCC4D0)
           : const Color(0xFF625D66),
-      outlineVariant: dark ? const Color(0xFF49454F) : const Color(0xFFD0C8D4),
+      outlineVariant: dark ? const Color(0xFF3A3640) : const Color(0xFFDDD5E1),
       error: dark ? const Color(0xFFFFB4AB) : const Color(0xFFBA1A1A),
     );
     final base = ThemeData(
@@ -66,11 +72,17 @@ class AppTheme {
       bodyColor: scheme.onSurface,
       displayColor: scheme.onSurface,
     );
-    TextStyle? display(TextStyle? style, FontWeight weight) => style?.copyWith(
+    // Space Grotesk is reserved for display, headline, and big numbers — the
+    // expressive voice. Titles/labels/body stay Inter for calm legibility.
+    TextStyle? display(
+      TextStyle? style,
+      FontWeight weight,
+      double tracking,
+    ) => style?.copyWith(
       fontFamily: 'Space Grotesk',
       fontWeight: weight,
-      letterSpacing: -1,
-      height: 1.05,
+      letterSpacing: tracking,
+      height: 1.04,
     );
     return base.copyWith(
       pageTransitionsTheme: const PageTransitionsTheme(
@@ -79,17 +91,18 @@ class AppTheme {
         },
       ),
       textTheme: text.copyWith(
-        displayLarge: display(text.displayLarge, FontWeight.w700),
-        displayMedium: display(text.displayMedium, FontWeight.w700),
-        displaySmall: display(text.displaySmall, FontWeight.w700),
-        headlineLarge: display(text.headlineLarge, FontWeight.w700),
-        headlineMedium: display(text.headlineMedium, FontWeight.w700),
-        headlineSmall: display(text.headlineSmall, FontWeight.w700),
-        titleLarge: display(text.titleLarge, FontWeight.w700),
-        titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        displayLarge: display(text.displayLarge, FontWeight.w700, -1.5),
+        displayMedium: display(text.displayMedium, FontWeight.w700, -1.2),
+        displaySmall: display(text.displaySmall, FontWeight.w700, -1),
+        headlineLarge: display(text.headlineLarge, FontWeight.w600, -0.8),
+        headlineMedium: display(text.headlineMedium, FontWeight.w600, -0.6),
+        headlineSmall: display(text.headlineSmall, FontWeight.w600, -0.4),
+        titleLarge: display(text.titleLarge, FontWeight.w600, -0.2),
+        titleMedium: text.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        titleSmall: text.titleSmall?.copyWith(fontWeight: FontWeight.w600),
         bodyLarge: text.bodyLarge?.copyWith(height: 1.45),
         bodyMedium: text.bodyMedium?.copyWith(height: 1.45),
-        labelLarge: text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+        labelLarge: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface,
@@ -100,14 +113,18 @@ class AppTheme {
         centerTitle: false,
         titleTextStyle: display(
           text.headlineSmall,
-          FontWeight.w700,
+          FontWeight.w600,
+          -0.4,
         )?.copyWith(color: scheme.onSurface),
       ),
       cardTheme: CardThemeData(
-        color: scheme.surfaceContainer,
+        color: scheme.surfaceContainerLow,
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: ExpressiveShape.soft(color: scheme.outlineVariant),
+        shape: ExpressiveShape.card(),
+      ),
+      listTileTheme: ListTileThemeData(
+        shape: ExpressiveShape.card(radius: AppRadius.lg),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -130,24 +147,40 @@ class AppTheme {
         ),
       ),
       chipTheme: base.chipTheme.copyWith(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: const StadiumBorder(),
         side: BorderSide(color: scheme.outlineVariant),
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-        labelStyle: const TextStyle(fontWeight: FontWeight.w700),
+        showCheckmark: false,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        labelStyle: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: ButtonStyle(
+          textStyle: const WidgetStatePropertyAll(
+            TextStyle(fontWeight: FontWeight.w600),
+          ),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
+          ),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size(48, 52),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          minimumSize: const Size(48, 54),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
           shape: ExpressiveShape.soft(),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size(48, 52),
-          textStyle: const TextStyle(fontWeight: FontWeight.w700),
+          minimumSize: const Size(48, 54),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
           shape: ExpressiveShape.soft(),
           side: BorderSide(color: scheme.outlineVariant),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
@@ -157,17 +190,31 @@ class AppTheme {
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        elevation: 3,
-        focusElevation: 5,
-        highlightElevation: 6,
+        elevation: 2,
+        focusElevation: 4,
+        highlightElevation: 5,
+        extendedTextStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 15,
+        ),
         shape: ExpressiveShape.soft(),
       ),
       dividerTheme: DividerThemeData(
-        color: scheme.outlineVariant.withValues(alpha: .75),
+        color: scheme.outlineVariant.withValues(alpha: .7),
         thickness: 1,
       ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: scheme.inverseSurface,
+        contentTextStyle: TextStyle(
+          color: scheme.onInverseSurface,
+          fontWeight: FontWeight.w500,
+        ),
+        shape: ExpressiveShape.card(radius: AppRadius.md),
+        insetPadding: const EdgeInsets.all(16),
+      ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: scheme.surfaceContainer,
+        backgroundColor: scheme.surfaceContainerLow,
         surfaceTintColor: Colors.transparent,
         showDragHandle: true,
         shape: const ContinuousRectangleBorder(

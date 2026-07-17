@@ -52,7 +52,6 @@ class MoneyChatService {
     'create_transaction',
     'update_transaction',
     'delete_transaction',
-    'manage_budget',
     'reanalyze_transaction_sms',
   };
 
@@ -227,7 +226,6 @@ class MoneyChatService {
     'create_transaction' => 'transaction creation',
     'update_transaction' => 'transaction correction',
     'delete_transaction' => 'transaction deletion',
-    'manage_budget' => 'budget control',
     'reanalyze_transaction_sms' => 'original SMS re-analysis',
     _ => name.replaceAll('_', ' '),
   };
@@ -254,7 +252,6 @@ class MoneyChatService {
       'create_transaction',
       'update_transaction',
       'delete_transaction',
-      'manage_budget',
     };
     return calls.every(
       (call) =>
@@ -385,10 +382,6 @@ class MoneyChatService {
         'Transaction #${result['transaction_id']} updated.',
       'delete_transaction' =>
         'Transaction #${result['transaction_id']} deleted.',
-      'manage_budget' =>
-        result['removed'] == true
-            ? '${result['category']} budget removed.'
-            : '${result['category']} budget updated.',
       _ => 'Done.',
     };
   }
@@ -403,6 +396,5 @@ class MoneyChatService {
     originalSms: '',
     type: json['direction'].toString(),
     tags: (json['tags'] as List<dynamic>? ?? const []).join(','),
-    isRecurring: json['recurring'] == true,
   );
 }

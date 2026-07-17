@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import '../models/expense.dart';
 import '../models/transaction_query.dart';
-import '../models/budget.dart';
 import 'database_helper.dart';
 
 typedef AppToolHandler =
@@ -184,7 +183,6 @@ class LocalMoneyMcpServer {
               ? 'income'
               : 'expense',
           tags: arguments['tags']?.toString() ?? '',
-          isRecurring: arguments['recurring'] == true,
         );
         final id = await database.insertExpense(expense);
         structured = {'changed': true, 'transaction_id': id};
@@ -205,31 +203,15 @@ class LocalMoneyMcpServer {
               : DateTime.parse(arguments['date'].toString()),
           type: arguments['direction']?.toString(),
           tags: arguments['tags']?.toString(),
-          isRecurring: arguments['recurring'] as bool?,
         );
         await database.updateExpense(updated);
         structured = {'changed': true, 'transaction_id': id};
-      } else if (name == 'delete_transaction') {
+      } else {
+        // delete_transaction
         final id = (arguments['id'] as num?)?.toInt();
         if (id == null) throw ArgumentError('id is required');
         final deleted = await database.deleteExpense(id);
         structured = {'changed': deleted == 1, 'transaction_id': id};
-      } else {
-        final category = _requiredText(arguments, 'category');
-        final remove = arguments['remove'] == true;
-        if (remove) {
-          await database.deleteBudget(category);
-        } else {
-          await database.insertOrUpdateBudget(
-            Budget(
-              category: category,
-              limitAmount: _positiveNumber(arguments, 'limit_amount'),
-              currency:
-                  arguments['currency']?.toString().toUpperCase() ?? 'INR',
-            ),
-          );
-        }
-        structured = {'changed': true, 'category': category, 'removed': remove};
       }
       return {
         'content': [
@@ -279,7 +261,6 @@ class LocalMoneyMcpServer {
     'merchant': record.displayMerchant,
     'category': record.category,
     'tags': record.tagList,
-    'recurring': record.isRecurring,
   };
 
   Map<String, dynamic> _toolError(String message) => {
@@ -373,7 +354,6 @@ class LocalMoneyMcpServer {
             'enum': ['expense', 'income'],
           },
           'tags': {'type': 'string'},
-          'recurring': {'type': 'boolean'},
         },
         'required': ['amount', 'merchant', 'category', 'date', 'direction'],
         'additionalProperties': false,
@@ -398,7 +378,6 @@ class LocalMoneyMcpServer {
             'enum': ['expense', 'income'],
           },
           'tags': {'type': 'string'},
-          'recurring': {'type': 'boolean'},
         },
         'required': ['id'],
         'additionalProperties': false,
@@ -418,23 +397,6 @@ class LocalMoneyMcpServer {
         'additionalProperties': false,
       },
     },
-    {
-      'name': 'manage_budget',
-      'title': 'Create, update, or remove a budget',
-      'description':
-          'Set a category budget or remove it after explicit confirmation.',
-      'inputSchema': {
-        'type': 'object',
-        'properties': {
-          'category': {'type': 'string'},
-          'limit_amount': {'type': 'number', 'exclusiveMinimum': 0},
-          'currency': {'type': 'string'},
-          'remove': {'type': 'boolean'},
-        },
-        'required': ['category'],
-        'additionalProperties': false,
-      },
-    },
   ];
 
   static const _appToolNames = {
@@ -451,7 +413,6 @@ class LocalMoneyMcpServer {
     'create_transaction',
     'update_transaction',
     'delete_transaction',
-    'manage_budget',
   };
 
   static final List<Map<String, dynamic>> _appTools = [
@@ -730,7 +691,6 @@ class LocalMoneyMcpClient implements MoneyMcpClient {
         originalSms: '',
         type: json['direction'].toString(),
         tags: (json['tags'] as List<dynamic>? ?? const []).join(','),
-        isRecurring: json['recurring'] == true,
       );
     }).toList();
   }

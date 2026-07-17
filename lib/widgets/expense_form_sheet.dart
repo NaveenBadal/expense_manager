@@ -149,7 +149,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                       padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
                       decoration: BoxDecoration(
                         color: scheme.surfaceContainerHigh,
-                        borderRadius: ExpressiveShape.playful(0),
+                        borderRadius: AppRadius.all(AppRadius.xxl),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +272,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                     const SizedBox(height: 14),
                     Material(
                       color: scheme.surfaceContainerLow,
-                      borderRadius: AppRadius.all(AppRadius.md),
+                      borderRadius: AppRadius.all(AppRadius.xl),
                       child: ListTile(
                         leading: const Icon(Icons.calendar_today_outlined),
                         title: Text(
@@ -367,8 +367,6 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
         originalSms: old?.originalSms ?? '',
         type: _type,
         tags: _tags.text.trim(),
-        splitShare: old?.splitShare,
-        isRecurring: old?.isRecurring ?? false,
         normalizedMerchant: old?.normalizedMerchant,
       ),
     );
@@ -469,7 +467,7 @@ class _SourcePanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
-        borderRadius: AppRadius.all(AppRadius.lg),
+        borderRadius: AppRadius.all(AppRadius.xl),
         border: Border.all(color: scheme.outlineVariant.withValues(alpha: .45)),
       ),
       child: hasMessage

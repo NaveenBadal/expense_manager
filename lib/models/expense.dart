@@ -8,8 +8,6 @@ class Expense {
   final String originalSms;
   final String type; // 'expense' | 'income'
   final String tags; // comma-separated labels
-  final double? splitShare; // user's share of a split expense
-  final bool isRecurring;
   final String? normalizedMerchant;
 
   Expense({
@@ -22,8 +20,6 @@ class Expense {
     required this.originalSms,
     this.type = 'expense',
     this.tags = '',
-    this.splitShare,
-    this.isRecurring = false,
     this.normalizedMerchant,
   });
 
@@ -51,8 +47,6 @@ class Expense {
     String? originalSms,
     String? type,
     String? tags,
-    double? splitShare,
-    bool? isRecurring,
     String? normalizedMerchant,
   }) => Expense(
     id: id ?? this.id,
@@ -64,8 +58,6 @@ class Expense {
     originalSms: originalSms ?? this.originalSms,
     type: type ?? this.type,
     tags: tags ?? this.tags,
-    splitShare: splitShare ?? this.splitShare,
-    isRecurring: isRecurring ?? this.isRecurring,
     normalizedMerchant: normalizedMerchant ?? this.normalizedMerchant,
   );
 
@@ -79,8 +71,6 @@ class Expense {
     'originalSms': originalSms,
     'type': type,
     'tags': tags,
-    'split_share': splitShare,
-    'is_recurring': isRecurring ? 1 : 0,
     'normalized_merchant': normalizedMerchant,
   };
 
@@ -94,10 +84,6 @@ class Expense {
     originalSms: map['originalSms'] as String,
     type: map['type'] as String? ?? 'expense',
     tags: map['tags'] as String? ?? '',
-    splitShare: map['split_share'] != null
-        ? (map['split_share'] as num).toDouble()
-        : null,
-    isRecurring: (map['is_recurring'] as int? ?? 0) == 1,
     normalizedMerchant: map['normalized_merchant'] as String?,
   );
 }

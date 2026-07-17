@@ -29,51 +29,27 @@ class CommandScaffold extends StatelessWidget {
         ),
         slivers: [
           SliverAppBar.large(
-            title: Text(title),
+            expandedHeight: 168,
             actions: actions,
             backgroundColor: scheme.surface,
             surfaceTintColor: Colors.transparent,
             flexibleSpace: FlexibleSpaceBar(
-              background: Stack(
-                children: [
-                  Positioned(
-                    right: -34,
-                    top: -36,
-                    child: Container(
-                      width: 150,
-                      height: 150,
-                      decoration: BoxDecoration(
-                        color: scheme.primaryContainer,
-                        shape: BoxShape.circle,
-                      ),
+              titlePadding: const EdgeInsetsDirectional.fromSTEB(20, 0, 20, 16),
+              expandedTitleScale: 1.5,
+              title: Text(title),
+              background: Align(
+                alignment: Alignment.topRight,
+                child: Transform.translate(
+                  offset: const Offset(46, -54),
+                  child: Container(
+                    width: 190,
+                    height: 190,
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: .08),
+                      shape: BoxShape.circle,
                     ),
                   ),
-                  Positioned(
-                    right: 80,
-                    top: 76,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: scheme.tertiaryContainer,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                  if (eyebrow != null)
-                    Positioned(
-                      left: 72,
-                      bottom: 18,
-                      child: Text(
-                        eyebrow!,
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: scheme.primary,
-                              fontWeight: FontWeight.w700,
-                            ),
-                      ),
-                    ),
-                ],
+                ),
               ),
             ),
           ),

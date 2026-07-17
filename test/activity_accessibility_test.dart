@@ -65,7 +65,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Your activity'), findsOneWidget);
-    expect(find.byTooltip('Sync SMS'), findsOneWidget);
+    expect(find.byTooltip('Ask Flow'), findsOneWidget);
     expect(find.byTooltip('Settings'), findsOneWidget);
     expect(find.byTooltip('Hide amounts'), findsOneWidget);
     semantics.dispose();
