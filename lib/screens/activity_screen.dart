@@ -13,6 +13,7 @@ import '../utils/currency_utils.dart';
 import '../widgets/development_update_ui.dart';
 import '../widgets/expense_form_sheet.dart';
 import '../widgets/money_chat_sheet.dart';
+import '../widgets/spending_wave_chart.dart';
 import 'settings_screen.dart';
 
 class ActivityScreen extends ConsumerStatefulWidget {
@@ -186,7 +187,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   ),
                 ],
                 const SizedBox(height: 16),
-                _MonthlySummary(
+                 _MonthlySummary(
+                  expenses: visible,
                   spent: spent,
                   received: received,
                   currency: currency,
@@ -555,6 +557,7 @@ class _SearchField extends StatelessWidget {
 
 class _MonthlySummary extends StatelessWidget {
   const _MonthlySummary({
+    required this.expenses,
     required this.spent,
     required this.received,
     required this.currency,
@@ -562,6 +565,7 @@ class _MonthlySummary extends StatelessWidget {
     required this.onSpent,
     required this.onReceived,
   });
+  final List<Expense> expenses;
   final double spent;
   final double received;
   final String currency;
@@ -574,109 +578,127 @@ class _MonthlySummary extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final net = received - spent;
     final positive = net >= 0;
-    return Material(
-      color: scheme.primaryContainer,
-      shape: ExpressiveShape.hero(),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(
-        children: [
-          Positioned(
-            right: -46,
-            top: -54,
-            child: _HeroOrb(
-              color: scheme.primary.withValues(alpha: .14),
-              size: 168,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(28),
+          topRight: Radius.circular(64),
+          bottomLeft: Radius.circular(64),
+          bottomRight: Radius.circular(36),
+        ),
+        boxShadow: PremiumShadows.ambient(context, color: scheme.primary),
+      ),
+      child: Material(
+        color: scheme.primaryContainer,
+        shape: ExpressiveShape.hero(),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Positioned(
+              right: -46,
+              top: -54,
+              child: _HeroOrb(
+                color: scheme.primary.withValues(alpha: .14),
+                size: 168,
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'This month',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: scheme.onPrimaryContainer.withValues(alpha: .8),
-                    letterSpacing: .3,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                AnimatedSwitcher(
-                  duration: AppMotion.medium,
-                  switchInCurve: AppMotion.emphasizedDecelerate,
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween(
-                        begin: const Offset(0, .25),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 22, 24, 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This month',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: scheme.onPrimaryContainer.withValues(alpha: .8),
+                      letterSpacing: .3,
                     ),
                   ),
-                  child: FittedBox(
-                    key: ValueKey(hidden ? 'hidden' : net.toStringAsFixed(2)),
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      hidden
-                          ? maskAmount(currency)
-                          : '${positive ? '+' : '−'}${formatAmount(net.abs(), currency)}',
-                      style: AppTheme.money(
-                        Theme.of(context).textTheme.displaySmall?.copyWith(
-                          color: scheme.onPrimaryContainer,
+                  const SizedBox(height: 10),
+                  AnimatedSwitcher(
+                    duration: AppMotion.medium,
+                    switchInCurve: AppMotion.emphasizedDecelerate,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween(
+                          begin: const Offset(0, .25),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    child: FittedBox(
+                      key: ValueKey(hidden ? 'hidden' : net.toStringAsFixed(2)),
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        hidden
+                            ? maskAmount(currency)
+                            : '${positive ? '+' : '−'}${formatAmount(net.abs(), currency)}',
+                        style: AppTheme.money(
+                          Theme.of(context).textTheme.displaySmall?.copyWith(
+                            color: scheme.onPrimaryContainer,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Text(
-                  'Net flow so far',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onPrimaryContainer.withValues(alpha: .7),
+                  Text(
+                    'Net flow so far',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onPrimaryContainer.withValues(alpha: .7),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                Divider(
-                  color: scheme.onPrimaryContainer.withValues(alpha: .16),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _SummaryValue(
-                        label: 'Money out',
-                        amount: spent,
-                        currency: currency,
-                        hidden: hidden,
-                        icon: Icons.north_east_rounded,
-                        color: context.finance.expense,
-                        onTap: onSpent,
-                      ),
-                    ),
-                    SizedBox(
-                      height: 52,
-                      child: VerticalDivider(
-                        color: scheme.onPrimaryContainer.withValues(alpha: .16),
-                      ),
-                    ),
-                    Expanded(
-                      child: _SummaryValue(
-                        label: 'Money in',
-                        amount: received,
-                        currency: currency,
-                        hidden: hidden,
-                        icon: Icons.south_west_rounded,
-                        color: context.finance.income,
-                        onTap: onReceived,
-                      ),
+                  if (expenses.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    SpendingWaveChart(
+                      expenses: expenses,
+                      currency: currency,
                     ),
                   ],
-                ),
-              ],
+                  const SizedBox(height: 14),
+                  Divider(
+                    color: scheme.onPrimaryContainer.withValues(alpha: .16),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SummaryValue(
+                          label: 'Money out',
+                          amount: spent,
+                          currency: currency,
+                          hidden: hidden,
+                          icon: Icons.north_east_rounded,
+                          color: context.finance.expense,
+                          onTap: onSpent,
+                        ),
+                      ),
+                      SizedBox(
+                        height: 52,
+                        child: VerticalDivider(
+                          color: scheme.onPrimaryContainer.withValues(alpha: .16),
+                        ),
+                      ),
+                      Expanded(
+                        child: _SummaryValue(
+                          label: 'Money in',
+                          amount: received,
+                          currency: currency,
+                          hidden: hidden,
+                          icon: Icons.south_west_rounded,
+                          color: context.finance.income,
+                          onTap: onReceived,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -716,7 +738,7 @@ class _SummaryValue extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return InkWell(
+    return BouncyInkWell(
       onTap: onTap,
       borderRadius: AppRadius.all(AppRadius.md),
       child: Padding(
@@ -866,12 +888,11 @@ class _CompactSync extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainer,
-      shape: ExpressiveShape.card(radius: AppRadius.xl),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onSync,
+    return BouncyInkWell(
+      onTap: onSync,
+      borderRadius: BorderRadius.circular(AppRadius.xl),
+      child: Ink(
+        color: scheme.surfaceContainer,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
           child: Row(
@@ -1148,15 +1169,14 @@ class _TransactionRow extends StatelessWidget {
       button: true,
       label:
           '${needsReview ? 'Needs review' : item.displayMerchant}, $amount, ${item.category}, ${DateFormat('d MMMM, h:mm a').format(item.date)}',
-      child: Material(
-        color: needsReview
-            ? context.finance.warningSurface
-            : Theme.of(context).colorScheme.surfaceContainer,
+      child: BouncyInkWell(
+        onTap: onTap,
+        onLongPress: onEdit,
         borderRadius: ExpressiveShape.playful(index),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          onLongPress: onEdit,
+        child: Ink(
+          color: needsReview
+              ? context.finance.warningSurface
+              : Theme.of(context).colorScheme.surfaceContainer,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -1387,29 +1407,59 @@ class _EmptyState extends StatelessWidget {
   final VoidCallback onAction;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 40, color: Theme.of(context).colorScheme.primary),
-          const SizedBox(height: 16),
-          Text(title, style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 84,
+                  height: 84,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: .06),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: .12),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Icon(icon, size: 36, color: scheme.primary),
+              ],
             ),
-          ),
-          const SizedBox(height: 20),
-          FilledButton(onPressed: onAction, child: Text(action)),
-        ],
+            const SizedBox(height: 24),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(onPressed: onAction, child: Text(action)),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _ActivityLoading extends StatelessWidget {

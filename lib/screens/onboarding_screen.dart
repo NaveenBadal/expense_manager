@@ -290,35 +290,48 @@ class _StepView extends StatelessWidget {
               opacity: t.clamp(0, 1),
               child: Transform.scale(scale: 0.9 + 0.1 * t, child: child),
             ),
-            child: SizedBox(
+            child: Container(
               height: 240,
               width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(28),
+                  topRight: Radius.circular(64),
+                  bottomLeft: Radius.circular(64),
+                  bottomRight: Radius.circular(36),
+                ),
+                boxShadow: PremiumShadows.ambient(context, color: scheme.primary),
+              ),
               child: Material(
                 color: scheme.primaryContainer,
                 shape: ExpressiveShape.hero(),
                 clipBehavior: Clip.antiAlias,
                 child: Stack(
                   children: [
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: PremiumGradients.mesh(context),
+                        ),
+                      ),
+                    ),
                     Positioned(
                       right: -40,
                       top: -46,
                       child: Container(
-                        width: 150,
-                        height: 150,
+                        width: 180,
+                        height: 180,
                         decoration: BoxDecoration(
-                          color: scheme.primary.withValues(alpha: .14),
+                          color: scheme.primary.withValues(alpha: .1),
                           shape: BoxShape.circle,
                         ),
                       ),
                     ),
                     Center(
-                      child: Container(
+                      child: GlassmorphicContainer(
                         width: 112,
                         height: 112,
-                        decoration: BoxDecoration(
-                          color: scheme.surface.withValues(alpha: .8),
-                          borderRadius: AppRadius.all(AppRadius.xxl),
-                        ),
+                        borderRadius: BorderRadius.circular(36),
                         child: Icon(step.icon, size: 46, color: scheme.primary),
                       ),
                     ),

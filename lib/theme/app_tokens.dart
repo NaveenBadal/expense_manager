@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:ui';
 
 /// Design tokens — the single source of truth for spacing, shape, motion,
 /// and elevation across the app. Keeps every screen visually consistent.
@@ -188,4 +190,252 @@ class FinanceColors extends ThemeExtension<FinanceColors> {
 extension FinanceColorsX on BuildContext {
   FinanceColors get finance =>
       Theme.of(this).extension<FinanceColors>() ?? FinanceColors.light;
+}
+
+/// 🌟 PREMIUM UI & UX EXTENSIONS ───────────────────────────────────────────
+
+/// Soft, diffuse, aesthetic shadows that blend with the app's dynamic color schemes.
+class PremiumShadows {
+  const PremiumShadows._();
+
+  static List<BoxShadow> ambient(BuildContext context, {Color? color, double offset = 8, double blur = 24}) {
+    final scheme = Theme.of(context).colorScheme;
+    final baseColor = color ?? scheme.primary;
+    return [
+      BoxShadow(
+        color: baseColor.withValues(alpha: 0.08),
+        offset: Offset(0, offset),
+        blurRadius: blur,
+        spreadRadius: -2,
+      ),
+      BoxShadow(
+        color: baseColor.withValues(alpha: 0.04),
+        offset: Offset(0, offset / 2),
+        blurRadius: blur / 2,
+        spreadRadius: -4,
+      ),
+    ];
+  }
+
+  static List<BoxShadow> soft(BuildContext context) {
+    return [
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.03),
+        offset: const Offset(0, 4),
+        blurRadius: 18,
+      ),
+    ];
+  }
+}
+
+/// Dynamic gradients for backgrounds, monthly summary details, and custom graphs.
+class PremiumGradients {
+  const PremiumGradients._();
+
+  static LinearGradient primary(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return LinearGradient(
+      colors: [
+        scheme.primary,
+        scheme.secondary,
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+  }
+
+  static LinearGradient glow(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return LinearGradient(
+      colors: [
+        scheme.primaryContainer.withValues(alpha: 0.4),
+        scheme.surface.withValues(alpha: 0.0),
+      ],
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+    );
+  }
+
+  static LinearGradient glass(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dark = scheme.brightness == Brightness.dark;
+    return LinearGradient(
+      colors: [
+        (dark ? Colors.white : Colors.black).withValues(alpha: dark ? 0.06 : 0.02),
+        (dark ? Colors.white : Colors.black).withValues(alpha: dark ? 0.02 : 0.005),
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+  }
+
+  static LinearGradient mesh(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return LinearGradient(
+      colors: [
+        scheme.primary.withValues(alpha: 0.12),
+        scheme.tertiary.withValues(alpha: 0.06),
+        scheme.surface.withValues(alpha: 0.0),
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      stops: const [0.0, 0.5, 1.0],
+    );
+  }
+}
+
+/// Custom stateful click wrapper that adds spring-based scaling (Tactile bounce)
+/// and haptic feedback to any component.
+class BouncyInkWell extends StatefulWidget {
+  const BouncyInkWell({
+    super.key,
+    required this.child,
+    required this.onTap,
+    this.borderRadius,
+    this.onLongPress,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final BorderRadius? borderRadius;
+
+  @override
+  State<BouncyInkWell> createState() => _BouncyInkWellState();
+}
+
+class _BouncyInkWellState extends State<BouncyInkWell> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _scale = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleTapDown(TapDownDetails _) {
+    if (widget.onTap != null || widget.onLongPress != null) {
+      _controller.forward();
+    }
+  }
+
+  void _handleTapUp(TapUpDetails _) {
+    if (widget.onTap != null || widget.onLongPress != null) {
+      _controller.reverse();
+    }
+  }
+
+  void _handleTapCancel() {
+    if (widget.onTap != null || widget.onLongPress != null) {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _handleTapDown,
+      onTapUp: _handleTapUp,
+      onTapCancel: _handleTapCancel,
+      onTap: widget.onTap != null
+          ? () {
+              HapticFeedback.lightImpact();
+              widget.onTap!();
+            }
+          : null,
+      onLongPress: widget.onLongPress != null
+          ? () {
+              HapticFeedback.mediumImpact();
+              widget.onLongPress!();
+            }
+          : null,
+      child: ScaleTransition(
+        scale: _scale,
+        child: ClipRRect(
+          borderRadius: widget.borderRadius ?? BorderRadius.zero,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Frosted-glass container with soft border, backdrop blur, and internal layout.
+class GlassmorphicContainer extends StatelessWidget {
+  const GlassmorphicContainer({
+    super.key,
+    required this.child,
+    this.borderRadius,
+    this.borderWidth = 1.0,
+    this.blur = 15.0,
+    this.color,
+    this.padding,
+    this.margin,
+    this.width,
+    this.height,
+  });
+
+  final Widget child;
+  final BorderRadius? borderRadius;
+  final double borderWidth;
+  final double blur;
+  final Color? color;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
+  final double? width;
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final dark = scheme.brightness == Brightness.dark;
+    final fallbackColor = color ?? (dark 
+        ? Colors.white.withValues(alpha: 0.05) 
+        : Colors.black.withValues(alpha: 0.02));
+    final fallbackBorderColor = dark 
+        ? Colors.white.withValues(alpha: 0.08) 
+        : Colors.black.withValues(alpha: 0.04);
+    final radius = borderRadius ?? BorderRadius.circular(30);
+
+    return Container(
+      width: width,
+      height: height,
+      margin: margin,
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: PremiumShadows.soft(context),
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: fallbackColor,
+              borderRadius: radius,
+              border: Border.all(
+                color: fallbackBorderColor,
+                width: borderWidth,
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 }

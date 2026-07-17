@@ -634,11 +634,18 @@ class _SettingsCard extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Card(
-    shape: ExpressiveShape.card(),
-    clipBehavior: Clip.antiAlias,
-    child: Column(children: children),
-  );
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: PremiumShadows.soft(context),
+        ),
+        child: Card(
+          shape: ExpressiveShape.card(),
+          clipBehavior: Clip.antiAlias,
+          child: Column(children: children),
+        ),
+      );
 }
 
 class _PrivacyFact extends StatelessWidget {

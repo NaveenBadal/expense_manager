@@ -679,25 +679,43 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                           final artifact = AgentArtifact.decode(
                             message.artifactJson,
                           );
-                          return Align(
-                            alignment: message.user
-                                ? Alignment.centerRight
-                                : Alignment.centerLeft,
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 14),
-                              padding: message.user
-                                  ? const EdgeInsets.all(16)
-                                  : EdgeInsets.zero,
-                              constraints: const BoxConstraints(maxWidth: 520),
-                              decoration: BoxDecoration(
-                                color: message.user
-                                    ? scheme.primaryContainer
-                                    : Colors.transparent,
-                                borderRadius: ExpressiveShape.playful(index),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
+                          return _AnimatedMessage(
+                            key: ValueKey(message.id ?? message.timestamp.millisecondsSinceEpoch),
+                            child: Align(
+                              alignment: message.user
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 14),
+                                padding: const EdgeInsets.all(18),
+                                constraints: const BoxConstraints(maxWidth: 520),
+                                decoration: message.user
+                                    ? BoxDecoration(
+                                        color: scheme.primaryContainer,
+                                        borderRadius: const BorderRadius.only(
+                                          topLeft: Radius.circular(24),
+                                          topRight: Radius.circular(24),
+                                          bottomLeft: Radius.circular(24),
+                                          bottomRight: Radius.circular(6),
+                                        ),
+                                      )
+                                    : BoxDecoration(
+                                        color: scheme.surfaceContainerLow,
+                                        borderRadius: const BorderRadius.only(
+                                          topLeft: Radius.circular(24),
+                                          topRight: Radius.circular(48),
+                                          bottomLeft: Radius.circular(48),
+                                          bottomRight: Radius.circular(16),
+                                        ),
+                                        border: Border.all(
+                                          color: scheme.outlineVariant.withValues(alpha: 0.5),
+                                          width: 1.0,
+                                        ),
+                                        boxShadow: PremiumShadows.soft(context),
+                                      ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                   if (message.user)
                                     Text(
                                       message.text,
@@ -839,7 +857,8 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                 ],
                               ),
                             ),
-                          );
+                          ),
+                        );
                         },
                       ),
               ),
@@ -1119,5 +1138,52 @@ String _formatFilterDetails(String raw) {
         .join('\n\n');
   } catch (_) {
     return 'Verified local transaction filters were applied.';
+  }
+}
+
+class _AnimatedMessage extends StatefulWidget {
+  const _AnimatedMessage({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<_AnimatedMessage> createState() => _AnimatedMessageState();
+}
+
+class _AnimatedMessageState extends State<_AnimatedMessage> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
+    );
+    _slide = Tween<Offset>(begin: const Offset(0.0, 0.12), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: AppMotion.emphasizedDecelerate),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: widget.child,
+      ),
+    );
   }
 }
