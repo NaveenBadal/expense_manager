@@ -102,7 +102,13 @@ class CategorizationService {
             category: category,
             date: DateTime.parse(sms['date'] as String),
             originalSms: body,
-            type: result.type == 'income' ? 'income' : 'expense',
+            type: switch (result.type) {
+              'income' => 'income',
+              'transfer' => 'transfer',
+              _ => 'expense',
+            },
+            source: 'sms',
+            confidence: 0.85,
           ),
         );
         expenseCount++;

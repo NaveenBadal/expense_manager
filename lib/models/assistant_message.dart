@@ -7,6 +7,7 @@ class AssistantMessage {
     this.sources = 0,
     this.verified = false,
     this.filterDetails = '',
+    this.artifactJson = '',
   });
 
   final int? id;
@@ -16,6 +17,7 @@ class AssistantMessage {
   final int sources;
   final bool verified;
   final String filterDetails;
+  final String artifactJson;
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -24,6 +26,7 @@ class AssistantMessage {
     'sources': sources,
     'verified': verified ? 1 : 0,
     'filter_details': filterDetails,
+    'artifact_json': artifactJson,
     'timestamp': timestamp.toIso8601String(),
   };
 
@@ -35,6 +38,7 @@ class AssistantMessage {
         sources: map['sources'] as int? ?? 0,
         verified: (map['verified'] as int? ?? 0) == 1,
         filterDetails: map['filter_details'] as String? ?? '',
+        artifactJson: map['artifact_json'] as String? ?? '',
         timestamp: DateTime.parse(map['timestamp'] as String),
       );
 }

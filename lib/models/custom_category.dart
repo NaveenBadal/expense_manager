@@ -13,12 +13,15 @@ class CustomCategory {
     required this.colorValue,
   });
 
-  // Persisted user-selected code points are necessarily runtime values.
-  IconData get iconData => IconData(
-    // ignore: non_const_argument_for_const_parameter
-    int.parse(iconCodepoint, radix: 16),
-    fontFamily: 'MaterialIcons',
-  );
+  /// Resolve persisted choices through the finite preset set so release builds
+  /// can safely tree-shake the Material icon font.
+  IconData get iconData {
+    final codepoint = int.tryParse(iconCodepoint, radix: 16);
+    return presetIcons.firstWhere(
+      (icon) => icon.codePoint == codepoint,
+      orElse: () => Icons.category_rounded,
+    );
+  }
 
   Color get color => Color(int.parse(colorValue, radix: 16));
 

@@ -8,6 +8,8 @@ import 'package:expense_manager/services/database_helper.dart';
 import 'package:expense_manager/theme/app_theme.dart';
 import 'package:expense_manager/widgets/money_chat_sheet.dart';
 import 'package:expense_manager/widgets/expense_form_sheet.dart';
+import 'package:expense_manager/widgets/agent_artifact_card.dart';
+import 'package:expense_manager/models/agent_artifact.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -123,7 +125,48 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Ask Flow'), findsOneWidget);
-    expect(find.text('Connect Ask Flow in Settings'), findsOneWidget);
+    expect(find.text('Connect Flow AI in Settings'), findsOneWidget);
+  });
+
+  testWidgets('agent financial cards support narrow screens and 200% text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 1400);
+    tester.view.devicePixelRatio = 2;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(null),
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: AgentArtifactCard(
+                onPrompt: (_) {},
+                artifact: const AgentArtifact(
+                  kind: AgentArtifactKind.breakdown,
+                  title: 'Spending breakdown',
+                  subtitle: '24 local records checked',
+                  data: {
+                    'groups': [
+                      {
+                        'label': 'Food and dining',
+                        'currency': 'INR',
+                        'direction': 'expense',
+                        'count': 12,
+                        'total': 12450,
+                      },
+                    ],
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Spending breakdown'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('Transaction form gives field-specific validation', (

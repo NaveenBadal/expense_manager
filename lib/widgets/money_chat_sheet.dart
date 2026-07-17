@@ -10,8 +10,13 @@ import '../providers/assistant_conversation_provider.dart';
 import '../services/app_control_service.dart';
 import '../services/local_money_mcp.dart';
 import '../services/money_chat_service.dart';
+import '../services/ollama_cloud_service.dart';
+import '../models/agent_artifact.dart';
+import '../models/transaction_query.dart';
 import '../theme/app_tokens.dart';
 import '../screens/settings_screen.dart';
+import '../utils/currency_utils.dart';
+import 'agent_artifact_card.dart';
 
 class MoneyChatSheet extends ConsumerStatefulWidget {
   const MoneyChatSheet({
@@ -19,10 +24,12 @@ class MoneyChatSheet extends ConsumerStatefulWidget {
     this.initialPrompt,
     this.fullScreen = false,
     this.onOpenSettings,
+    this.onOpenActivity,
   });
   final String? initialPrompt;
   final bool fullScreen;
   final VoidCallback? onOpenSettings;
+  final VoidCallback? onOpenActivity;
   @override
   ConsumerState<MoneyChatSheet> createState() => _MoneyChatSheetState();
 }
@@ -32,14 +39,19 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   final _scrollController = ScrollController();
   bool _thinking = false;
   String? _failedQuestion;
+  String _failureDetail = 'Check your connection and try again.';
   bool _didScrollToInitialHistory = false;
   String _stage = 'Understanding your request…';
+  String _streamingText = '';
+  AgentCancellationToken? _cancellationToken;
   late final LocalMoneyMcpClient _mcp;
+  late Future<_FlowBrief> _briefFuture;
 
   static const _prompts = <(IconData, String)>[
-    (Icons.calendar_month_rounded, 'Summarize this month'),
-    (Icons.rule_rounded, 'Find transactions that need review'),
-    (Icons.savings_outlined, 'Where can I spend less?'),
+    (Icons.compare_arrows_rounded, 'Compare this month with last month'),
+    (Icons.autorenew_rounded, 'Find my recurring payments'),
+    (Icons.warning_amber_rounded, 'Check for unusual spending'),
+    (Icons.trending_up_rounded, 'Forecast my next 30 days'),
   ];
 
   @override
@@ -51,10 +63,31 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
         appToolHandler: _handleAppTool,
       ),
     );
+    _briefFuture = ref.read(ollamaApiKeyProvider).trim().isEmpty
+        ? Future.value(const _FlowBrief.empty())
+        : _loadBrief();
     final prompt = widget.initialPrompt?.trim();
     if (prompt != null && prompt.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _ask(prompt));
     }
+  }
+
+  Future<_FlowBrief> _loadBrief() async {
+    final database = ref.read(databaseProvider);
+    final now = DateTime.now();
+    final month = await database.summarizeTransactions(
+      TransactionQuery(from: DateTime(now.year, now.month), to: now),
+    );
+    final anomalies = await database.detectAnomalies();
+    final recurring = await database.detectRecurringTransactions();
+    final budgets = await database.budgetStatus();
+    return _FlowBrief(
+      totals: (month['totals_by_currency'] as Map).cast<String, dynamic>(),
+      transactions: (month['matched_count'] as num?)?.toInt() ?? 0,
+      anomalies: (anomalies['anomalies'] as List<dynamic>? ?? const []).length,
+      recurring: (recurring['recurring'] as List<dynamic>? ?? const []).length,
+      budgets: (budgets['budgets'] as List<dynamic>? ?? const []).length,
+    );
   }
 
   @override
@@ -101,12 +134,15 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
       _thinking = true;
       _failedQuestion = null;
       _stage = 'Understanding your request…';
+      _streamingText = '';
     });
     if (recordUser) {
       await ref.read(assistantConversationProvider.notifier).addUser(question);
     }
     _scrollToLatest();
     try {
+      final token = AgentCancellationToken();
+      _cancellationToken = token;
       final service = MoneyChatService(
         ref.read(ollamaCloudProvider),
         mcpClient: _mcp,
@@ -114,14 +150,41 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
         onProgress: (stage) {
           if (mounted) setState(() => _stage = stage);
         },
+        onDelta: (text) {
+          if (mounted) setState(() => _streamingText = text);
+          _scrollToLatest();
+        },
+        cancellationToken: token,
         onToolCompleted: (name, result) {
           if (result['changed'] != true) return;
           if ({
             'create_transaction',
             'update_transaction',
             'delete_transaction',
+            'bulk_update_transactions',
           }.contains(name)) {
             ref.invalidate(expenseListProvider);
+          }
+          if (mounted &&
+              {
+                'create_transaction',
+                'update_transaction',
+                'delete_transaction',
+                'create_budget',
+                'delete_budget',
+                'bulk_update_transactions',
+                'remember_preference',
+                'forget_preference',
+              }.contains(name)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Change applied'),
+                action: SnackBarAction(
+                  label: 'Undo',
+                  onPressed: () => _ask('Undo my last change'),
+                ),
+              ),
+            );
           }
         },
       );
@@ -136,17 +199,47 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
             filterDetails: jsonEncode(
               answer.appliedFilters.map((filter) => filter.toJson()).toList(),
             ),
+            artifactJson: answer.artifact.encode(),
           );
       if (!mounted) return;
       setState(() {});
       _scrollToLatest();
-    } catch (_) {
+    } on AgentCancelledException {
       if (!mounted) return;
-      setState(() => _failedQuestion = question);
+      setState(() {
+        _failedQuestion = null;
+        _streamingText = '';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _failedQuestion = question;
+        _failureDetail = switch (error) {
+          OllamaRequestException(statusCode: 401 || 403) =>
+            'Your AI key was rejected. Check it in Settings.',
+          OllamaRequestException(statusCode: 429) =>
+            'The AI service is busy. Wait a moment and retry.',
+          OllamaRequestException() =>
+            'The AI service could not complete this request.',
+          FormatException() =>
+            'The AI returned an invalid response. Nothing was changed.',
+          _ => 'Check your connection and try again.',
+        };
+      });
       _scrollToLatest();
     } finally {
+      _cancellationToken = null;
       if (mounted) setState(() => _thinking = false);
     }
+  }
+
+  void _cancel() {
+    _cancellationToken?.cancel();
+    HapticFeedback.selectionClick();
+    setState(() {
+      _streamingText = '';
+      _stage = 'Stopping…';
+    });
   }
 
   Future<bool> _approveTool(String name, Map<String, dynamic> arguments) async {
@@ -163,28 +256,94 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
       'update_transaction' => 'change transaction #${arguments['id'] ?? ''}',
       'delete_transaction' =>
         'permanently delete transaction #${arguments['id'] ?? ''}',
+      'create_budget' =>
+        'create “${arguments['name'] ?? 'this'}” budget for ${arguments['currency'] ?? ''} ${arguments['amount'] ?? ''}',
+      'delete_budget' => 'delete budget #${arguments['id'] ?? ''}',
+      'bulk_update_transactions' => _describeBulkUpdate(arguments),
+      'remember_preference' =>
+        'remember “${arguments['key']}” as “${arguments['value']}” on this device',
+      'forget_preference' => 'forget “${arguments['key']}”',
       'reanalyze_transaction_sms' =>
         'send transaction #${arguments['id'] ?? ''} original SMS to your configured Ollama endpoint for re-analysis',
       _ => 'perform this sensitive action',
     };
-    return await showDialog<bool>(
+    return await showModalBottomSheet<bool>(
           context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Confirm app change'),
-            content: Text('Allow Flow to $action?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
+          showDragHandle: true,
+          builder: (sheetContext) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    name.contains('delete')
+                        ? Icons.delete_outline_rounded
+                        : Icons.auto_awesome_rounded,
+                    size: 32,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Review Flow’s action',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Flow will $action.',
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    name.contains('delete')
+                        ? 'You can undo this until another change is made.'
+                        : 'Only the fields shown in this request will change. You can undo it afterward.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(sheetContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(sheetContext, true),
+                          child: Text(
+                            name.contains('delete') ? 'Delete' : 'Apply',
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              FilledButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('Confirm'),
-              ),
-            ],
+            ),
           ),
         ) ??
         false;
+  }
+
+  String _describeBulkUpdate(Map<String, dynamic> arguments) {
+    final filter = (arguments['filter'] as Map?) ?? const {};
+    final changes = (arguments['changes'] as Map?) ?? const {};
+    final scope = <String>[
+      if (filter['merchant'] != null) 'merchant “${filter['merchant']}”',
+      if (filter['category'] != null) 'category “${filter['category']}”',
+      if (filter['from'] != null || filter['to'] != null)
+        'the selected date range',
+      if (filter['text'] != null) 'matching “${filter['text']}”',
+    ];
+    final updates = changes.entries
+        .map((entry) => '${entry.key.replaceAll('_', ' ')} to “${entry.value}”')
+        .join(', ');
+    return 'update transactions for ${scope.isEmpty ? 'the selected filter' : scope.join(', ')} and set $updates';
   }
 
   void _openSettings() {
@@ -239,6 +398,18 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
     String name,
     Map<String, dynamic> arguments,
   ) async {
+    if (name == 'navigate_to') {
+      final destination = arguments['destination']?.toString();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (destination == 'settings') {
+          _openSettings();
+        } else if (destination == 'activity') {
+          widget.onOpenActivity?.call();
+        }
+      });
+      return {'changed': true, 'destination': destination};
+    }
     final service = ref.read(appControlServiceProvider);
     final result = await service.handle(name, arguments);
     if (result['undo_available'] == true && mounted) {
@@ -350,7 +521,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                                 CrossAxisAlignment.start,
                                             children: [
                                               Text(
-                                                'Connect Ask Flow',
+                                                'Connect Flow AI',
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .titleSmall
@@ -360,7 +531,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                                     ),
                                               ),
                                               Text(
-                                                'Add your Ollama Cloud key in Settings.',
+                                                'Add your private AI connection in Settings.',
                                                 style: Theme.of(context)
                                                     .textTheme
                                                     .bodySmall
@@ -382,6 +553,24 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                 ),
                               ),
                             ),
+                          FutureBuilder<_FlowBrief>(
+                            future: _briefFuture,
+                            builder: (context, snapshot) {
+                              final brief = snapshot.data;
+                              if (brief == null || brief.transactions == 0) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 18),
+                                child: _FinancialBriefCard(
+                                  brief: brief,
+                                  onPrompt: connected
+                                      ? _ask
+                                      : (_) => _openSettings(),
+                                ),
+                              );
+                            },
+                          ),
                           for (final prompt in _prompts)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 10),
@@ -442,43 +631,68 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                             if (!_thinking) {
                               return _RetryMessage(
                                 onRetry: () => _ask(_failedQuestion, false),
+                                detail: _failureDetail,
                               );
                             }
                             return Padding(
                               padding: const EdgeInsets.all(18),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  SizedBox.square(
-                                    dimension: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.5,
-                                      color: scheme.primary,
-                                    ),
+                                  Row(
+                                    children: [
+                                      SizedBox.square(
+                                        dimension: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: scheme.primary,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Text(
+                                          _stage,
+                                          style: TextStyle(
+                                            color: scheme.primary,
+                                          ),
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: _cancel,
+                                        child: const Text('Stop'),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      _stage,
-                                      style: TextStyle(color: scheme.primary),
+                                  if (_streamingText.isNotEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    MarkdownBody(
+                                      data: mobileFriendlyMarkdown(
+                                        _streamingText,
+                                      ),
                                     ),
-                                  ),
+                                  ],
                                 ],
                               ),
                             );
                           }
                           final message = messages[index];
+                          final artifact = AgentArtifact.decode(
+                            message.artifactJson,
+                          );
                           return Align(
                             alignment: message.user
                                 ? Alignment.centerRight
                                 : Alignment.centerLeft,
                             child: Container(
                               margin: const EdgeInsets.only(bottom: 14),
-                              padding: const EdgeInsets.all(16),
+                              padding: message.user
+                                  ? const EdgeInsets.all(16)
+                                  : EdgeInsets.zero,
                               constraints: const BoxConstraints(maxWidth: 520),
                               decoration: BoxDecoration(
                                 color: message.user
                                     ? scheme.primaryContainer
-                                    : scheme.surfaceContainerHigh,
+                                    : Colors.transparent,
                                 borderRadius: ExpressiveShape.playful(index),
                               ),
                               child: Column(
@@ -493,46 +707,57 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                       ),
                                     )
                                   else
-                                    MarkdownBody(
-                                      data: mobileFriendlyMarkdown(
-                                        message.text,
-                                      ),
-                                      selectable: true,
-                                      styleSheet: MarkdownStyleSheet(
-                                        p: TextStyle(
-                                          color: scheme.onSurface,
-                                          height: 1.5,
-                                          fontSize: 14,
-                                        ),
-                                        strong: TextStyle(
-                                          color: scheme.primary,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                        em: TextStyle(
-                                          color: scheme.secondary,
-                                          fontStyle: FontStyle.italic,
-                                        ),
-                                        listBullet: TextStyle(
-                                          color: scheme.primary,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                        code: TextStyle(
-                                          color: scheme.onSurface,
-                                          backgroundColor:
-                                              scheme.surfaceContainerHighest,
-                                          fontFamily: 'monospace',
-                                        ),
-                                        blockquoteDecoration: BoxDecoration(
-                                          border: Border(
-                                            left: BorderSide(
-                                              color: scheme.primary,
-                                              width: 3,
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (!artifact.isEmpty)
+                                          AgentArtifactCard(
+                                            artifact: artifact,
+                                            onPrompt: _ask,
+                                          ),
+                                        MarkdownBody(
+                                          data: mobileFriendlyMarkdown(
+                                            message.text,
+                                          ),
+                                          selectable: true,
+                                          styleSheet: MarkdownStyleSheet(
+                                            p: TextStyle(
+                                              color: scheme.onSurface,
+                                              height: 1.5,
+                                              fontSize: 14,
                                             ),
+                                            strong: TextStyle(
+                                              color: scheme.primary,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                            em: TextStyle(
+                                              color: scheme.secondary,
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                            listBullet: TextStyle(
+                                              color: scheme.primary,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                            code: TextStyle(
+                                              color: scheme.onSurface,
+                                              backgroundColor: scheme
+                                                  .surfaceContainerHighest,
+                                              fontFamily: 'monospace',
+                                            ),
+                                            blockquoteDecoration: BoxDecoration(
+                                              border: Border(
+                                                left: BorderSide(
+                                                  color: scheme.primary,
+                                                  width: 3,
+                                                ),
+                                              ),
+                                            ),
+                                            blockquotePadding:
+                                                const EdgeInsets.only(left: 12),
                                           ),
                                         ),
-                                        blockquotePadding:
-                                            const EdgeInsets.only(left: 12),
-                                      ),
+                                      ],
                                     ),
                                   if (message.sources > 0) ...[
                                     const SizedBox(height: 10),
@@ -625,10 +850,12 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                       controller: _controller,
                       enabled: connected && !_thinking,
                       onSubmitted: (_) => _ask(),
+                      minLines: 1,
+                      maxLines: 4,
                       decoration: InputDecoration(
                         hintText: connected
                             ? 'Ask about your activity…'
-                            : 'Connect Ask Flow in Settings',
+                            : 'Connect Flow AI in Settings',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(28),
                           borderSide: BorderSide.none,
@@ -656,10 +883,123 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   }
 }
 
+class _FlowBrief {
+  const _FlowBrief({
+    required this.totals,
+    required this.transactions,
+    required this.anomalies,
+    required this.recurring,
+    required this.budgets,
+  });
+  const _FlowBrief.empty()
+    : totals = const {},
+      transactions = 0,
+      anomalies = 0,
+      recurring = 0,
+      budgets = 0;
+  final Map<String, dynamic> totals;
+  final int transactions;
+  final int anomalies;
+  final int recurring;
+  final int budgets;
+}
+
+class _FinancialBriefCard extends StatelessWidget {
+  const _FinancialBriefCard({required this.brief, required this.onPrompt});
+  final _FlowBrief brief;
+  final ValueChanged<String> onPrompt;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final spending = <String>[];
+    for (final entry in brief.totals.entries) {
+      final values = (entry.value as Map).cast<String, dynamic>();
+      final amount = (values['expense'] as num?)?.toDouble() ?? 0;
+      if (amount > 0) spending.add(formatAmount(amount, entry.key));
+    }
+    return Material(
+      color: scheme.primaryContainer,
+      shape: ExpressiveShape.card(radius: AppRadius.xl),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => onPrompt('Give me my financial briefing for this month'),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome_rounded,
+                    color: scheme.onPrimaryContainer,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Your financial briefing',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: scheme.onPrimaryContainer,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_rounded,
+                    color: scheme.onPrimaryContainer,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                spending.isEmpty
+                    ? '${brief.transactions} transactions this month'
+                    : '${spending.join(' + ')} spent this month',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: scheme.onPrimaryContainer,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _BriefPill(label: '${brief.transactions} transactions'),
+                  if (brief.recurring > 0)
+                    _BriefPill(label: '${brief.recurring} recurring'),
+                  if (brief.anomalies > 0)
+                    _BriefPill(label: '${brief.anomalies} need review'),
+                  if (brief.budgets > 0)
+                    _BriefPill(label: '${brief.budgets} budgets'),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BriefPill extends StatelessWidget {
+  const _BriefPill({required this.label});
+  final String label;
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.48),
+      borderRadius: BorderRadius.circular(999),
+    ),
+    child: Text(label, style: Theme.of(context).textTheme.labelSmall),
+  );
+}
+
 class _RetryMessage extends StatelessWidget {
-  const _RetryMessage({required this.onRetry});
+  const _RetryMessage({required this.onRetry, required this.detail});
 
   final VoidCallback onRetry;
+  final String detail;
 
   @override
   Widget build(BuildContext context) {
@@ -686,7 +1026,7 @@ class _RetryMessage extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Nothing was changed. Check your connection and try again.',
+                      'Nothing was changed. $detail',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onErrorContainer,
                       ),

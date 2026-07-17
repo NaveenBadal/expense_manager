@@ -345,6 +345,7 @@ class _AppShellState extends ConsumerState<AppShell>
         MoneyChatSheet(
           fullScreen: true,
           onOpenSettings: () => _selectDestination(2),
+          onOpenActivity: () => _selectDestination(0),
         ),
         const SettingsScreen(),
       ],

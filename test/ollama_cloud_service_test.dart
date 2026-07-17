@@ -6,6 +6,7 @@ import 'package:expense_manager/services/ollama_cloud_service.dart';
 import 'package:expense_manager/services/database_helper.dart';
 import 'package:expense_manager/widgets/money_chat_sheet.dart';
 import 'package:expense_manager/models/assistant_message.dart';
+import 'package:expense_manager/models/agent_artifact.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -157,6 +158,33 @@ void main() {
     );
   });
 
+  test('streaming chat retries transient service failures', () async {
+    var attempts = 0;
+    final service = OllamaCloudService(
+      apiKey: 'test',
+      client: MockClient((_) async {
+        attempts++;
+        if (attempts < 3) return http.Response('busy', 503);
+        return http.Response(
+          jsonEncode({
+            'message': {'role': 'assistant', 'content': 'Ready'},
+          }),
+          200,
+        );
+      }),
+    );
+
+    final turn = await service.chatWithTools(
+      messages: const [
+        {'role': 'user', 'content': 'Hello'},
+      ],
+      tools: const [],
+    );
+
+    expect(attempts, 3);
+    expect(turn.content, 'Ready');
+  });
+
   test(
     'money chat uses role context instead of a manual prompt gate',
     () async {
@@ -189,7 +217,7 @@ void main() {
     },
   );
 
-  test('money chat bounds conversation context for low token use', () async {
+  test('money chat keeps ten bounded turns for durable context', () async {
     late Map<String, dynamic> requestBody;
     final service = MoneyChatService(
       OllamaCloudService(
@@ -221,8 +249,8 @@ void main() {
     await service.ask('What can you do?', history: history);
 
     final messages = requestBody['messages'] as List<dynamic>;
-    expect(messages, hasLength(6));
-    for (final message in messages.skip(1).take(4).cast<Map>()) {
+    expect(messages, hasLength(12));
+    for (final message in messages.skip(1).take(10).cast<Map>()) {
       expect(message['content'].toString().length, lessThanOrEqualTo(601));
     }
   });
@@ -290,6 +318,7 @@ void main() {
     );
     expect(requests.single['think'], 'low');
     expect(requests.single['keep_alive'], '10m');
+    expect(requests.single['stream'], isTrue);
   });
 
   test(
@@ -391,6 +420,63 @@ void main() {
     expect(mcp.calledTools, ['reanalyze_transaction_sms']);
     expect(answer.text, contains('Would you like me to update it?'));
   });
+
+  test('agent renders a verified typed spending artifact', () async {
+    final service = MoneyChatService(
+      OllamaCloudService(
+        apiKey: 'test',
+        client: MockClient((_) async {
+          return http.Response(
+            jsonEncode({
+              'message': {
+                'role': 'assistant',
+                'content': '',
+                'tool_calls': [
+                  {
+                    'type': 'function',
+                    'function': {
+                      'name': 'spending_breakdown',
+                      'arguments': {'group_by': 'category'},
+                    },
+                  },
+                ],
+              },
+            }),
+            200,
+          );
+        }),
+      ),
+      mcpClient: _FakeMoneyMcpClient(),
+    );
+
+    final answer = await service.ask('Where did my money go?');
+
+    expect(answer.verified, isTrue);
+    expect(answer.artifact.kind, AgentArtifactKind.breakdown);
+    expect(answer.artifact.data['groups'], isNotEmpty);
+  });
+
+  test('agent cancellation stops before a cloud request', () async {
+    var requested = false;
+    final token = AgentCancellationToken()..cancel();
+    final service = MoneyChatService(
+      OllamaCloudService(
+        apiKey: 'test',
+        client: MockClient((_) async {
+          requested = true;
+          return http.Response('{}', 200);
+        }),
+      ),
+      mcpClient: _FakeMoneyMcpClient(),
+      cancellationToken: token,
+    );
+
+    await expectLater(
+      service.ask('Summarize today'),
+      throwsA(isA<AgentCancelledException>()),
+    );
+    expect(requested, isFalse);
+  });
 }
 
 class _FakeMoneyMcpClient implements MoneyMcpClient {
@@ -451,6 +537,17 @@ class _FakeMoneyMcpClient implements MoneyMcpClient {
         'required': ['id'],
       },
     ),
+    const McpToolDefinition(
+      name: 'spending_breakdown',
+      description: 'Calculate a grouped spending breakdown.',
+      inputSchema: {
+        'type': 'object',
+        'properties': {
+          'group_by': {'type': 'string'},
+        },
+        'required': ['group_by'],
+      },
+    ),
   ];
 
   @override
@@ -473,6 +570,27 @@ class _FakeMoneyMcpClient implements MoneyMcpClient {
     }
     if (name == 'set_theme') {
       final result = {'changed': true, 'theme': arguments['mode']};
+      return McpToolResult(
+        content: jsonEncode(result),
+        structuredContent: result,
+        isError: false,
+      );
+    }
+    if (name == 'spending_breakdown') {
+      final result = {
+        'applied_filter': arguments,
+        'group_by': 'category',
+        'matched_count': 2,
+        'groups': [
+          {
+            'label': 'Food',
+            'currency': 'INR',
+            'direction': 'expense',
+            'count': 2,
+            'total': 700,
+          },
+        ],
+      };
       return McpToolResult(
         content: jsonEncode(result),
         structuredContent: result,

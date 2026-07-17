@@ -141,38 +141,67 @@ class OllamaCloudService {
   Future<OllamaChatTurn> chatWithTools({
     required List<Map<String, dynamic>> messages,
     required List<Map<String, dynamic>> tools,
+    void Function(String delta)? onTextDelta,
+    Future<void>? abortTrigger,
   }) async {
     if (!hasKey) throw StateError('Ollama Cloud API key is not set.');
-    final response = await _withRetry(
-      () => _client
-          .post(
-            Uri.parse('${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/chat'),
-            headers: _headers,
-            body: jsonEncode({
-              'model': model,
-              'messages': messages,
-              'tools': tools,
-              'stream': false,
-              'think': 'low',
-              'keep_alive': '10m',
-              'options': {'temperature': 0.0, 'num_predict': 500},
-            }),
-          )
-          .timeout(timeout),
-    );
-    if (response.statusCode != 200) {
-      throw OllamaRequestException(response.statusCode, response.body);
+    final uri = Uri.parse('${baseUrl.replaceAll(RegExp(r'/+$'), '')}/api/chat');
+    final payload = jsonEncode({
+      'model': model,
+      'messages': messages,
+      'tools': tools,
+      'stream': true,
+      'think': 'low',
+      'keep_alive': '10m',
+      'options': {'temperature': 0.0, 'num_predict': 700},
+    });
+    late http.StreamedResponse response;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final request =
+          http.AbortableRequest('POST', uri, abortTrigger: abortTrigger)
+            ..headers.addAll(_headers)
+            ..body = payload;
+      response = await _client.send(request).timeout(timeout);
+      final retryable =
+          response.statusCode == 429 ||
+          response.statusCode == 502 ||
+          response.statusCode == 503;
+      if (!retryable || attempt == 2) break;
+      await response.stream.drain<void>();
+      await Future<void>.delayed(Duration(milliseconds: 250 * (attempt + 1)));
     }
-    final outer = jsonDecode(response.body) as Map<String, dynamic>;
-    final rawMessage = outer['message'];
-    if (rawMessage is! Map) {
+    final body = await response.stream.bytesToString().timeout(timeout);
+    if (response.statusCode != 200) {
+      throw OllamaRequestException(response.statusCode, body);
+    }
+    final content = StringBuffer();
+    final rawCalls = <dynamic>[];
+    Map<String, dynamic>? lastMessage;
+    for (final line in const LineSplitter().convert(body)) {
+      if (line.trim().isEmpty) continue;
+      final decoded = jsonDecode(line);
+      if (decoded is! Map) continue;
+      final message = decoded['message'];
+      if (message is! Map) continue;
+      lastMessage = message.cast<String, dynamic>();
+      final delta = message['content']?.toString() ?? '';
+      if (delta.isNotEmpty) {
+        content.write(delta);
+        onTextDelta?.call(delta);
+      }
+      rawCalls.addAll(message['tool_calls'] as List<dynamic>? ?? const []);
+    }
+    if (lastMessage == null) {
       throw const FormatException('The model returned no assistant message.');
     }
-    final assistant = rawMessage.cast<String, dynamic>();
-    assistant['role'] = 'assistant';
+    final assistant = <String, dynamic>{
+      ...lastMessage,
+      'role': 'assistant',
+      'content': content.toString(),
+      if (rawCalls.isNotEmpty) 'tool_calls': rawCalls,
+    };
     final calls = <OllamaToolCall>[];
-    for (final rawCall
-        in assistant['tool_calls'] as List<dynamic>? ?? const []) {
+    for (final rawCall in rawCalls) {
       if (rawCall is! Map) continue;
       final function = rawCall['function'];
       if (function is! Map) continue;
@@ -191,7 +220,7 @@ class OllamaCloudService {
       }
     }
     return OllamaChatTurn(
-      content: assistant['content']?.toString().trim() ?? '',
+      content: content.toString().trim(),
       toolCalls: calls,
       assistantMessage: assistant,
     );

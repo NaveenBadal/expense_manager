@@ -17,6 +17,7 @@ class AssistantConversationNotifier
     required int sources,
     required bool verified,
     String filterDetails = '',
+    String artifactJson = '',
   }) => _add(
     AssistantMessage(
       user: false,
@@ -24,6 +25,7 @@ class AssistantConversationNotifier
       sources: sources,
       verified: verified,
       filterDetails: filterDetails,
+      artifactJson: artifactJson,
       timestamp: DateTime.now(),
     ),
   );

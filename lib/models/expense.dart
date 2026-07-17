@@ -9,6 +9,13 @@ class Expense {
   final String type; // 'expense' | 'income'
   final String tags; // comma-separated labels
   final String? normalizedMerchant;
+  final String? account;
+  final String? counterpartyAccount;
+  final String status;
+  final String source;
+  final double confidence;
+  final String? transferGroup;
+  final String notes;
 
   Expense({
     this.id,
@@ -21,6 +28,13 @@ class Expense {
     this.type = 'expense',
     this.tags = '',
     this.normalizedMerchant,
+    this.account,
+    this.counterpartyAccount,
+    this.status = 'settled',
+    this.source = 'manual',
+    this.confidence = 1,
+    this.transferGroup,
+    this.notes = '',
   });
 
   bool get isIncome => type == 'income';
@@ -48,6 +62,13 @@ class Expense {
     String? type,
     String? tags,
     String? normalizedMerchant,
+    String? account,
+    String? counterpartyAccount,
+    String? status,
+    String? source,
+    double? confidence,
+    String? transferGroup,
+    String? notes,
   }) => Expense(
     id: id ?? this.id,
     amount: amount ?? this.amount,
@@ -59,6 +80,13 @@ class Expense {
     type: type ?? this.type,
     tags: tags ?? this.tags,
     normalizedMerchant: normalizedMerchant ?? this.normalizedMerchant,
+    account: account ?? this.account,
+    counterpartyAccount: counterpartyAccount ?? this.counterpartyAccount,
+    status: status ?? this.status,
+    source: source ?? this.source,
+    confidence: confidence ?? this.confidence,
+    transferGroup: transferGroup ?? this.transferGroup,
+    notes: notes ?? this.notes,
   );
 
   Map<String, dynamic> toMap() => {
@@ -72,6 +100,13 @@ class Expense {
     'type': type,
     'tags': tags,
     'normalized_merchant': normalizedMerchant,
+    'account': account,
+    'counterparty_account': counterpartyAccount,
+    'status': status,
+    'source': source,
+    'confidence': confidence,
+    'transfer_group': transferGroup,
+    'notes': notes,
   };
 
   factory Expense.fromMap(Map<String, dynamic> map) => Expense(
@@ -85,5 +120,12 @@ class Expense {
     type: map['type'] as String? ?? 'expense',
     tags: map['tags'] as String? ?? '',
     normalizedMerchant: map['normalized_merchant'] as String?,
+    account: map['account'] as String?,
+    counterpartyAccount: map['counterparty_account'] as String?,
+    status: map['status'] as String? ?? 'settled',
+    source: map['source'] as String? ?? 'manual',
+    confidence: (map['confidence'] as num?)?.toDouble() ?? 1,
+    transferGroup: map['transfer_group'] as String?,
+    notes: map['notes'] as String? ?? '',
   );
 }

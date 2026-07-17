@@ -12,6 +12,8 @@ class TransactionQuery {
     this.text,
     this.minimumAmount,
     this.maximumAmount,
+    this.account,
+    this.status,
     this.limit = 50,
   });
 
@@ -25,6 +27,8 @@ class TransactionQuery {
   final String? text;
   final double? minimumAmount;
   final double? maximumAmount;
+  final String? account;
+  final String? status;
   final int limit;
 
   factory TransactionQuery.fromJson(Map<String, dynamic> json) {
@@ -62,7 +66,8 @@ class TransactionQuery {
     }
 
     final rawDirection = clean('direction')?.toLowerCase();
-    final safeDirection = rawDirection == 'income' || rawDirection == 'expense'
+    final safeDirection =
+        const {'income', 'expense', 'transfer'}.contains(rawDirection)
         ? rawDirection
         : null;
     final rawLimit = json['limit'] is num
@@ -79,6 +84,8 @@ class TransactionQuery {
       text: clean('text'),
       minimumAmount: number('minimum_amount'),
       maximumAmount: number('maximum_amount'),
+      account: clean('account'),
+      status: clean('status')?.toLowerCase(),
       limit: (rawLimit ?? 50).clamp(1, 200),
     );
   }
@@ -94,6 +101,8 @@ class TransactionQuery {
     if (text != null) 'text': text,
     if (minimumAmount != null) 'minimum_amount': minimumAmount,
     if (maximumAmount != null) 'maximum_amount': maximumAmount,
+    if (account != null) 'account': account,
+    if (status != null) 'status': status,
     'limit': limit,
   };
 
@@ -115,6 +124,11 @@ class TransactionQuery {
         (currency == null || expense.currency.toUpperCase() == currency) &&
         (text == null || haystack.contains(text!.toLowerCase())) &&
         (minimumAmount == null || expense.amount >= minimumAmount!) &&
-        (maximumAmount == null || expense.amount <= maximumAmount!);
+        (maximumAmount == null || expense.amount <= maximumAmount!) &&
+        (account == null ||
+            (expense.account ?? '').toLowerCase().contains(
+              account!.toLowerCase(),
+            )) &&
+        (status == null || expense.status == status);
   }
 }

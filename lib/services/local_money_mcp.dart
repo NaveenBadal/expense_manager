@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../models/expense.dart';
 import '../models/transaction_query.dart';
+import '../models/budget.dart';
 import 'database_helper.dart';
 
 typedef AppToolHandler =
@@ -15,10 +16,11 @@ typedef AppToolHandler =
 /// It implements the MCP 2025-11-25 lifecycle and tool methods over an
 /// in-process JSON-RPC transport, keeping SQLite inaccessible to the model.
 class LocalMoneyMcpServer {
-  const LocalMoneyMcpServer(this.database, {this.appToolHandler});
+  LocalMoneyMcpServer(this.database, {this.appToolHandler});
 
   final DatabaseHelper database;
   final AppToolHandler? appToolHandler;
+  Future<Map<String, dynamic>> Function()? _undo;
 
   static const protocolVersion = '2025-11-25';
 
@@ -71,8 +73,7 @@ class LocalMoneyMcpServer {
       throw const _McpProtocolError(-32602, 'Missing tool parameters');
     }
     final name = params['name']?.toString();
-    final isTransactionTool =
-        name == 'search_transactions' || name == 'summarize_transactions';
+    final isTransactionTool = _readToolNames.contains(name);
     final isSourceInspectionTool = name == 'reanalyze_transaction_sms';
     final isMutationTool = _mutationToolNames.contains(name);
     final isAppTool = _appToolNames.contains(name) && appToolHandler != null;
@@ -106,10 +107,95 @@ class LocalMoneyMcpServer {
     if (isMutationTool) {
       return _callMutationTool(name!, arguments.cast<String, dynamic>());
     }
+    if (name == 'undo_last_change') {
+      final undo = _undo;
+      if (undo == null) return _toolError('There is no recent change to undo.');
+      _undo = null;
+      return _success(await undo());
+    }
     if (isSourceInspectionTool) {
       return _inspectTransactionSource(arguments.cast<String, dynamic>());
     }
-    final query = TransactionQuery.fromJson(arguments.cast<String, dynamic>());
+    final typedArguments = arguments.cast<String, dynamic>();
+    if (name == 'spending_breakdown') {
+      final structured = await database.spendingBreakdown(
+        TransactionQuery.fromJson(typedArguments),
+        groupBy: typedArguments['group_by']?.toString() ?? 'category',
+      );
+      return _success(structured);
+    }
+    if (name == 'compare_periods') {
+      final first = (typedArguments['first'] as Map?)?.cast<String, dynamic>();
+      final second = (typedArguments['second'] as Map?)
+          ?.cast<String, dynamic>();
+      if (first == null || second == null) {
+        return _toolError('Both comparison periods are required.');
+      }
+      return _success(
+        await database.comparePeriods(
+          TransactionQuery.fromJson(first),
+          TransactionQuery.fromJson(second),
+        ),
+      );
+    }
+    if (name == 'find_recurring_transactions') {
+      return _success(
+        await database.detectRecurringTransactions(
+          lookbackDays: _boundedInt(
+            typedArguments['lookback_days'],
+            180,
+            30,
+            365,
+          ),
+        ),
+      );
+    }
+    if (name == 'detect_spending_anomalies') {
+      return _success(
+        await database.detectAnomalies(
+          lookbackDays: _boundedInt(
+            typedArguments['lookback_days'],
+            90,
+            30,
+            365,
+          ),
+        ),
+      );
+    }
+    if (name == 'find_duplicate_transactions') {
+      return _success(
+        await database.findDuplicateTransactions(
+          lookbackDays: _boundedInt(
+            typedArguments['lookback_days'],
+            90,
+            7,
+            365,
+          ),
+        ),
+      );
+    }
+    if (name == 'forecast_cashflow') {
+      return _success(
+        await database.cashflowForecast(
+          horizonDays: _boundedInt(typedArguments['horizon_days'], 30, 7, 90),
+        ),
+      );
+    }
+    if (name == 'get_budget_status') {
+      return _success(await database.budgetStatus());
+    }
+    if (name == 'get_agent_memory') {
+      final memories = await database.getAgentMemories();
+      return _success({
+        'matched_count': memories.length,
+        'memories': memories
+            .map(
+              (value) => {'key': value['memory_key'], 'value': value['value']},
+            )
+            .toList(),
+      });
+    }
+    final query = TransactionQuery.fromJson(typedArguments);
     if (name == 'summarize_transactions') {
       final structured = await database.summarizeTransactions(query);
       return {
@@ -134,6 +220,19 @@ class LocalMoneyMcpServer {
       'isError': false,
     };
   }
+
+  int _boundedInt(dynamic value, int fallback, int minimum, int maximum) {
+    final parsed = value is num ? value.toInt() : int.tryParse('$value');
+    return (parsed ?? fallback).clamp(minimum, maximum);
+  }
+
+  Map<String, dynamic> _success(Map<String, dynamic> structured) => {
+    'content': [
+      {'type': 'text', 'text': jsonEncode(structured)},
+    ],
+    'structuredContent': structured,
+    'isError': false,
+  };
 
   Future<Map<String, dynamic>> _inspectTransactionSource(
     Map<String, dynamic> arguments,
@@ -179,13 +278,55 @@ class LocalMoneyMcpServer {
           category: _requiredText(arguments, 'category'),
           date: DateTime.parse(_requiredText(arguments, 'date')),
           originalSms: '',
-          type: arguments['direction']?.toString() == 'income'
-              ? 'income'
+          type: const {'income', 'transfer'}.contains(arguments['direction'])
+              ? arguments['direction'].toString()
               : 'expense',
           tags: arguments['tags']?.toString() ?? '',
+          account: arguments['account']?.toString(),
+          counterpartyAccount: arguments['counterparty_account']?.toString(),
+          status: arguments['status']?.toString() ?? 'settled',
+          source: 'assistant',
+          notes: arguments['notes']?.toString() ?? '',
         );
         final id = await database.insertExpense(expense);
+        _undo = () async {
+          final changed = await database.deleteExpense(id) == 1;
+          return {'changed': changed, 'undid': 'create_transaction'};
+        };
         structured = {'changed': true, 'transaction_id': id};
+      } else if (name == 'create_budget') {
+        final id = await database.insertBudget(
+          Budget(
+            name: _requiredText(arguments, 'name'),
+            amount: _positiveNumber(arguments, 'amount'),
+            currency: arguments['currency']?.toString().toUpperCase() ?? 'INR',
+            category: arguments['category']?.toString(),
+            warningPercent: _boundedInt(
+              arguments['warning_percent'],
+              75,
+              25,
+              100,
+            ),
+            createdAt: DateTime.now(),
+          ),
+        );
+        _undo = () async {
+          final changed = await database.deleteBudget(id) == 1;
+          return {'changed': changed, 'undid': 'create_budget'};
+        };
+        structured = {'changed': true, 'budget_id': id};
+      } else if (name == 'delete_budget') {
+        final id = (arguments['id'] as num?)?.toInt();
+        if (id == null) throw ArgumentError('id is required');
+        final existing = await database.getBudgetById(id);
+        final deleted = await database.deleteBudget(id);
+        if (deleted == 1 && existing != null) {
+          _undo = () async {
+            await database.insertBudget(existing);
+            return {'changed': true, 'undid': 'delete_budget'};
+          };
+        }
+        structured = {'changed': deleted == 1, 'budget_id': id};
       } else if (name == 'update_transaction') {
         final id = (arguments['id'] as num?)?.toInt();
         if (id == null) throw ArgumentError('id is required');
@@ -203,14 +344,77 @@ class LocalMoneyMcpServer {
               : DateTime.parse(arguments['date'].toString()),
           type: arguments['direction']?.toString(),
           tags: arguments['tags']?.toString(),
+          account: arguments['account']?.toString(),
+          counterpartyAccount: arguments['counterparty_account']?.toString(),
+          status: arguments['status']?.toString(),
+          notes: arguments['notes']?.toString(),
         );
         await database.updateExpense(updated);
+        _undo = () async {
+          final changed = await database.updateExpense(existing) == 1;
+          return {'changed': changed, 'undid': 'update_transaction'};
+        };
         structured = {'changed': true, 'transaction_id': id};
+      } else if (name == 'bulk_update_transactions') {
+        final filter = (arguments['filter'] as Map?)?.cast<String, dynamic>();
+        final changes = (arguments['changes'] as Map?)?.cast<String, dynamic>();
+        if (filter == null || changes == null) {
+          throw ArgumentError('filter and changes are required');
+        }
+        final originals = await database.bulkUpdateExpenses(
+          TransactionQuery.fromJson(filter),
+          changes,
+        );
+        _undo = () async {
+          await database.restoreExpenses(originals);
+          return {
+            'changed': originals.isNotEmpty,
+            'undid': 'bulk_update_transactions',
+            'changed_count': originals.length,
+          };
+        };
+        structured = {
+          'changed': originals.isNotEmpty,
+          'changed_count': originals.length,
+          'applied_filter': filter,
+          'changes': changes,
+        };
+      } else if (name == 'remember_preference') {
+        final key = _requiredText(arguments, 'key');
+        final value = _requiredText(arguments, 'value');
+        await database.rememberAgentPreference(key, value);
+        _undo = () async {
+          final changed = await database.forgetAgentPreference(key) == 1;
+          return {'changed': changed, 'undid': 'remember_preference'};
+        };
+        structured = {'changed': true, 'memory_key': key, 'value': value};
+      } else if (name == 'forget_preference') {
+        final key = _requiredText(arguments, 'key');
+        final memories = await database.getAgentMemories();
+        final previous = memories.cast<Map<String, dynamic>>().where(
+          (value) => value['memory_key'] == key.trim().toLowerCase(),
+        );
+        final changed = await database.forgetAgentPreference(key) == 1;
+        if (changed && previous.isNotEmpty) {
+          final value = previous.first['value'].toString();
+          _undo = () async {
+            await database.rememberAgentPreference(key, value);
+            return {'changed': true, 'undid': 'forget_preference'};
+          };
+        }
+        structured = {'changed': changed, 'memory_key': key};
       } else {
         // delete_transaction
         final id = (arguments['id'] as num?)?.toInt();
         if (id == null) throw ArgumentError('id is required');
+        final existing = await database.getExpenseById(id);
         final deleted = await database.deleteExpense(id);
+        if (deleted == 1 && existing != null) {
+          _undo = () async {
+            await database.insertExpense(existing);
+            return {'changed': true, 'undid': 'delete_transaction'};
+          };
+        }
         structured = {'changed': deleted == 1, 'transaction_id': id};
       }
       return {
@@ -261,6 +465,10 @@ class LocalMoneyMcpServer {
     'merchant': record.displayMerchant,
     'category': record.category,
     'tags': record.tagList,
+    'account': record.account,
+    'status': record.status,
+    'source': record.source,
+    'confidence': record.confidence,
   };
 
   Map<String, dynamic> _toolError(String message) => {
@@ -304,6 +512,89 @@ class LocalMoneyMcpServer {
           'records_truncated',
           'records',
         ],
+      },
+    },
+    {
+      'name': 'spending_breakdown',
+      'title': 'Break spending into groups',
+      'description':
+          'Calculate an authoritative transaction breakdown grouped by category, merchant, day, or direction. Use this for where-money-went and ranked spending questions.',
+      'inputSchema': {
+        ..._inputSchema,
+        'properties': {
+          ...(_inputSchema['properties'] as Map),
+          'group_by': {
+            'type': 'string',
+            'enum': ['category', 'merchant', 'day', 'direction'],
+          },
+        },
+        'required': ['group_by'],
+      },
+    },
+    {
+      'name': 'compare_periods',
+      'title': 'Compare two financial periods',
+      'description':
+          'Compare authoritative income and expense totals for two explicitly bounded periods without mixing currencies.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'first': _inputSchema,
+          'second': _inputSchema,
+          'continue_with_model': {'type': 'boolean'},
+        },
+        'required': ['first', 'second'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'find_recurring_transactions',
+      'title': 'Find recurring payments',
+      'description':
+          'Detect likely recurring expenses from repeated merchant, interval, and amount patterns.',
+      'inputSchema': _daysSchema('lookback_days', 30, 365),
+    },
+    {
+      'name': 'detect_spending_anomalies',
+      'title': 'Find unusual spending',
+      'description':
+          'Find unusually large expenses relative to the user local spending distribution.',
+      'inputSchema': _daysSchema('lookback_days', 30, 365),
+    },
+    {
+      'name': 'find_duplicate_transactions',
+      'title': 'Find possible duplicate transactions',
+      'description':
+          'Find transaction pairs that likely represent the same charge. This is read-only; never delete either record automatically.',
+      'inputSchema': _daysSchema('lookback_days', 7, 365),
+    },
+    {
+      'name': 'forecast_cashflow',
+      'title': 'Forecast cash flow',
+      'description':
+          'Produce a transparent short-term cash-flow projection from trailing local income and expenses. Always describe it as an estimate.',
+      'inputSchema': _daysSchema('horizon_days', 7, 90),
+    },
+    {
+      'name': 'get_budget_status',
+      'title': 'Read budgets',
+      'description':
+          'Read current monthly budget limits and deterministic progress.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': <String, dynamic>{},
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'get_agent_memory',
+      'title': 'Read remembered preferences',
+      'description':
+          'Read preferences and goals the user explicitly asked Flow to remember.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': <String, dynamic>{},
+        'additionalProperties': false,
       },
     },
     {
@@ -351,9 +642,20 @@ class LocalMoneyMcpServer {
           'date': {'type': 'string', 'format': 'date-time'},
           'direction': {
             'type': 'string',
-            'enum': ['expense', 'income'],
+            'enum': ['expense', 'income', 'transfer'],
           },
           'tags': {'type': 'string'},
+          'account': {
+            'type': ['string', 'null'],
+          },
+          'counterparty_account': {
+            'type': ['string', 'null'],
+          },
+          'status': {
+            'type': 'string',
+            'enum': ['pending', 'settled', 'reversed'],
+          },
+          'notes': {'type': 'string'},
         },
         'required': ['amount', 'merchant', 'category', 'date', 'direction'],
         'additionalProperties': false,
@@ -375,9 +677,20 @@ class LocalMoneyMcpServer {
           'date': {'type': 'string', 'format': 'date-time'},
           'direction': {
             'type': 'string',
-            'enum': ['expense', 'income'],
+            'enum': ['expense', 'income', 'transfer'],
           },
           'tags': {'type': 'string'},
+          'account': {
+            'type': ['string', 'null'],
+          },
+          'counterparty_account': {
+            'type': ['string', 'null'],
+          },
+          'status': {
+            'type': 'string',
+            'enum': ['pending', 'settled', 'reversed'],
+          },
+          'notes': {'type': 'string'},
         },
         'required': ['id'],
         'additionalProperties': false,
@@ -397,6 +710,107 @@ class LocalMoneyMcpServer {
         'additionalProperties': false,
       },
     },
+    {
+      'name': 'bulk_update_transactions',
+      'title': 'Bulk update matching transactions',
+      'description':
+          'Update category, merchant, tags, status, or account on up to 200 filtered transactions after showing the user a preview and receiving explicit confirmation. Never use an empty filter.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'filter': _inputSchema,
+          'changes': {
+            'type': 'object',
+            'properties': {
+              'category': {'type': 'string'},
+              'merchant': {'type': 'string'},
+              'tags': {'type': 'string'},
+              'status': {
+                'type': 'string',
+                'enum': ['pending', 'settled', 'reversed'],
+              },
+              'account': {'type': 'string'},
+            },
+            'additionalProperties': false,
+          },
+        },
+        'required': ['filter', 'changes'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'create_budget',
+      'title': 'Create a monthly budget',
+      'description':
+          'Create a monthly overall or category budget after explicit user confirmation.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'name': {'type': 'string'},
+          'amount': {'type': 'number', 'exclusiveMinimum': 0},
+          'currency': {'type': 'string'},
+          'category': {
+            'type': ['string', 'null'],
+          },
+          'warning_percent': {'type': 'integer', 'minimum': 25, 'maximum': 100},
+        },
+        'required': ['name', 'amount', 'currency'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'delete_budget',
+      'title': 'Delete a budget',
+      'description': 'Delete one budget after explicit user confirmation.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'id': {'type': 'integer'},
+        },
+        'required': ['id'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'undo_last_change',
+      'title': 'Undo the last change',
+      'description':
+          'Undo the most recent reversible transaction or budget change when the user explicitly asks to undo it.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': <String, dynamic>{},
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'remember_preference',
+      'title': 'Remember a user preference',
+      'description':
+          'Persist a short preference or financial goal only when the user explicitly asks Flow to remember it and confirms.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'key': {'type': 'string'},
+          'value': {'type': 'string'},
+        },
+        'required': ['key', 'value'],
+        'additionalProperties': false,
+      },
+    },
+    {
+      'name': 'forget_preference',
+      'title': 'Forget a user preference',
+      'description':
+          'Delete one remembered preference when the user explicitly asks.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'key': {'type': 'string'},
+        },
+        'required': ['key'],
+        'additionalProperties': false,
+      },
+    },
   ];
 
   static const _appToolNames = {
@@ -407,12 +821,32 @@ class LocalMoneyMcpServer {
     'set_notification_capture',
     'set_currency',
     'set_sync_lookback',
+    'navigate_to',
   };
 
   static const _mutationToolNames = {
     'create_transaction',
     'update_transaction',
     'delete_transaction',
+    'bulk_update_transactions',
+    'remember_preference',
+    'forget_preference',
+    'create_budget',
+    'delete_budget',
+  };
+
+  static const _readToolNames = {
+    'search_transactions',
+    'summarize_transactions',
+    'spending_breakdown',
+    'compare_periods',
+    'find_recurring_transactions',
+    'detect_spending_anomalies',
+    'find_duplicate_transactions',
+    'forecast_cashflow',
+    'get_budget_status',
+    'undo_last_change',
+    'get_agent_memory',
   };
 
   static final List<Map<String, dynamic>> _appTools = [
@@ -515,6 +949,23 @@ class LocalMoneyMcpServer {
         'additionalProperties': false,
       },
     },
+    {
+      'name': 'navigate_to',
+      'title': 'Open an app destination',
+      'description':
+          'Navigate to Activity, Ask Flow, or Settings when the user asks to open that part of the app.',
+      'inputSchema': {
+        'type': 'object',
+        'properties': {
+          'destination': {
+            'type': 'string',
+            'enum': ['activity', 'ask_flow', 'settings'],
+          },
+        },
+        'required': ['destination'],
+        'additionalProperties': false,
+      },
+    },
   ];
 
   static const Map<String, dynamic> _inputSchema = {
@@ -537,7 +988,7 @@ class LocalMoneyMcpServer {
       },
       'direction': {
         'type': ['string', 'null'],
-        'enum': ['expense', 'income', null],
+        'enum': ['expense', 'income', 'transfer', null],
       },
       'currency': {
         'type': ['string', 'null'],
@@ -553,12 +1004,32 @@ class LocalMoneyMcpServer {
         'type': ['number', 'null'],
         'minimum': 0,
       },
+      'account': {
+        'type': ['string', 'null'],
+      },
+      'status': {
+        'type': ['string', 'null'],
+        'enum': ['pending', 'settled', 'reversed', null],
+      },
       'limit': {'type': 'integer', 'minimum': 1, 'maximum': 200},
       'continue_with_model': {
         'type': 'boolean',
         'description':
             'True only when records need further AI analysis or another tool call. Omit for ordinary lists and totals.',
       },
+    },
+    'additionalProperties': false,
+  };
+
+  static Map<String, dynamic> _daysSchema(
+    String field,
+    int minimum,
+    int maximum,
+  ) => {
+    'type': 'object',
+    'properties': {
+      field: {'type': 'integer', 'minimum': minimum, 'maximum': maximum},
+      'continue_with_model': {'type': 'boolean'},
     },
     'additionalProperties': false,
   };
@@ -632,12 +1103,15 @@ class LocalMoneyMcpClient implements MoneyMcpClient {
   var _nextId = 1;
   bool _initialized = false;
   Set<String> _tools = const {};
+  List<McpToolDefinition>? _definitions;
 
   @override
   Future<List<McpToolDefinition>> listTools() async {
     await _ensureInitialized();
+    final cached = _definitions;
+    if (cached != null) return cached;
     final listed = await _request('tools/list', {});
-    return (listed['tools'] as List<dynamic>? ?? const [])
+    return _definitions = (listed['tools'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map((tool) => McpToolDefinition.fromJson(tool.cast<String, dynamic>()))
         .toList();
