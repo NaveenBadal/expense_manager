@@ -1,4 +1,5 @@
 import 'package:fund_flow/agent/agent_runner.dart';
+import 'package:fund_flow/agent/agent_proposal.dart';
 import 'package:fund_flow/agent/local_mcp_server.dart';
 import 'package:fund_flow/agent/mcp_protocol.dart';
 import 'package:fund_flow/domain/preferences.dart';
@@ -157,6 +158,120 @@ void main() {
     );
     expect(result.presentation.unstructured, isFalse);
     expect(result.presentation.parts, hasLength(2));
+  });
+
+  test('briefing, anomaly and duplicate tools stay deterministic', () async {
+    final values = [
+      for (final entry in [
+        (1, 10000, DateTime(2026, 7, 1)),
+        (2, 10000, DateTime(2026, 7, 2)),
+        (3, 10000, DateTime(2026, 7, 2, 12)),
+        (4, 50000, DateTime(2026, 7, 3)),
+        (5, 50000, DateTime(2026, 7, 3, 1)),
+      ])
+        MoneyTransaction(
+          id: entry.$1,
+          amountMinor: entry.$2,
+          currency: 'INR',
+          direction: TransactionDirection.outgoing,
+          merchant: 'Calm Cafe',
+          category: 'Food',
+          occurredAt: entry.$3,
+          source: TransactionSource.message,
+        ),
+    ];
+    final advanced = LocalMcpServer(
+      transactions: () => values,
+      preferences: () => const AppPreferences(),
+    );
+    Future<Map<String, Object?>> call(String name) async =>
+        (await advanced.execute(
+          McpToolCall(
+            id: name,
+            name: name,
+            arguments: const {'from': '2026-07-01', 'to': '2026-07-31'},
+          ),
+        )).result.content;
+
+    final briefing = await call('finance_briefing');
+    final anomalies = await call('finance_anomalies');
+    final duplicates = await call('finance_duplicates');
+
+    expect(briefing['checkedCount'], 5);
+    expect(anomalies['rows'], isNotEmpty);
+    expect(duplicates['rows'], isNotEmpty);
+    expect(duplicates['method'], contains('never automatically deleted'));
+  });
+
+  test(
+    'unsupported transaction citations are rejected and recomposed',
+    () async {
+      final provider = _FakeProvider([
+        _toolTurn('finance_summary', {
+          'from': '2026-07-01',
+          'to': '2026-07-31',
+        }),
+        _toolTurn('answer_compose', {
+          'parts': [
+            {'type': 'conclusion', 'text': 'Unsupported citation.'},
+            {
+              'type': 'transactionList',
+              'transactionIds': [999],
+            },
+            {'type': 'sourceNote', 'text': 'One checked record.'},
+          ],
+        }),
+        _toolTurn('answer_compose', {
+          'parts': [
+            {'type': 'conclusion', 'text': 'Verified answer.'},
+            {
+              'type': 'transactionList',
+              'transactionIds': [7],
+            },
+            {'type': 'sourceNote', 'text': 'July; INR; one checked record.'},
+          ],
+        }),
+      ]);
+
+      final result = await AgentRunner(provider: provider, server: server).run(
+        question: 'Summarize July.',
+        now: DateTime(2026, 7, 18),
+        locale: 'en_IN',
+        timeZone: 'Asia/Kolkata',
+      );
+
+      expect(result.presentation.plainText, contains('Verified answer'));
+      expect(
+        provider.messages
+            .where((message) => message['role'] == 'tool')
+            .last['content'],
+        contains('no capability returned'),
+      );
+    },
+  );
+
+  test('durable financial memory is readable and approval gated', () async {
+    final memoryServer = LocalMcpServer(
+      transactions: () => const [],
+      preferences: () => const AppPreferences(),
+      financialMemory: () async => [
+        {'key': 'salary_account', 'value': 'HDFC 6942'},
+      ],
+    );
+    final listed = await memoryServer.execute(
+      const McpToolCall(id: 'read', name: 'memory_list', arguments: {}),
+    );
+    final proposed = await memoryServer.execute(
+      const McpToolCall(
+        id: 'write',
+        name: 'memory_set',
+        arguments: {'key': 'rent_merchant', 'value': 'Landlord'},
+      ),
+    );
+
+    expect(listed.result.content['count'], 1);
+    expect(proposed.proposal?.kind, AgentProposalKind.setMemory);
+    expect(proposed.result.content['status'], 'approval_required');
   });
 }
 

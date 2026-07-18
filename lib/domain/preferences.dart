@@ -10,7 +10,7 @@ class AppPreferences {
     this.messageLookbackDays = 30,
     this.captureNotifications = false,
     this.aiEndpoint = 'https://ollama.com',
-    this.aiModel = 'gpt-oss:20b',
+    this.aiModel = 'gpt-oss:20b-cloud',
   });
   final bool onboardingComplete;
   final AppearancePreference appearance;

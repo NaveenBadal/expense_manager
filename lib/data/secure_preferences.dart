@@ -31,7 +31,10 @@ class SecurePreferences {
       messageLookbackDays: int.tryParse(values[_lookback] ?? '') ?? 30,
       captureNotifications: values[_capture] == 'true',
       aiEndpoint: values[_endpoint] ?? 'https://ollama.com',
-      aiModel: values[_model] ?? 'gpt-oss:20b',
+      aiModel: switch (values[_model]) {
+        null || 'gpt-oss:20b' => 'gpt-oss:20b-cloud',
+        final value => value,
+      },
     );
   }
 

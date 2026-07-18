@@ -235,6 +235,7 @@ class _ConfiguredAiProvider implements AgentProvider {
     Object? role;
     var carry = '';
     var completed = false;
+    ProviderMetrics? metrics;
 
     void handleLine(String line) {
       final trimmed = line.trim();
@@ -265,7 +266,23 @@ class _ConfiguredAiProvider implements AgentProvider {
           }
         }
       }
-      if (decoded['done'] == true) completed = true;
+      if (decoded['done'] == true) {
+        completed = true;
+        final envelope = decoded;
+        int? integer(String key) {
+          final value = envelope[key];
+          return value is num ? value.toInt() : null;
+        }
+
+        metrics = ProviderMetrics(
+          totalDurationNs: integer('total_duration'),
+          loadDurationNs: integer('load_duration'),
+          promptTokens: integer('prompt_eval_count'),
+          promptDurationNs: integer('prompt_eval_duration'),
+          outputTokens: integer('eval_count'),
+          outputDurationNs: integer('eval_duration'),
+        );
+      }
     }
 
     final iterator = StreamIterator<String>(
@@ -313,7 +330,12 @@ class _ConfiguredAiProvider implements AgentProvider {
     for (var index = 0; index < rawCalls.length; index++) {
       calls.add(McpToolCall.fromProviderJson(rawCalls[index], index));
     }
-    return ProviderTurn(message: message, content: content, toolCalls: calls);
+    return ProviderTurn(
+      message: message,
+      content: content,
+      toolCalls: calls,
+      metrics: metrics,
+    );
   }
 }
 

@@ -6,6 +6,8 @@ enum AgentProposalKind {
   updateSettings,
   setAppLock,
   clearConversation,
+  setMemory,
+  deleteMemory,
 }
 
 enum AgentProposalStatus { pending, approved, rejected, expired, stale }

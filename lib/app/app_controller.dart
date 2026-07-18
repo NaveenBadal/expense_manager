@@ -750,6 +750,7 @@ class AppController extends AsyncNotifier<AppState> {
         transactions: () => _value.transactions,
         preferences: () => _value.preferences,
         conversation: () => _value.conversation,
+        financialMemory: () => ref.read(storeProvider).financialMemory(),
         updateStatus: () async {
           final updater = AppUpdater();
           try {
@@ -805,6 +806,7 @@ class AppController extends AsyncNotifier<AppState> {
       final draft = StringBuffer();
       var structuredDraft = false;
       var lastDraftPaint = DateTime.fromMillisecondsSinceEpoch(0);
+      final runStartedAt = DateTime.now();
       final result = await runner.run(
         question: trimmed,
         now: DateTime.now(),
@@ -863,6 +865,14 @@ class AppController extends AsyncNotifier<AppState> {
       );
       final messageId = await ref.read(storeProvider).addMessage(assistant);
       await ref.read(storeProvider).recordToolEvents(messageId, result.events);
+      await ref
+          .read(storeProvider)
+          .recordAgentRun(
+            conversationId: messageId,
+            model: _value.preferences.aiModel,
+            startedAt: runStartedAt,
+            result: result,
+          );
       AgentProposal? proposal;
       if (result.proposal != null) {
         proposal = await ref.read(storeProvider).saveProposal(result.proposal!);
@@ -1070,6 +1080,41 @@ class AppController extends AsyncNotifier<AppState> {
       case AgentProposalKind.clearConversation:
         await clearConversation();
         return true;
+      case AgentProposalKind.setMemory:
+        final key = arguments['key']?.toString().trim() ?? '';
+        final value = arguments['value']?.toString().trim() ?? '';
+        if (key.isEmpty ||
+            value.isEmpty ||
+            key.length > 80 ||
+            value.length > 240) {
+          return false;
+        }
+        final existing = await ref.read(storeProvider).financialMemory();
+        final previous = existing
+            .where((item) => item['key'] == key)
+            .map((item) => item['value'])
+            .firstOrNull;
+        await ref.read(storeProvider).saveUndo('restore_memory', {
+          'key': key,
+          'value': previous,
+        });
+        await ref.read(storeProvider).setFinancialMemory(key, value);
+        return true;
+      case AgentProposalKind.deleteMemory:
+        final key = arguments['key']?.toString().trim() ?? '';
+        if (key.isEmpty) return false;
+        final existing = await ref.read(storeProvider).financialMemory();
+        final previous = existing
+            .where((item) => item['key'] == key)
+            .map((item) => item['value'])
+            .firstOrNull;
+        if (previous == null) return false;
+        await ref.read(storeProvider).saveUndo('restore_memory', {
+          'key': key,
+          'value': previous,
+        });
+        await ref.read(storeProvider).deleteFinancialMemory(key);
+        return true;
     }
   }
 
@@ -1094,6 +1139,15 @@ class AppController extends AsyncNotifier<AppState> {
       await ref.read(storeProvider).consumeUndo(record.id);
     } else if (record.kind == 'restore_app_lock') {
       await setAppLock(record.payload['enabled'] as bool);
+      await ref.read(storeProvider).consumeUndo(record.id);
+    } else if (record.kind == 'restore_memory') {
+      final key = record.payload['key'].toString();
+      final value = record.payload['value'];
+      if (value == null) {
+        await ref.read(storeProvider).deleteFinancialMemory(key);
+      } else {
+        await ref.read(storeProvider).setFinancialMemory(key, value.toString());
+      }
       await ref.read(storeProvider).consumeUndo(record.id);
     } else {
       await ref.read(storeProvider).applyTransactionUndo(record);

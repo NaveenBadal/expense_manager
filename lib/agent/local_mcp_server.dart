@@ -10,6 +10,7 @@ typedef PreferencesReader = AppPreferences Function();
 typedef TransactionsReader = List<MoneyTransaction> Function();
 typedef UpdateStatusReader = Future<Map<String, Object?>> Function();
 typedef ConversationReader = List<ConversationMessage> Function();
+typedef FinancialMemoryReader = Future<List<Map<String, Object?>>> Function();
 
 class McpExecution {
   const McpExecution({required this.result, this.proposal, this.presentation});
@@ -24,15 +25,18 @@ class LocalMcpServer {
     required PreferencesReader preferences,
     UpdateStatusReader? updateStatus,
     ConversationReader? conversation,
+    FinancialMemoryReader? financialMemory,
   }) : _transactions = transactions,
        _preferences = preferences,
        _updateStatus = updateStatus,
-       _conversation = conversation;
+       _conversation = conversation,
+       _financialMemory = financialMemory;
 
   final TransactionsReader _transactions;
   final PreferencesReader _preferences;
   final UpdateStatusReader? _updateStatus;
   final ConversationReader? _conversation;
+  final FinancialMemoryReader? _financialMemory;
 
   static const _directions = ['incoming', 'outgoing'];
   static const _sources = ['message', 'notification', 'manual'];
@@ -119,6 +123,18 @@ class LocalMcpServer {
       'finance_recurring_candidates',
       'Find repeated merchants as evidence; does not assert subscriptions.',
     ),
+    _periodTool(
+      'finance_briefing',
+      'Return one deterministic financial briefing with totals, leading spending groups, review count, duplicate candidates and unusual transactions. Prefer this for broad overview questions.',
+    ),
+    _periodTool(
+      'finance_anomalies',
+      'Find unusually large transactions relative to the same merchant, currency and direction using a deterministic local baseline.',
+    ),
+    _periodTool(
+      'finance_duplicates',
+      'Find possible duplicate transactions with the same merchant, amount, currency and direction close together in time.',
+    ),
     _tool(
       'categories_list',
       'List categories currently used by normalized transactions.',
@@ -159,6 +175,28 @@ class LocalMcpServer {
         },
       ),
       McpRisk.read,
+    ),
+    _tool(
+      'memory_list',
+      'List user-approved durable financial facts and aliases. This is separate from conversation history.',
+      McpSchema.object(),
+      McpRisk.read,
+    ),
+    _proposalTool(
+      'memory_set',
+      'Propose saving or replacing one durable financial fact. Never infer or save memory without explicit user intent and approval.',
+      McpSchema.object(
+        properties: {'key': McpSchema.string(), 'value': McpSchema.string()},
+        required: ['key', 'value'],
+      ),
+    ),
+    _proposalTool(
+      'memory_delete',
+      'Propose deleting one durable financial fact by exact key.',
+      McpSchema.object(
+        properties: {'key': McpSchema.string()},
+        required: ['key'],
+      ),
     ),
     _proposalTool(
       'transactions_create',
@@ -234,6 +272,11 @@ class LocalMcpServer {
     ),
   ];
 
+  McpRisk? riskFor(String name) {
+    final matches = tools.where((tool) => tool.name == name);
+    return matches.length == 1 ? matches.single.risk : null;
+  }
+
   Future<McpExecution> execute(McpToolCall call) async {
     final definition = tools.where((tool) => tool.name == call.name);
     if (definition.length != 1) return _error(call, 'Unknown capability.');
@@ -246,12 +289,16 @@ class LocalMcpServer {
         'finance_breakdown' => _breakdown(call),
         'finance_compare' => _compare(call),
         'finance_recurring_candidates' => _recurring(call),
+        'finance_briefing' => _briefing(call),
+        'finance_anomalies' => _anomalies(call),
+        'finance_duplicates' => _duplicates(call),
         'categories_list' => _categories(call),
         'sources_status' => _sourcesStatus(call),
         'settings_get' => _settings(call),
         'privacy_boundary' => _privacy(call),
         'app_update_status' => await _update(call),
         'conversation_search' => _conversationSearch(call),
+        'memory_list' => await _memoryList(call),
         'answer_compose' => _compose(call),
         _ => _proposal(call),
       };
@@ -291,6 +338,18 @@ class LocalMcpServer {
     return _ok(call, {
       'messages': values,
     }, summary: 'Found ${values.length} conversation turns');
+  }
+
+  Future<McpExecution> _memoryList(McpToolCall call) async {
+    final values =
+        await (_financialMemory?.call() ??
+            Future.value(const <Map<String, Object?>>[]));
+    return _ok(call, {
+      'facts': values,
+      'count': values.length,
+      'policy':
+          'Only user-approved facts are stored. Chat text and provider output are never learned silently.',
+    }, summary: 'Read user-approved financial memory');
   }
 
   Future<McpExecution> _update(McpToolCall call) async {
@@ -453,6 +512,166 @@ class LocalMcpServer {
     return _ok(call, {'candidates': rows.take(20).toList()});
   }
 
+  McpExecution _briefing(McpToolCall call) {
+    final values = _filtered(call.arguments, requirePeriod: true);
+    final outgoing = values
+        .where((item) => item.direction == TransactionDirection.outgoing)
+        .toList();
+    List<Map<String, Object?>> ranked(
+      String Function(MoneyTransaction) labelOf,
+    ) {
+      final groups = <String, Map<String, (int, int)>>{};
+      for (final item in outgoing) {
+        final currencies = groups.putIfAbsent(labelOf(item), () => {});
+        final old = currencies[item.currency] ?? (0, 0);
+        currencies[item.currency] = (old.$1 + item.amountMinor, old.$2 + 1);
+      }
+      final rows =
+          <Map<String, Object?>>[
+            for (final group in groups.entries)
+              for (final currency in group.value.entries)
+                {
+                  'label': group.key,
+                  'currency': currency.key,
+                  'amountMinor': currency.value.$1,
+                  'count': currency.value.$2,
+                },
+          ]..sort(
+            (a, b) =>
+                (b['amountMinor'] as int).compareTo(a['amountMinor'] as int),
+          );
+      return rows.take(5).toList();
+    }
+
+    return _ok(call, {
+      'filters': {
+        'from': call.arguments['from'],
+        'to': call.arguments['to'],
+        if (call.arguments['currency'] != null)
+          'currency': call.arguments['currency'],
+      },
+      'checkedCount': values.length,
+      'currencies': FinanceEngine.summarize(values).map(_summaryJson).toList(),
+      'topCategories': ranked((item) => item.category),
+      'topMerchants': ranked((item) => item.merchant),
+      'needsReview': values
+          .where((item) => item.reviewState == ReviewState.needsReview)
+          .length,
+      'anomalies': _anomalyRows(values).take(8).toList(),
+      'possibleDuplicates': _duplicateRows(values).take(8).toList(),
+      'evidenceTransactionIds': values
+          .map((item) => item.id)
+          .whereType<int>()
+          .take(100)
+          .toList(),
+    }, summary: 'Built a local financial briefing');
+  }
+
+  McpExecution _anomalies(McpToolCall call) {
+    final values = _filtered(call.arguments, requirePeriod: true);
+    final rows = _anomalyRows(values);
+    return _ok(call, {
+      'method':
+          'At least 2x the median amount among 3 or more matching merchant, currency and direction transactions.',
+      'checkedCount': values.length,
+      'rows': rows.take(30).toList(),
+      'evidenceTransactionIds': rows
+          .map((row) => row['transactionId'])
+          .whereType<int>()
+          .toList(),
+    }, summary: 'Checked transactions for unusual amounts');
+  }
+
+  List<Map<String, Object?>> _anomalyRows(List<MoneyTransaction> values) {
+    final groups = <String, List<MoneyTransaction>>{};
+    for (final item in values) {
+      final key = [
+        item.merchant.toLowerCase(),
+        item.currency,
+        item.direction.name,
+      ].join('|');
+      groups.putIfAbsent(key, () => []).add(item);
+    }
+    final rows = <Map<String, Object?>>[];
+    for (final group in groups.values.where((items) => items.length >= 3)) {
+      final amounts = group.map((item) => item.amountMinor).toList()..sort();
+      final median = amounts[amounts.length ~/ 2];
+      if (median <= 0) continue;
+      for (final item in group.where(
+        (value) => value.amountMinor >= median * 2,
+      )) {
+        rows.add({
+          'transactionId': item.id,
+          'merchant': item.merchant,
+          'amountMinor': item.amountMinor,
+          'medianMinor': median,
+          'multiple': item.amountMinor / median,
+          'currency': item.currency,
+          'direction': item.direction.name,
+          'occurredAt': item.occurredAt.toIso8601String(),
+          'sampleSize': group.length,
+        });
+      }
+    }
+    rows.sort(
+      (a, b) => (b['multiple'] as double).compareTo(a['multiple'] as double),
+    );
+    return rows;
+  }
+
+  McpExecution _duplicates(McpToolCall call) {
+    final values = _filtered(call.arguments, requirePeriod: true);
+    final rows = _duplicateRows(values);
+    return _ok(call, {
+      'method':
+          'Same normalized merchant, amount, currency and direction within 48 hours. Candidates require review and are never automatically deleted.',
+      'checkedCount': values.length,
+      'rows': rows.take(30).toList(),
+      'evidenceTransactionIds': rows
+          .expand(
+            (row) => (row['transactionIds'] as List<Object?>).whereType<int>(),
+          )
+          .toSet()
+          .toList(),
+    }, summary: 'Checked transactions for possible duplicates');
+  }
+
+  List<Map<String, Object?>> _duplicateRows(List<MoneyTransaction> values) {
+    final groups = <String, List<MoneyTransaction>>{};
+    for (final item in values) {
+      final key = [
+        item.merchant.trim().toLowerCase(),
+        item.amountMinor,
+        item.currency,
+        item.direction.name,
+      ].join('|');
+      groups.putIfAbsent(key, () => []).add(item);
+    }
+    final rows = <Map<String, Object?>>[];
+    for (final group in groups.values) {
+      group.sort((a, b) => a.occurredAt.compareTo(b.occurredAt));
+      for (var index = 1; index < group.length; index++) {
+        final previous = group[index - 1];
+        final current = group[index];
+        final gap = current.occurredAt.difference(previous.occurredAt);
+        if (gap <= const Duration(hours: 48)) {
+          rows.add({
+            'merchant': current.merchant,
+            'amountMinor': current.amountMinor,
+            'currency': current.currency,
+            'direction': current.direction.name,
+            'transactionIds': [previous.id, current.id],
+            'minutesApart': gap.inMinutes,
+          });
+        }
+      }
+    }
+    rows.sort(
+      (a, b) => (a['minutesApart'] as int).compareTo(b['minutesApart'] as int),
+    );
+    return rows;
+  }
+
   McpExecution _categories(McpToolCall call) {
     final counts = <String, int>{};
     for (final item in _transactions()) {
@@ -552,6 +771,8 @@ class LocalMcpServer {
       'settings_update' => AgentProposalKind.updateSettings,
       'security_set_app_lock' => AgentProposalKind.setAppLock,
       'conversation_clear' => AgentProposalKind.clearConversation,
+      'memory_set' => AgentProposalKind.setMemory,
+      'memory_delete' => AgentProposalKind.deleteMemory,
       _ => throw const McpProtocolException('Unsupported proposal.'),
     };
     if (call.arguments.isEmpty && kind == AgentProposalKind.updateSettings) {
@@ -565,6 +786,8 @@ class LocalMcpServer {
       AgentProposalKind.updateSettings => 'Change app settings',
       AgentProposalKind.setAppLock => 'Change app lock',
       AgentProposalKind.clearConversation => 'Clear this conversation',
+      AgentProposalKind.setMemory => 'Save a financial memory',
+      AgentProposalKind.deleteMemory => 'Delete a financial memory',
     };
     final proposal = AgentProposal(
       kind: kind,

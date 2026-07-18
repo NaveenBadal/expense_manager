@@ -84,6 +84,9 @@ void main() {
         {
           'done': true,
           'message': {'role': 'assistant', 'content': ''},
+          'total_duration': 9000000,
+          'prompt_eval_count': 120,
+          'eval_count': 8,
         },
       ].map(jsonEncode).join('\n');
       final client = AiClient(
@@ -105,6 +108,9 @@ void main() {
       expect(turn.content, 'Hello');
       expect(turn.message['thinking'], 'check tools');
       expect(deltas, ['Hello']);
+      expect(turn.metrics?.totalDurationNs, 9000000);
+      expect(turn.metrics?.promptTokens, 120);
+      expect(turn.metrics?.outputTokens, 8);
     },
   );
 

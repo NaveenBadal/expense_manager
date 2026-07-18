@@ -1,8 +1,12 @@
 import 'package:fund_flow/domain/finance_summary.dart';
+import 'package:fund_flow/domain/preferences.dart';
 import 'package:fund_flow/domain/transaction.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('AI-first default uses the intended Ollama cloud model', () {
+    expect(const AppPreferences().aiModel, 'gpt-oss:20b-cloud');
+  });
   test('finance engine never combines currencies', () {
     final now = DateTime(2026, 7, 18);
     final values = [

@@ -14,7 +14,7 @@ import '../ingestion/message_candidate.dart';
 class FundFlowStore {
   FundFlowStore({Database? database}) : _database = database;
   Database? _database;
-  static const schemaVersion = 3;
+  static const schemaVersion = 5;
 
   Future<Database> get database async => _database ??= await openDatabase(
     path.join(await getDatabasesPath(), 'fund_flow_greenfield.db'),
@@ -44,6 +44,8 @@ class FundFlowStore {
         payload TEXT NOT NULL, created_at TEXT NOT NULL)''');
       await _createAgentTables(db);
       await _createImportAuditTables(db);
+      await _createAgentTelemetryTable(db);
+      await _createFinancialMemoryTable(db);
     },
     onUpgrade: (db, oldVersion, _) async {
       if (oldVersion < 2) {
@@ -56,6 +58,8 @@ class FundFlowStore {
         await _createAgentTables(db);
       }
       if (oldVersion < 3) await _createImportAuditTables(db);
+      if (oldVersion < 4) await _createAgentTelemetryTable(db);
+      if (oldVersion < 5) await _createFinancialMemoryTable(db);
     },
   );
 
@@ -93,6 +97,20 @@ class FundFlowStore {
     await db.execute(
       'CREATE INDEX IF NOT EXISTS import_items_run ON import_items(run_id)',
     );
+  }
+
+  static Future<void> _createAgentTelemetryTable(Database db) async {
+    await db.execute('''CREATE TABLE IF NOT EXISTS agent_runs(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id INTEGER,
+      model TEXT NOT NULL, started_at TEXT NOT NULL,
+      elapsed_ms INTEGER NOT NULL, turns INTEGER NOT NULL, calls INTEGER NOT NULL,
+      prompt_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
+      provider_duration_ms INTEGER NOT NULL, metrics_json TEXT NOT NULL)''');
+  }
+
+  static Future<void> _createFinancialMemoryTable(Database db) async {
+    await db.execute('''CREATE TABLE IF NOT EXISTS financial_memory(
+      key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL)''');
   }
 
   Future<List<MoneyTransaction>> transactions() async {
@@ -147,6 +165,72 @@ class FundFlowStore {
       });
     }
     await batch.commit(noResult: true);
+  }
+
+  Future<void> recordAgentRun({
+    required int conversationId,
+    required String model,
+    required DateTime startedAt,
+    required AgentRunResult result,
+  }) async {
+    final promptTokens = result.metrics.fold<int>(
+      0,
+      (sum, value) => sum + (value.promptTokens ?? 0),
+    );
+    final outputTokens = result.metrics.fold<int>(
+      0,
+      (sum, value) => sum + (value.outputTokens ?? 0),
+    );
+    final providerDurationNs = result.metrics.fold<int>(
+      0,
+      (sum, value) => sum + (value.totalDurationNs ?? 0),
+    );
+    await (await database).insert('agent_runs', {
+      'conversation_id': conversationId,
+      'model': model,
+      'started_at': startedAt.toUtc().toIso8601String(),
+      'elapsed_ms': result.elapsed.inMilliseconds,
+      'turns': result.turns,
+      'calls': result.calls,
+      'prompt_tokens': promptTokens,
+      'output_tokens': outputTokens,
+      'provider_duration_ms': providerDurationNs ~/ 1000000,
+      'metrics_json': jsonEncode(
+        result.metrics.map((value) => value.toJson()).toList(),
+      ),
+    });
+  }
+
+  Future<List<Map<String, Object?>>> financialMemory() async {
+    final rows = await (await database).query(
+      'financial_memory',
+      orderBy: 'key ASC',
+    );
+    return rows
+        .map(
+          (row) => <String, Object?>{
+            'key': row['key'],
+            'value': row['value'],
+            'updatedAt': row['updated_at'],
+          },
+        )
+        .toList();
+  }
+
+  Future<void> setFinancialMemory(String key, String value) async {
+    await (await database).insert('financial_memory', {
+      'key': key.trim(),
+      'value': value.trim(),
+      'updated_at': DateTime.now().toUtc().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<void> deleteFinancialMemory(String key) async {
+    await (await database).delete(
+      'financial_memory',
+      where: 'key = ?',
+      whereArgs: [key.trim()],
+    );
   }
 
   Future<AgentProposal> saveProposal(AgentProposal value) async {
