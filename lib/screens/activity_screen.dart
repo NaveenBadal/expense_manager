@@ -10,6 +10,7 @@ import '../flow_os/foundation/flow_color.dart';
 import '../flow_os/primitives/coordinate_label.dart';
 import '../flow_os/primitives/cut_surface.dart';
 import '../flow_os/primitives/loom_mark.dart';
+import '../flow_os/ingestion/evidence_consent_sheet.dart';
 import '../providers/expense_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_tokens.dart';
@@ -363,25 +364,11 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     final status = await Permission.sms.status;
     if (!status.isGranted && mounted) {
       final proceed =
-          await showDialog<bool>(
+          await showModalBottomSheet<bool>(
             context: context,
-            builder: (context) => AlertDialog(
-              icon: const Icon(Icons.sms_outlined),
-              title: const Text('Import bank messages?'),
-              content: const Text(
-                'Flow scans recent SMS on this device for supported transaction messages. Other conversations are ignored. Transaction messages are sent to your configured AI only when you start an import.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Not now'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Continue'),
-                ),
-              ],
-            ),
+            isScrollControlled: true,
+            backgroundColor: FlowColor.canvas(context),
+            builder: (_) => const EvidenceConsentSheet(),
           ) ??
           false;
       if (!proceed) return;
@@ -612,30 +599,18 @@ class _SmsSyncCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final idle = state.phase == SyncPhase.idle;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    return AnimatedSwitcher(
-      duration: reduceMotion ? Duration.zero : AppMotion.medium,
-      switchInCurve: AppMotion.emphasizedDecelerate,
-      transitionBuilder: (child, animation) => SizeTransition(
-        sizeFactor: animation,
-        alignment: Alignment.topCenter,
-        child: FadeTransition(opacity: animation, child: child),
-      ),
-      child: idle
-          ? _CompactSync(
-              key: const ValueKey('idle'),
-              onSync: setupRequired ? onSetup : onSync,
-              setupRequired: setupRequired,
-            )
-          : _ActiveSync(
-              key: const ValueKey('active'),
-              state: state,
-              active: _active,
-              onSync: onSync,
-              onStop: onStop,
-              onSetup: onSetup,
-            ),
-    );
+    return idle
+        ? _CompactSync(
+            onSync: setupRequired ? onSetup : onSync,
+            setupRequired: setupRequired,
+          )
+        : _ActiveSync(
+            state: state,
+            active: _active,
+            onSync: onSync,
+            onStop: onStop,
+            onSetup: onSetup,
+          );
   }
 }
 
@@ -644,55 +619,35 @@ class _FirstRunOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(28),
-          topRight: Radius.circular(64),
-          bottomLeft: Radius.circular(64),
-          bottomRight: Radius.circular(36),
-        ),
-        boxShadow: PremiumShadows.ambient(context, color: scheme.primary),
-      ),
-      child: Material(
-        color: scheme.primaryContainer,
-        shape: ExpressiveShape.hero(),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 30),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: scheme.onPrimaryContainer.withValues(alpha: .1),
-                  borderRadius: AppRadius.all(AppRadius.lg),
-                ),
-                child: Icon(
-                  Icons.insights_rounded,
-                  color: scheme.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Your money,\none clear timeline',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: scheme.onPrimaryContainer,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Connect transaction SMS in Flow. Imported records and anything needing review will appear here as evidence.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: scheme.onPrimaryContainer.withValues(alpha: .78),
-                ),
-              ),
-            ],
+    return CutSurface(
+      cut: 18,
+      color: FlowColor.plane(context),
+      accent: FlowColor.proof,
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const LoomMark(size: 52, state: LoomState.offline),
+          const SizedBox(height: 20),
+          const CoordinateLabel('PROOF / UNCOMMISSIONED'),
+          const SizedBox(height: 8),
+          Text(
+            'NO EVIDENCE\nFIELD YET.',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: FlowColor.content(context),
+              fontWeight: FontWeight.w900,
+              height: 1,
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          Text(
+            'Open the transaction-message channel. Flow will turn supported signals into a local, reviewable proof timeline.',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: FlowColor.quiet(context),
+              height: 1.45,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -700,48 +655,54 @@ class _FirstRunOverview extends StatelessWidget {
 
 /// Slim, unobtrusive sync affordance shown when no sync is running.
 class _CompactSync extends StatelessWidget {
-  const _CompactSync({
-    super.key,
-    required this.onSync,
-    required this.setupRequired,
-  });
+  const _CompactSync({required this.onSync, required this.setupRequired});
   final VoidCallback onSync;
   final bool setupRequired;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return CalmPress(
-      onTap: onSync,
-      borderRadius: BorderRadius.circular(AppRadius.xl),
-      child: Ink(
-        color: scheme.surfaceContainer,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+    return Semantics(
+      button: true,
+      label: setupRequired ? 'Set up SMS evidence' : 'Sync SMS evidence',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onSync,
+        child: CutSurface(
+          cut: 10,
+          color: FlowColor.plane(context),
+          accent: FlowColor.proof,
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
           child: Row(
             children: [
-              Icon(Icons.sms_outlined, size: 20, color: scheme.primary),
+              const LoomMark(size: 34, state: LoomState.offline),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  setupRequired
-                      ? 'Set up bank SMS import'
-                      : 'Sync bank SMS for new transactions',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const CoordinateLabel('INGEST / SMS'),
+                    const SizedBox(height: 3),
+                    Text(
+                      setupRequired
+                          ? 'Attach intelligence first'
+                          : 'Refresh the evidence field',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: FlowColor.content(context),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              FilledButton.tonalIcon(
-                onPressed: onSync,
-                icon: Icon(
-                  setupRequired
-                      ? Icons.arrow_forward_rounded
-                      : Icons.sync_rounded,
-                  size: 18,
+              const Text(
+                'OPEN →',
+                style: TextStyle(
+                  color: FlowColor.proof,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .7,
                 ),
-                label: Text(setupRequired ? 'Set up' : 'Sync'),
               ),
             ],
           ),
@@ -754,7 +715,6 @@ class _CompactSync extends StatelessWidget {
 /// Full expressive card shown while syncing, or after completion / error.
 class _ActiveSync extends StatelessWidget {
   const _ActiveSync({
-    super.key,
     required this.state,
     required this.active,
     required this.onSync,
@@ -769,7 +729,6 @@ class _ActiveSync extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final error = state.phase == SyncPhase.error;
     final complete = state.phase == SyncPhase.complete;
     final progress = state.total > 0
@@ -787,76 +746,87 @@ class _ActiveSync extends StatelessWidget {
         ? state.errorMessage ?? 'Could not sync messages.'
         : state.detail ?? 'Working through your recent messages.';
 
-    return Material(
-      color: error
-          ? context.finance.warningSurface
-          : complete
-          ? scheme.tertiaryContainer
-          : scheme.secondaryContainer,
-      shape: ExpressiveShape.card(),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: scheme.surface.withValues(alpha: .75),
-                  child: Icon(
-                    complete
-                        ? Icons.check_rounded
-                        : error
-                        ? Icons.sms_failed_outlined
-                        : Icons.sms_outlined,
-                    color: error ? context.finance.warning : scheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        detail,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (active)
-                  IconButton.filledTonal(
-                    tooltip: 'Stop SMS sync',
-                    onPressed: onStop,
-                    icon: const Icon(Icons.stop_rounded),
-                  )
-                else
-                  FilledButton.tonalIcon(
-                    onPressed: error ? onSetup : onSync,
-                    icon: Icon(
-                      error ? Icons.arrow_forward_rounded : Icons.sync_rounded,
+    final signal = error
+        ? FlowColor.amber
+        : complete
+        ? FlowColor.mint
+        : FlowColor.proof;
+    return CutSurface(
+      cut: 11,
+      color: FlowColor.plane(context),
+      accent: signal,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              LoomMark(
+                size: 38,
+                state: error
+                    ? LoomState.review
+                    : complete
+                    ? LoomState.proven
+                    : LoomState.checking,
+                progress: progress,
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CoordinateLabel(
+                      active ? 'INGEST / ACTIVE' : 'INGEST / RESULT',
+                      color: signal,
                     ),
-                    label: Text(error ? 'Set up' : 'Again'),
-                  ),
-              ],
-            ),
-            if (active) ...[
-              if (progress != null) ...[
-                const SizedBox(height: 14),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.pill),
-                  child: LinearProgressIndicator(value: progress, minHeight: 6),
+                    const SizedBox(height: 3),
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: FlowColor.content(context),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      detail,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: FlowColor.quiet(context),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
+              const SizedBox(width: 8),
+              _ProofTextAction(
+                label: active
+                    ? 'STOP'
+                    : error
+                    ? 'SET UP'
+                    : 'AGAIN',
+                onTap: active
+                    ? onStop
+                    : error
+                    ? onSetup
+                    : onSync,
+              ),
             ],
+          ),
+          if (active && progress != null) ...[
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) => Stack(
+                children: [
+                  Container(height: 5, color: FlowColor.raised(context)),
+                  Container(
+                    width: constraints.maxWidth * progress,
+                    height: 5,
+                    color: FlowColor.proof,
+                  ),
+                ],
+              ),
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
