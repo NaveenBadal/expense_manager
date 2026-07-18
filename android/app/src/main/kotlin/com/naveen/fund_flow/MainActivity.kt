@@ -1,4 +1,4 @@
-package com.naveen.expense_manager.expense_manager
+package com.naveen.fund_flow
 
 import android.content.Intent
 import android.provider.Settings

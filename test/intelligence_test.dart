@@ -1,4 +1,4 @@
-import 'package:expense_manager/intelligence/ai_client.dart';
+import 'package:fund_flow/intelligence/ai_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

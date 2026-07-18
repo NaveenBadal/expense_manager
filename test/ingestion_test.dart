@@ -1,5 +1,5 @@
-import 'package:expense_manager/ingestion/local_message_parser.dart';
-import 'package:expense_manager/ingestion/message_candidate.dart';
+import 'package:fund_flow/ingestion/local_message_parser.dart';
+import 'package:fund_flow/ingestion/message_candidate.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

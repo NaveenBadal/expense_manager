@@ -1,8 +1,8 @@
-import 'package:expense_manager/ui/components/current_field.dart';
-import 'package:expense_manager/ui/components/current_button.dart';
-import 'package:expense_manager/ui/components/current_sheet.dart';
-import 'package:expense_manager/ui/foundation/current_theme.dart';
-import 'package:expense_manager/ui/layout/current_shell.dart';
+import 'package:fund_flow/ui/components/current_field.dart';
+import 'package:fund_flow/ui/components/current_button.dart';
+import 'package:fund_flow/ui/components/current_sheet.dart';
+import 'package:fund_flow/ui/foundation/current_theme.dart';
+import 'package:fund_flow/ui/layout/current_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

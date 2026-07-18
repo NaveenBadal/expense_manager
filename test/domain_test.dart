@@ -1,5 +1,5 @@
-import 'package:expense_manager/domain/finance_summary.dart';
-import 'package:expense_manager/domain/transaction.dart';
+import 'package:fund_flow/domain/finance_summary.dart';
+import 'package:fund_flow/domain/transaction.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
