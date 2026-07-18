@@ -79,9 +79,7 @@ class YouScreen extends ConsumerWidget {
                       trailing: CurrentSwitch(
                         value: app.preferences.captureNotifications,
                         label: 'Automatic notification capture',
-                        onChanged: (v) => controller.updatePreferences(
-                          app.preferences.copyWith(captureNotifications: v),
-                        ),
+                        onChanged: controller.setNotificationCapture,
                       ),
                     ),
                   ],

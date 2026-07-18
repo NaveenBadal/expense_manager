@@ -10,6 +10,7 @@ import '../domain/finance_summary.dart';
 import '../domain/preferences.dart';
 import '../domain/transaction.dart';
 import '../ingestion/local_message_parser.dart';
+import '../ingestion/notification_source.dart';
 import '../ingestion/sms_source.dart';
 import '../intelligence/ai_client.dart';
 import 'app_state.dart';
@@ -23,6 +24,9 @@ final securePreferencesProvider = Provider(
   (ref) => const SecurePreferences(FlutterSecureStorage()),
 );
 final smsSourceProvider = Provider((ref) => SmsSource());
+final notificationSourceProvider = Provider(
+  (ref) => const NotificationSource(),
+);
 final aiClientProvider = Provider((ref) {
   final client = AiClient();
   ref.onDispose(client.close);
@@ -44,9 +48,13 @@ class AppController extends AsyncNotifier<AppState> {
       store.transactions(),
       store.conversation(),
     ]);
+    var transactions = values[0] as List<MoneyTransaction>;
+    if (prefs.captureNotifications) {
+      transactions = await _drainNotifications(transactions);
+    }
     return AppState(
       preferences: prefs,
-      transactions: values[0] as List<MoneyTransaction>,
+      transactions: transactions,
       conversation: values[1] as List<ConversationMessage>,
       aiConnection: key.isEmpty
           ? AiConnection.disconnected
@@ -69,6 +77,64 @@ class AppController extends AsyncNotifier<AppState> {
       _value.copyWith(preferences: prefs, locked: false, clearError: true),
     );
     return true;
+  }
+
+  Future<bool> setNotificationCapture(bool enabled) async {
+    final source = ref.read(notificationSourceProvider);
+    if (enabled && !await source.hasAccess()) {
+      await source.openAccessSettings();
+      state = AsyncData(
+        _value.copyWith(
+          error:
+              'Allow Fund Flow notification access, then turn capture on again.',
+        ),
+      );
+      return false;
+    }
+    await source.setEnabled(enabled);
+    final prefs = _value.preferences.copyWith(captureNotifications: enabled);
+    await ref.read(securePreferencesProvider).write(prefs);
+    var transactions = _value.transactions;
+    if (enabled) transactions = await _drainNotifications(transactions);
+    state = AsyncData(
+      _value.copyWith(
+        preferences: prefs,
+        transactions: transactions,
+        clearError: true,
+      ),
+    );
+    return true;
+  }
+
+  Future<List<MoneyTransaction>> _drainNotifications(
+    List<MoneyTransaction> existing,
+  ) async {
+    try {
+      final source = ref.read(notificationSourceProvider);
+      final pending = await source.pending();
+      final known = existing
+          .map((value) => value.sourceText)
+          .whereType<String>()
+          .toSet();
+      final acknowledged = <String>[];
+      final parser = LocalMessageParser();
+      for (final item in pending) {
+        final parsed = parser.parse(item.candidate);
+        if (parsed != null && !known.contains(parsed.sourceText)) {
+          await ref
+              .read(storeProvider)
+              .saveTransaction(
+                parsed.copyWith(source: TransactionSource.notification),
+              );
+          known.add(parsed.sourceText!);
+        }
+        acknowledged.add(item.id);
+      }
+      await source.acknowledge(acknowledged);
+      return ref.read(storeProvider).transactions();
+    } catch (_) {
+      return existing;
+    }
   }
 
   void lock() {
