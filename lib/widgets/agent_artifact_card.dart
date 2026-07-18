@@ -192,10 +192,7 @@ class AgentArtifactCard extends StatelessWidget {
                 value: formatAmount(total, item['currency']?.toString() ?? ''),
               ),
               const SizedBox(height: 6),
-              LinearProgressIndicator(
-                value: maximum == 0 ? 0 : total / maximum,
-                borderRadius: BorderRadius.circular(999),
-              ),
+              _ProofBar(value: maximum == 0 ? 0 : total / maximum),
             ],
           ),
         );
@@ -288,7 +285,7 @@ class AgentArtifactCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                LinearProgressIndicator(value: (used / 100).clamp(0, 1)),
+                _ProofBar(value: (used / 100).clamp(0, 1)),
               ],
             ),
           );
@@ -339,6 +336,25 @@ class AgentArtifactCard extends StatelessWidget {
     final parsed = DateTime.tryParse(value?.toString() ?? '');
     return parsed == null ? null : DateFormat('d MMM · h:mm a').format(parsed);
   }
+}
+
+class _ProofBar extends StatelessWidget {
+  const _ProofBar({required this.value});
+  final double value;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Stack(
+      children: [
+        Container(height: 3, color: FlowColor.rule(context)),
+        Container(
+          height: 3,
+          width: constraints.maxWidth * value.clamp(0, 1),
+          color: FlowColor.proof,
+        ),
+      ],
+    ),
+  );
 }
 
 class _ResultRow extends StatelessWidget {

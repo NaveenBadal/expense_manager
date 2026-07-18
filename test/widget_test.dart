@@ -5,6 +5,7 @@ import 'package:expense_manager/flow_os/shell/command_column.dart';
 import 'package:expense_manager/flow_os/ingestion/evidence_consent_sheet.dart';
 import 'package:expense_manager/flow_os/agent/decision_sheet.dart';
 import 'package:expense_manager/widgets/ui/flow_ui.dart';
+import 'package:expense_manager/flow_os/system/system_components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -251,6 +252,43 @@ void main() {
 
     expect(find.text('IMPORT HISTORY'), findsOneWidget);
     expect(find.text('No evidence yet'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('binary rail keeps complete labels at 200% text', (tester) async {
+    tester.view.physicalSize = const Size(320, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(null),
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 720),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: Scaffold(
+            body: SystemNode(
+              code: 'PR-03',
+              title: 'Amount visibility',
+              detail: 'Values visible throughout the interface',
+              control: BinaryRail(
+                value: true,
+                offLabel: 'VEIL',
+                onLabel: 'SHOW',
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('VEIL'), findsOneWidget);
+    expect(find.text('SHOW'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

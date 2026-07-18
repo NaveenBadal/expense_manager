@@ -230,16 +230,20 @@ class _BinaryPort extends StatelessWidget {
     behavior: HitTestBehavior.opaque,
     onTap: onTap,
     child: Container(
-      constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+      width: 56,
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
       alignment: Alignment.center,
       color: selected ? FlowColor.loom : FlowColor.raised(context),
       child: Text(
         label,
+        maxLines: 1,
+        overflow: TextOverflow.visible,
         style: TextStyle(
           color: selected ? Colors.white : FlowColor.quiet(context),
           fontSize: 8,
           fontWeight: FontWeight.w900,
-          letterSpacing: .6,
+          letterSpacing: .25,
         ),
       ),
     ),
