@@ -1,4 +1,6 @@
 import 'dart:convert';
+import '../agent/agent_runner.dart';
+import '../agent/mcp_protocol.dart';
 import 'package:http/http.dart' as http;
 
 class AiClient {
@@ -79,7 +81,81 @@ class AiClient {
     return AiReply.parse(text);
   }
 
+  AgentProvider configured({
+    required String endpoint,
+    required String apiKey,
+    required String model,
+  }) => _ConfiguredAiProvider(
+    client: _client,
+    uri: _uri(endpoint),
+    apiKey: apiKey,
+    model: model,
+  );
+
   void close() => _client.close();
+}
+
+class _ConfiguredAiProvider implements AgentProvider {
+  const _ConfiguredAiProvider({
+    required http.Client client,
+    required Uri uri,
+    required String apiKey,
+    required String model,
+  }) : _client = client,
+       _uri = uri,
+       _apiKey = apiKey,
+       _model = model;
+
+  final http.Client _client;
+  final Uri _uri;
+  final String _apiKey;
+  final String _model;
+
+  @override
+  Future<ProviderTurn> nextTurn({
+    required List<Map<String, Object?>> messages,
+    required List<McpToolDefinition> tools,
+  }) async {
+    final response = await _client
+        .post(
+          _uri,
+          headers: {
+            'Authorization': 'Bearer $_apiKey',
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'model': _model,
+            'stream': false,
+            'messages': messages,
+            'tools': tools.map((tool) => tool.toProviderJson()).toList(),
+          }),
+        )
+        .timeout(const Duration(seconds: 45));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AiRequestFailure(response.statusCode);
+    }
+    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+    final rawMessage = decoded['message'];
+    if (rawMessage is! Map) throw const FormatException('Missing AI message');
+    final message = Map<String, Object?>.from(rawMessage);
+    final rawCalls = message['tool_calls'];
+    final calls = <McpToolCall>[];
+    if (rawCalls is List) {
+      for (var index = 0; index < rawCalls.length; index++) {
+        calls.add(
+          McpToolCall.fromProviderJson(
+            Map<Object?, Object?>.from(rawCalls[index] as Map),
+            index,
+          ),
+        );
+      }
+    }
+    return ProviderTurn(
+      message: message,
+      content: message['content']?.toString() ?? '',
+      toolCalls: calls,
+    );
+  }
 }
 
 class AiReply {
