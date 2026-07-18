@@ -9,7 +9,6 @@ import '../flow_os/primitives/loom_mark.dart';
 import '../models/ai_provider.dart';
 import '../providers/expense_provider.dart';
 import '../services/ollama_cloud_service.dart';
-import '../theme/app_theme.dart';
 import '../theme/app_tokens.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -315,100 +314,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 }
 
-class _OnboardingSignal extends StatelessWidget {
-  const _OnboardingSignal();
-
-  @override
-  Widget build(BuildContext context) {
-    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    final details = Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'MESSAGE',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: FlowColor.quiet(context),
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 6),
-        const _SignalLine(widthFactor: .82),
-        const SizedBox(height: 7),
-        const _SignalLine(widthFactor: .58),
-        const SizedBox(height: 18),
-        Text(
-          'UNDERSTOOD AS',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: FlowColor.proof,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          '₹ 1,240  ·  FOOD',
-          style: AppTheme.money(
-            Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: FlowColor.content(context),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Ready to explore',
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: FlowColor.mint,
-            fontSize: 9,
-            fontWeight: FontWeight.w800,
-            letterSpacing: .8,
-          ),
-        ),
-      ],
-    );
-    return SizedBox(
-      height: largeText ? 520 : 224,
-      width: double.infinity,
-      child: CutSurface(
-        cut: 20,
-        color: FlowColor.plane(context),
-        accent: FlowColor.proof,
-        padding: const EdgeInsets.all(22),
-        child: largeText
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const LoomMark(size: 64, state: LoomState.proven),
-                  const SizedBox(height: 18),
-                  Expanded(child: details),
-                ],
-              )
-            : Row(
-                children: [
-                  const LoomMark(size: 86, state: LoomState.proven),
-                  const SizedBox(width: 20),
-                  Expanded(child: details),
-                ],
-              ),
-      ),
-    );
-  }
-}
-
-class _SignalLine extends StatelessWidget {
-  const _SignalLine({required this.widthFactor});
-
-  final double widthFactor;
-
-  @override
-  Widget build(BuildContext context) => FractionallySizedBox(
-    widthFactor: widthFactor,
-    child: Container(height: 7, color: FlowColor.rule(context)),
-  );
-}
-
 class _PromiseStage extends StatelessWidget {
   const _PromiseStage();
 
@@ -424,17 +329,16 @@ class _PromiseStage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _OnboardingSignal(),
-          const SizedBox(height: AppSpacing.region),
+          const SizedBox(height: AppSpacing.xxl),
           const CoordinateLabel('Welcome to Fund Flow'),
           const SizedBox(height: 10),
           Text(
             'Understand your money\nwithout the busywork.',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
               color: FlowColor.content(context),
-              fontWeight: FontWeight.w900,
-              height: .98,
-              letterSpacing: -.8,
+              fontWeight: FontWeight.w700,
+              height: 1.06,
+              letterSpacing: -.5,
             ),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -494,7 +398,7 @@ class _ConnectionStage extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'Flow needs an Ollama connection to understand messages and answer questions. Your credential is stored securely on this device.',
+            'Fund Flow needs an Ollama connection to understand messages and answer questions. Your credential is stored securely on this device.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: FlowColor.quiet(context),
               height: 1.45,
@@ -757,45 +661,43 @@ class _TrustRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: CutSurface(
-      cut: 8,
-      color: FlowColor.plane(context),
-      padding: const EdgeInsets.all(13),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            color: FlowColor.raised(context),
-            child: Icon(icon, size: 17, color: FlowColor.proof),
+    padding: const EdgeInsets.only(bottom: 18),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: FlowColor.plane(context),
+            borderRadius: BorderRadius.circular(12),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: FlowColor.content(context),
-                    fontWeight: FontWeight.w800,
-                  ),
+          child: Icon(icon, size: 17, color: FlowColor.proof),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: FlowColor.content(context),
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  body,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: FlowColor.quiet(context),
-                  ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                body,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: FlowColor.quiet(context),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }

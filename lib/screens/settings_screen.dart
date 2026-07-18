@@ -104,12 +104,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 8),
                 SystemNode(
                   code: 'EV-02',
-                  title: 'Notification continuity',
+                  title: 'Automatic capture',
                   detail: capture
                       ? ingestion.accessEnabled
-                            ? 'Listening for supported transaction signals'
+                            ? 'Listening for supported transaction alerts'
                             : 'Android access still required'
-                      : 'Optional real-time evidence channel',
+                      : 'Optionally capture new transaction alerts',
                   signal: capture ? NodeSignal.live : NodeSignal.neutral,
                   control: BinaryRail(
                     value: capture,
@@ -119,8 +119,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 8),
                 SystemNode(
                   code: 'EV-03',
-                  title: 'Evidence horizon',
-                  detail: 'How far Flow looks back when rebuilding proof',
+                  title: 'Message history',
+                  detail: 'How far back to check for transactions',
                   signal: NodeSignal.private,
                   control: StepRail(
                     value: '${_lookback}D',
@@ -138,7 +138,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 SystemNode(
                   code: 'PR-01',
                   title: 'Device authentication',
-                  detail: 'Guard Flow whenever the application opens',
+                  detail: 'Require authentication when the app opens',
                   signal: locked ? NodeSignal.live : NodeSignal.neutral,
                   control: BinaryRail(
                     value: locked,
@@ -150,8 +150,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: 8),
                 SystemNode(
                   code: 'PR-02',
-                  title: 'Data boundary',
-                  detail: 'Inspect exactly what remains local and what leaves',
+                  title: 'Data and privacy',
+                  detail: 'See what stays local and what leaves your device',
                   signal: NodeSignal.private,
                   onTap: _showPrivacy,
                 ),
@@ -160,13 +160,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   code: 'PR-03',
                   title: 'Amount visibility',
                   detail: private
-                      ? 'Values veiled throughout the interface'
-                      : 'Values visible throughout the interface',
+                      ? 'Amounts are hidden throughout the app'
+                      : 'Amounts are visible throughout the app',
                   signal: private ? NodeSignal.private : NodeSignal.neutral,
                   control: BinaryRail(
                     value: !private,
-                    onLabel: 'SHOW',
-                    offLabel: 'VEIL',
+                    onLabel: 'Shown',
+                    offLabel: 'Hidden',
                     onChanged: (value) =>
                         ref.read(privateModeProvider.notifier).set(!value),
                   ),
@@ -175,7 +175,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 SystemNode(
                   code: 'UI-01',
                   title: 'Appearance',
-                  detail: '$themeLabel · tap to change field state',
+                  detail: '$themeLabel · tap to change',
                   onTap: () => _setTheme(switch (themeMode) {
                     ThemeMode.system => ThemeMode.dark,
                     ThemeMode.dark => ThemeMode.light,
@@ -186,28 +186,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 SystemNode(
                   code: 'MO-01',
                   title: 'Primary currency',
-                  detail: '$_currency · fallback when evidence has no currency',
+                  detail:
+                      '$_currency · used when a transaction has no currency',
                   onTap: _showMoneyPreferences,
                 ),
                 const SystemSectionLabel('Advanced'),
                 SystemNode(
                   code: 'DX-01',
                   title: 'Import history',
-                  detail: 'Trace each ingestion and extraction decision',
+                  detail: 'See how imported messages were understood',
                   onTap: () => _push(const AuditScreen()),
                 ),
                 const SizedBox(height: 8),
                 SystemNode(
                   code: 'DX-02',
                   title: 'Category library',
-                  detail: 'Control the language used to organize evidence',
+                  detail: 'Choose how transactions are organized',
                   onTap: () => _push(const CustomCategoriesScreen()),
                 ),
                 const SizedBox(height: 8),
                 SystemNode(
                   code: 'DX-03',
                   title: 'AI activity log',
-                  detail: 'Inspect local agent operations and failures',
+                  detail: 'Technical history for troubleshooting',
                   onTap: () => _push(const LogsScreen()),
                 ),
                 if (githubDevelopmentUpdatesEnabled) ...[

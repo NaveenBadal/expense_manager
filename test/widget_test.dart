@@ -287,8 +287,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('VEIL'), findsOneWidget);
     expect(find.text('SHOW'), findsOneWidget);
+    expect(find.byType(Switch), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -894,187 +894,48 @@ class _ActivationCanvas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 36, 0, 24),
+      padding: const EdgeInsets.fromLTRB(4, 54, 4, 32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CoordinateLabel('Private intelligence'),
-          const SizedBox(height: 13),
+          Icon(
+            Icons.lock_outline_rounded,
+            size: 32,
+            color: FlowColor.intelligence(context),
+          ),
+          const SizedBox(height: 20),
           Text(
-            'YOUR MONEY\nCAN EXPLAIN ITSELF.',
-            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+            'Connect intelligence to start asking.',
+            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
               color: FlowColor.content(context),
-              fontWeight: FontWeight.w900,
-              height: .98,
-              letterSpacing: -.8,
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'Flow turns transaction messages into a private evidence network, then answers questions against what it can prove.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: FlowColor.quiet(context),
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 30),
-          CutSurface(
-            cut: 18,
-            color: FlowColor.plane(context),
-            accent: FlowColor.rule(context),
-            padding: const EdgeInsets.fromLTRB(17, 18, 17, 5),
-            child: const Column(
-              children: [
-                _ActivationStep(
-                  number: '01',
-                  title: 'Attach intelligence',
-                  detail: 'Encrypted credential · controlled by you',
-                  active: true,
-                ),
-                _ActivationStep(
-                  number: '02',
-                  title: 'Open an evidence channel',
-                  detail: 'Transaction SMS only · explicit consent',
-                ),
-                _ActivationStep(
-                  number: '03',
-                  title: 'Ask. Trace. Decide.',
-                  detail: 'Every conclusion links back to local proof',
-                  last: true,
-                ),
-              ],
+              fontWeight: FontWeight.w700,
+              height: 1.08,
+              letterSpacing: -.5,
             ),
           ),
           const SizedBox(height: 14),
-          Semantics(
-            button: true,
-            label: 'Connect AI securely',
-            excludeSemantics: true,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onConnect,
-              child: CutSurface(
-                cut: 14,
-                color: FlowColor.loom,
-                accent: FlowColor.proof,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 17,
-                  vertical: 15,
-                ),
-                child: const Row(
-                  children: [
-                    LoomMark(size: 30),
-                    SizedBox(width: 13),
-                    Expanded(
-                      child: Text(
-                        'ATTACH INTELLIGENCE',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: .8,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '01 →',
-                      style: TextStyle(
-                        color: FlowColor.proof,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          Text(
+            'Fund Flow uses your configured AI provider to understand transaction messages. Your activity and conversation history stay on this device.',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: FlowColor.quiet(context),
+              height: 1.5,
             ),
           ),
-          const SizedBox(height: 11),
-          const Center(
-            child: CoordinateLabel('Nothing is analyzed without permission'),
+          const SizedBox(height: 26),
+          FilledButton.icon(
+            onPressed: onConnect,
+            icon: const Icon(Icons.link_rounded),
+            label: const Text('Connect intelligence'),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Nothing is analyzed without your permission.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: FlowColor.quiet(context)),
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ActivationStep extends StatelessWidget {
-  const _ActivationStep({
-    required this.number,
-    required this.title,
-    required this.detail,
-    this.active = false,
-    this.last = false,
-  });
-
-  final String number;
-  final String title;
-  final String detail;
-  final bool active;
-  final bool last;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = active ? FlowColor.proof : FlowColor.quiet(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 34,
-          child: Column(
-            children: [
-              Container(
-                width: 28,
-                height: 22,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: active ? FlowColor.loom : Colors.transparent,
-                  border: Border.all(color: color.withValues(alpha: .4)),
-                ),
-                child: Text(
-                  number,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: active ? Colors.white : color,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              if (!last)
-                Container(
-                  width: 2,
-                  height: 42,
-                  color: color.withValues(alpha: .22),
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 19),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: FlowColor.content(context),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  detail,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: FlowColor.quiet(context),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

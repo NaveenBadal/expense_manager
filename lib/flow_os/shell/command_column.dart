@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../foundation/flow_color.dart';
+import '../primitives/loom_mark.dart';
 
 class CommandColumn extends StatelessWidget {
   const CommandColumn({
@@ -43,11 +44,7 @@ class CommandColumn extends StatelessWidget {
                   ),
                 )
               else
-                Icon(
-                  Icons.water_rounded,
-                  color: FlowColor.intelligence(context),
-                  size: 28,
-                ),
+                const LoomMark(size: 30),
               const SizedBox(height: 36),
               for (var index = 0; index < _items.length; index++) ...[
                 _Destination(

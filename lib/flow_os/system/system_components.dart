@@ -129,7 +129,7 @@ class SystemNode extends StatelessWidget {
           if (control != null) ...[const SizedBox(width: 10), control!],
           if (control == null && onTap != null)
             Text(
-              'OPEN →',
+              'Open',
               style: TextStyle(
                 color: color,
                 fontSize: 8,
@@ -173,56 +173,20 @@ class BinaryRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
     toggled: value,
-    label: '$onLabel / $offLabel',
+    label: value ? onLabel : offLabel,
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _BinaryPort(
-          label: offLabel,
-          selected: !value,
-          onTap: () => onChanged(false),
+        Text(
+          value ? onLabel : offLabel,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: FlowColor.quiet(context),
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        _BinaryPort(
-          label: onLabel,
-          selected: value,
-          onTap: () => onChanged(true),
-        ),
+        const SizedBox(width: 6),
+        Switch(value: value, onChanged: onChanged),
       ],
-    ),
-  );
-}
-
-class _BinaryPort extends StatelessWidget {
-  const _BinaryPort({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    behavior: HitTestBehavior.opaque,
-    onTap: onTap,
-    child: Container(
-      width: 56,
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      alignment: Alignment.center,
-      color: selected ? FlowColor.loom : FlowColor.raised(context),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.visible,
-        style: TextStyle(
-          color: selected ? Colors.white : FlowColor.quiet(context),
-          fontSize: 8,
-          fontWeight: FontWeight.w900,
-          letterSpacing: .25,
-        ),
-      ),
     ),
   );
 }
@@ -242,11 +206,15 @@ class StepRail extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      _StepPort(label: '−', onTap: onDecrease),
+      _StepPort(
+        icon: Icons.remove_rounded,
+        label: 'Decrease',
+        onTap: onDecrease,
+      ),
       Container(
         constraints: const BoxConstraints(minWidth: 58, minHeight: 42),
         alignment: Alignment.center,
-        color: FlowColor.raised(context),
+        color: Colors.transparent,
         child: Text(
           value,
           style: TextStyle(
@@ -256,32 +224,21 @@ class StepRail extends StatelessWidget {
           ),
         ),
       ),
-      _StepPort(label: '+', onTap: onIncrease),
+      _StepPort(icon: Icons.add_rounded, label: 'Increase', onTap: onIncrease),
     ],
   );
 }
 
 class _StepPort extends StatelessWidget {
-  const _StepPort({required this.label, required this.onTap});
+  const _StepPort({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final IconData icon;
   final String label;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    behavior: HitTestBehavior.opaque,
-    onTap: onTap,
-    child: Container(
-      width: 42,
-      height: 42,
-      alignment: Alignment.center,
-      color: FlowColor.plane(context),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: FlowColor.content(context),
-          fontSize: 17,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    ),
-  );
+  Widget build(BuildContext context) =>
+      IconButton(tooltip: label, onPressed: onTap, icon: Icon(icon, size: 20));
 }

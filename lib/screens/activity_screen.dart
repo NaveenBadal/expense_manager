@@ -614,24 +614,21 @@ class _FirstRunOverview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CutSurface(
-      cut: 18,
-      color: FlowColor.plane(context),
-      accent: FlowColor.proof,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 24),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 36, 4, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const LoomMark(size: 52, state: LoomState.offline),
-          const SizedBox(height: 20),
+          const LoomMark(size: 40, state: LoomState.offline),
+          const SizedBox(height: 24),
           const CoordinateLabel('No activity yet'),
           const SizedBox(height: 8),
           Text(
             'Your money record\nstarts here.',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+            style: Theme.of(context).textTheme.headlineLarge?.copyWith(
               color: FlowColor.content(context),
-              fontWeight: FontWeight.w900,
-              height: 1,
+              fontWeight: FontWeight.w700,
+              height: 1.08,
             ),
           ),
           const SizedBox(height: 10),
@@ -663,11 +660,13 @@ class _CompactSync extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onSync,
-        child: CutSurface(
-          cut: 10,
-          color: FlowColor.plane(context),
-          accent: FlowColor.proof,
-          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+          decoration: BoxDecoration(
+            color: FlowColor.raised(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: FlowColor.rule(context)),
+          ),
           child: Row(
             children: [
               const LoomMark(size: 34, state: LoomState.offline),
