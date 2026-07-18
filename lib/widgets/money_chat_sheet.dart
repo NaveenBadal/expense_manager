@@ -14,6 +14,8 @@ import '../services/ollama_cloud_service.dart';
 import '../models/agent_artifact.dart';
 import '../models/assistant_message.dart';
 import '../models/transaction_query.dart';
+import '../flow_os/ask/flow_masthead.dart';
+import '../flow_os/ask/query_dock.dart';
 import '../theme/app_tokens.dart';
 import '../screens/settings_screen.dart';
 import '../utils/currency_utils.dart';
@@ -507,192 +509,195 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
         : AppSpacing.page;
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FlowOrb(
-              size: 28,
-              state: _thinking
-                  ? FlowOrbState.thinking
-                  : connected
-                  ? FlowOrbState.ready
-                  : FlowOrbState.offline,
-            ),
-            const SizedBox(width: 10),
-            const Text('Ask Flow'),
-          ],
-        ),
-        actions: [
-          _AgentStateButton(
+      body: Column(
+        children: [
+          FlowMasthead(
             connected: connected,
-            sync: sync,
-            compact: screenWidth < 380,
-            onPressed: connected ? _startSmsAnalysis : _openSettings,
+            thinking: _thinking,
+            onStatePressed: connected ? _startSmsAnalysis : _openSettings,
+            onClear: messages.isEmpty ? null : _clearConversation,
           ),
-          if (messages.isNotEmpty)
-            IconButton(
-              tooltip: 'Clear conversation',
-              onPressed: _clearConversation,
-              icon: const Icon(Icons.delete_sweep_outlined),
-            ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: FlowAtmosphere(
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(contentInset, 14, contentInset, 16),
-            child: Column(
-              children: [
-                Expanded(
-                  child: messages.isEmpty
-                      ? ListView(
-                          controller: _scrollController,
-                          children: [
-                            if (connected)
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  4,
-                                  32,
-                                  4,
-                                  26,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    FlowOrb(
-                                      size: 64,
-                                      state: connected
-                                          ? FlowOrbState.ready
-                                          : FlowOrbState.offline,
-                                    ),
-                                    const SizedBox(height: 20),
-                                    Text(
-                                      connected
-                                          ? 'What should we understand?'
-                                          : 'Connect Flow intelligence',
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.headlineSmall,
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      connected
-                                          ? 'Flow analyzes transaction messages, verifies answers against local records, and safely acts with your approval.'
-                                          : 'AI analysis is the core of Fund Flow. Connect Ollama to understand transaction SMS and ask questions about your money.',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyLarge
-                                          ?.copyWith(
-                                            color: scheme.onSurfaceVariant,
+          Expanded(
+            child: FlowAtmosphere(
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    contentInset,
+                    14,
+                    contentInset,
+                    16,
+                  ),
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: messages.isEmpty
+                            ? ListView(
+                                controller: _scrollController,
+                                children: [
+                                  if (connected)
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        4,
+                                        32,
+                                        4,
+                                        26,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          FlowOrb(
+                                            size: 64,
+                                            state: connected
+                                                ? FlowOrbState.ready
+                                                : FlowOrbState.offline,
                                           ),
+                                          const SizedBox(height: 20),
+                                          Text(
+                                            connected
+                                                ? 'What should we understand?'
+                                                : 'Connect Flow intelligence',
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.headlineSmall,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            connected
+                                                ? 'Flow analyzes transaction messages, verifies answers against local records, and safely acts with your approval.'
+                                                : 'AI analysis is the core of Fund Flow. Connect Ollama to understand transaction SMS and ask questions about your money.',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodyLarge
+                                                ?.copyWith(
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            if (!connected)
-                              _ActivationCanvas(onConnect: _openSettings),
-                            FutureBuilder<_FlowBrief>(
-                              future: _briefFuture,
-                              builder: (context, snapshot) {
-                                final brief = snapshot.data;
-                                if (brief == null || brief.transactions == 0) {
-                                  return const SizedBox.shrink();
-                                }
-                                return Column(
-                                  children: [
+                                  if (!connected)
+                                    _ActivationCanvas(onConnect: _openSettings),
+                                  FutureBuilder<_FlowBrief>(
+                                    future: _briefFuture,
+                                    builder: (context, snapshot) {
+                                      final brief = snapshot.data;
+                                      if (brief == null ||
+                                          brief.transactions == 0) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      return Column(
+                                        children: [
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              bottom: 18,
+                                            ),
+                                            child: _FinancialBriefCard(
+                                              brief: brief,
+                                              onPrompt: _ask,
+                                            ),
+                                          ),
+                                          for (final prompt in _promptsFor(
+                                            brief,
+                                          ))
+                                            _QuestionTile(
+                                              icon: prompt.$1,
+                                              label: prompt.$2,
+                                              onPressed: () => _ask(prompt.$2),
+                                            ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                  if (connected && sync.phase != SyncPhase.idle)
                                     Padding(
                                       padding: const EdgeInsets.only(
                                         bottom: 18,
                                       ),
-                                      child: _FinancialBriefCard(
-                                        brief: brief,
-                                        onPrompt: _ask,
+                                      child: _SyncStateCard(
+                                        sync: sync,
+                                        onRetry: _startSmsAnalysis,
+                                        onStop: () => ref
+                                            .read(syncProvider.notifier)
+                                            .cancel(),
                                       ),
                                     ),
-                                    for (final prompt in _promptsFor(brief))
-                                      _QuestionTile(
-                                        icon: prompt.$1,
-                                        label: prompt.$2,
-                                        onPressed: () => _ask(prompt.$2),
+                                  if (connected && sync.phase == SyncPhase.idle)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 18,
                                       ),
-                                  ],
-                                );
-                              },
-                            ),
-                            if (connected && sync.phase != SyncPhase.idle)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 18),
-                                child: _SyncStateCard(
-                                  sync: sync,
-                                  onRetry: _startSmsAnalysis,
-                                  onStop: () =>
-                                      ref.read(syncProvider.notifier).cancel(),
+                                      child: _AnalyzeMessagesCard(
+                                        onPressed: _startSmsAnalysis,
+                                      ),
+                                    ),
+                                ],
+                              )
+                            : ListView.builder(
+                                controller: _scrollController,
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
+                                padding: const EdgeInsets.only(
+                                  top: 8,
+                                  bottom: 16,
                                 ),
+                                itemCount:
+                                    messages.length +
+                                    (_thinking || _failedQuestion != null
+                                        ? 1
+                                        : 0),
+                                itemBuilder: (_, index) {
+                                  if (index == messages.length) {
+                                    if (!_thinking) {
+                                      return _RetryMessage(
+                                        onRetry: () =>
+                                            _ask(_failedQuestion, false),
+                                        detail: _failureDetail,
+                                      );
+                                    }
+                                    return _ThinkingCanvas(
+                                      stage: _stage,
+                                      streamingText: _streamingText,
+                                      onStop: _cancel,
+                                    );
+                                  }
+                                  final message = messages[index];
+                                  final artifact = AgentArtifact.decode(
+                                    message.artifactJson,
+                                  );
+                                  return _AnimatedMessage(
+                                    key: ValueKey(
+                                      message.id ??
+                                          message
+                                              .timestamp
+                                              .millisecondsSinceEpoch,
+                                    ),
+                                    child: _AnswerCanvas(
+                                      message: message,
+                                      artifact: artifact,
+                                      onPrompt: _ask,
+                                      onOpenEvidence: widget.onOpenActivity,
+                                      onCopy: () => _copyAnswer(message.text),
+                                    ),
+                                  );
+                                },
                               ),
-                            if (connected && sync.phase == SyncPhase.idle)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 18),
-                                child: _AnalyzeMessagesCard(
-                                  onPressed: _startSmsAnalysis,
-                                ),
-                              ),
-                          ],
-                        )
-                      : ListView.builder(
-                          controller: _scrollController,
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: const EdgeInsets.only(top: 8, bottom: 16),
-                          itemCount:
-                              messages.length +
-                              (_thinking || _failedQuestion != null ? 1 : 0),
-                          itemBuilder: (_, index) {
-                            if (index == messages.length) {
-                              if (!_thinking) {
-                                return _RetryMessage(
-                                  onRetry: () => _ask(_failedQuestion, false),
-                                  detail: _failureDetail,
-                                );
-                              }
-                              return _ThinkingCanvas(
-                                stage: _stage,
-                                streamingText: _streamingText,
-                                onStop: _cancel,
-                              );
-                            }
-                            final message = messages[index];
-                            final artifact = AgentArtifact.decode(
-                              message.artifactJson,
-                            );
-                            return _AnimatedMessage(
-                              key: ValueKey(
-                                message.id ??
-                                    message.timestamp.millisecondsSinceEpoch,
-                              ),
-                              child: _AnswerCanvas(
-                                message: message,
-                                artifact: artifact,
-                                onPrompt: _ask,
-                                onOpenEvidence: widget.onOpenActivity,
-                                onCopy: () => _copyAnswer(message.text),
-                              ),
-                            );
-                          },
-                        ),
+                      ),
+                      QueryDock(
+                        controller: _controller,
+                        enabled: connected && !_thinking,
+                        connected: connected,
+                        onAsk: _ask,
+                      ),
+                    ],
+                  ),
                 ),
-                _AskComposer(
-                  controller: _controller,
-                  enabled: connected && !_thinking,
-                  connected: connected,
-                  onAsk: _ask,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -755,108 +760,6 @@ class _ThinkingCanvas extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _AskComposer extends StatelessWidget {
-  const _AskComposer({
-    required this.controller,
-    required this.enabled,
-    required this.connected,
-    required this.onAsk,
-  });
-
-  final TextEditingController controller;
-  final bool enabled;
-  final bool connected;
-  final VoidCallback onAsk;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(18),
-        topRight: Radius.circular(30),
-        bottomLeft: Radius.circular(30),
-        bottomRight: Radius.circular(18),
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainer,
-          border: BorderDirectional(
-            top: BorderSide(
-              color: enabled
-                  ? FlowPalette.signalCyan.withValues(alpha: .7)
-                  : scheme.outlineVariant,
-              width: 2,
-            ),
-          ),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 7, 7, 7),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'ASK AGAINST YOUR EVIDENCE',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: enabled
-                            ? scheme.primary
-                            : scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 8,
-                        letterSpacing: .8,
-                      ),
-                    ),
-                    TextField(
-                      controller: controller,
-                      enabled: enabled,
-                      onSubmitted: (_) => onAsk(),
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.only(top: 4, right: 8),
-                        filled: false,
-                        hintText: connected
-                            ? 'What do you want to understand?'
-                            : 'Connect intelligence to ask Flow',
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
-              IconButton(
-                tooltip: 'Ask Flow',
-                onPressed: enabled ? onAsk : null,
-                style: IconButton.styleFrom(
-                  backgroundColor: enabled
-                      ? scheme.primary
-                      : scheme.surfaceContainerHighest,
-                  foregroundColor: enabled
-                      ? scheme.onPrimary
-                      : scheme.onSurfaceVariant,
-                  fixedSize: const Size(52, 52),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                icon: const Icon(Icons.arrow_upward_rounded),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1341,64 +1244,6 @@ class _QuestionTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _AgentStateButton extends StatelessWidget {
-  const _AgentStateButton({
-    required this.connected,
-    required this.sync,
-    required this.compact,
-    required this.onPressed,
-  });
-  final bool connected;
-  final SyncState sync;
-  final bool compact;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final (label, state, color) = !connected
-        ? ('Connect AI', FlowOrbState.offline, scheme.primary)
-        : switch (sync.phase) {
-            SyncPhase.requestingPermissions ||
-            SyncPhase.fetchingSms ||
-            SyncPhase.analyzing => (
-              'Syncing',
-              FlowOrbState.syncing,
-              scheme.primary,
-            ),
-            SyncPhase.error => (
-              'Needs help',
-              FlowOrbState.attention,
-              scheme.error,
-            ),
-            SyncPhase.complete => (
-              'Updated',
-              FlowOrbState.success,
-              context.finance.income,
-            ),
-            _ => ('Ready', FlowOrbState.ready, context.finance.income),
-          };
-    if (compact) {
-      return IconButton(
-        onPressed: onPressed,
-        tooltip: label,
-        icon: FlowOrb(size: 26, state: state),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
-      child: ActionChip(
-        onPressed: onPressed,
-        avatar: ExcludeSemantics(child: FlowOrb(size: 20, state: state)),
-        label: Text(label, style: TextStyle(color: color)),
-        tooltip: connected
-            ? 'Analyze transaction messages'
-            : 'Connect Flow intelligence',
       ),
     );
   }
