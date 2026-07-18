@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
+import 'flow_os/shell/command_rail.dart';
 import 'providers/expense_provider.dart';
 import 'providers/development_update_provider.dart';
 import 'providers/notification_ingestion_provider.dart';
@@ -396,9 +397,9 @@ class _AppShellState extends ConsumerState<AppShell>
         }
         return Scaffold(
           body: pages,
-          bottomNavigationBar: FlowNavigationBar(
+          bottomNavigationBar: CommandRail(
             selectedIndex: _destination,
-            onDestinationSelected: _selectDestination,
+            onSelected: _selectDestination,
           ),
         );
       },
