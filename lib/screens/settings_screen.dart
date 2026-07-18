@@ -3,6 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/ai_provider.dart';
 import '../flow_os/system/system_components.dart';
+import '../flow_os/agent/decision_sheet.dart';
+import '../flow_os/foundation/flow_color.dart';
+import '../flow_os/primitives/coordinate_label.dart';
+import '../flow_os/primitives/cut_surface.dart';
+import '../flow_os/primitives/loom_mark.dart';
 import '../providers/expense_provider.dart';
 import '../providers/notification_ingestion_provider.dart';
 import '../services/development_update_service.dart';
@@ -228,6 +233,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: FlowColor.canvas(context),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => SafeArea(
           child: SingleChildScrollView(
@@ -240,17 +246,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const FlowSheetHeader(
-                  leading: Icon(Icons.payments_outlined),
-                  title: 'Primary currency',
+                const _SystemSheetHeader(
+                  coordinate: 'MONEY / FALLBACK UNIT',
+                  title: 'PRIMARY CURRENCY',
                   description:
-                      'Used for new transactions, monthly guides, and spending limits. Existing records keep their original currency.',
+                      'Used only when new evidence has no currency. Existing records keep their original unit.',
                 ),
                 const SizedBox(height: 24),
-                DropdownButtonFormField<String>(
-                  initialValue: _currency,
-                  decoration: const InputDecoration(labelText: 'Currency'),
-                  items: [
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: [
                     for (final value in const [
                       'INR',
                       'USD',
@@ -259,24 +265,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       'SGD',
                       'AED',
                     ])
-                      DropdownMenuItem(value: value, child: Text(value)),
+                      _SystemChoicePort(
+                        label: value,
+                        selected: _currency == value,
+                        onTap: () {
+                          setState(() => _currency = value);
+                          setSheetState(() {});
+                        },
+                      ),
                   ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _currency = value);
-                    setSheetState(() {});
-                  },
                 ),
                 const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () async {
-                      await _saveCurrency();
-                      if (sheetContext.mounted) Navigator.pop(sheetContext);
-                    },
-                    child: const Text('Save currency'),
-                  ),
+                _SystemCommit(
+                  label: 'SAVE CURRENCY',
+                  onTap: () async {
+                    await _saveCurrency();
+                    if (sheetContext.mounted) Navigator.pop(sheetContext);
+                  },
                 ),
               ],
             ),
@@ -290,6 +295,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: FlowColor.canvas(context),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => SafeArea(
           child: SingleChildScrollView(
@@ -302,70 +308,89 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const FlowSheetHeader(
-                  leading: FlowOrb(size: 44),
-                  title: 'Connect Ollama Cloud',
+                const _SystemSheetHeader(
+                  coordinate: 'INTELLIGENCE / CONNECTION',
+                  title: 'ATTACH OLLAMA CLOUD',
                   description:
-                      'Used for Flow answers and transaction SMS understanding when you start them.',
+                      'This reasoning engine powers Flow answers and extracts transaction evidence when you explicitly start analysis.',
                 ),
                 const SizedBox(height: 24),
-                TextField(
-                  controller: _key,
-                  obscureText: _obscure,
-                  decoration: InputDecoration(
-                    labelText: 'API key',
-                    suffixIcon: IconButton(
-                      tooltip: _obscure ? 'Show API key' : 'Hide API key',
-                      onPressed: () {
-                        setState(() => _obscure = !_obscure);
-                        setSheetState(() {});
-                      },
-                      icon: Icon(
-                        _obscure
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
+                _SystemField(
+                  label: 'CREDENTIAL / ENCRYPTED LOCAL STORAGE',
+                  child: TextField(
+                    controller: _key,
+                    obscureText: _obscure,
+                    decoration: InputDecoration(
+                      hintText: 'Ollama API key',
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      suffixIcon: IconButton(
+                        tooltip: _obscure ? 'Show API key' : 'Hide API key',
+                        onPressed: () {
+                          setState(() => _obscure = !_obscure);
+                          setSheetState(() {});
+                        },
+                        icon: Text(_obscure ? 'SHOW' : 'HIDE'),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: _model,
-                  decoration: const InputDecoration(labelText: 'Model'),
-                  items: [
+                const SizedBox(height: 14),
+                const CoordinateLabel('MODEL / REASONING PROFILE'),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: [
                     for (final value in ollamaModelChoices)
-                      DropdownMenuItem(value: value, child: Text(value)),
+                      _SystemChoicePort(
+                        label: value,
+                        selected: _model == value,
+                        onTap: () {
+                          setState(() => _model = value);
+                          setSheetState(() {});
+                        },
+                      ),
                   ],
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _model = value);
-                    setSheetState(() {});
-                  },
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _url,
-                  keyboardType: TextInputType.url,
-                  decoration: const InputDecoration(labelText: 'Endpoint'),
+                const SizedBox(height: 14),
+                _SystemField(
+                  label: 'ENDPOINT / ADVANCED',
+                  child: TextField(
+                    controller: _url,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(
+                      hintText: 'Ollama endpoint',
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
-                        onPressed: _testing
-                            ? null
+                      child: _SystemChoicePort(
+                        label: _testing ? 'TESTING…' : 'TEST',
+                        selected: _connected,
+                        onTap: _testing
+                            ? () {}
                             : () async {
                                 await _test();
                                 setSheetState(() {});
                               },
-                        child: Text(_testing ? 'Testing…' : 'Test'),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: FilledButton(
-                        onPressed: () async {
+                      flex: 2,
+                      child: _SystemCommit(
+                        label: 'VERIFY AND SAVE',
+                        onTap: () async {
                           final valid = await _test(notify: false);
                           if (!valid) {
                             _notify(
@@ -377,7 +402,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           await _saveAi();
                           if (sheetContext.mounted) Navigator.pop(sheetContext);
                         },
-                        child: const Text('Verify and save'),
                       ),
                     ),
                   ],
@@ -405,24 +429,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _toggleCapture(bool value) async {
     if (value) {
       final proceed =
-          await showDialog<bool>(
+          await showModalBottomSheet<bool>(
             context: context,
-            builder: (context) => AlertDialog(
-              icon: const Icon(Icons.notifications_active_outlined),
-              title: const Text('Allow transaction capture?'),
-              content: const Text(
-                'Android will ask you to grant notification access. Flow keeps supported bank notification text on this device and ignores unrelated notifications.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Open Android settings'),
-                ),
-              ],
+            isScrollControlled: true,
+            backgroundColor: FlowColor.canvas(context),
+            builder: (_) => const AgentDecisionSheet(
+              title: 'Open notification channel?',
+              description:
+                  'Android will ask for notification access. Flow keeps supported transaction signals locally and ignores unrelated notifications.',
+              confirmLabel: 'Open Android settings',
+              notice:
+                  'This optional channel can be disabled from the Control Map.',
             ),
           ) ??
           false;
@@ -493,38 +510,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _showPrivacy() => showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    backgroundColor: FlowColor.canvas(context),
     builder: (context) => const SafeArea(
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(24, 4, 24, 32),
+        padding: EdgeInsets.fromLTRB(20, 8, 20, 32),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            FlowSheetHeader(
-              leading: Icon(Icons.privacy_tip_outlined),
-              title: 'Data and AI privacy',
+            _SystemSheetHeader(
+              coordinate: 'PRIVACY / DATA BOUNDARY',
+              title: 'WHERE EVIDENCE LIVES',
               description:
-                  'A clear map of what Flow processes and where your financial evidence stays.',
+                  'A precise map of what Flow processes, what the configured AI receives, and what remains on this device.',
             ),
             SizedBox(height: 24),
-            _PrivacyFact(
-              icon: Icons.sms_outlined,
+            SystemNode(
+              code: 'OUT-01',
               title: 'SMS extraction',
               detail:
                   'Selected bank SMS text is sent to your configured Ollama endpoint to extract transaction details.',
+              signal: NodeSignal.attention,
             ),
-            SizedBox(height: 20),
-            _PrivacyFact(
-              icon: Icons.chat_bubble_outline_rounded,
+            SizedBox(height: 8),
+            SystemNode(
+              code: 'OUT-02',
               title: 'Assistant questions',
               detail:
                   'Ordinary questions share only structured MCP results. Original SMS is shared only when you request re-analysis and approve it.',
+              signal: NodeSignal.private,
             ),
-            SizedBox(height: 20),
-            _PrivacyFact(
-              icon: Icons.storage_outlined,
+            SizedBox(height: 8),
+            SystemNode(
+              code: 'LOC-01',
               title: 'On this device',
               detail:
                   'Transactions, filters, settings, and verification evidence remain local unless an AI request explicitly needs them.',
+              signal: NodeSignal.live,
             ),
           ],
         ),
@@ -534,6 +555,147 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   void _push(Widget page) =>
       Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+}
+
+class _SystemSheetHeader extends StatelessWidget {
+  const _SystemSheetHeader({
+    required this.coordinate,
+    required this.title,
+    required this.description,
+  });
+  final String coordinate;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const LoomMark(size: 44),
+      const SizedBox(width: 13),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CoordinateLabel(coordinate),
+            const SizedBox(height: 5),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                color: FlowColor.content(context),
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              description,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: FlowColor.quiet(context),
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _SystemField extends StatelessWidget {
+  const _SystemField({required this.label, required this.child});
+  final String label;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => CutSurface(
+    cut: 9,
+    color: FlowColor.plane(context),
+    accent: FlowColor.rule(context),
+    padding: const EdgeInsets.fromLTRB(13, 9, 8, 5),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        CoordinateLabel(label, color: FlowColor.quiet(context)),
+        child,
+      ],
+    ),
+  );
+}
+
+class _SystemChoicePort extends StatelessWidget {
+  const _SystemChoicePort({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: label,
+    excludeSemantics: true,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 58, minHeight: 44),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? FlowColor.loom : FlowColor.plane(context),
+          border: Border.all(
+            color: selected ? FlowColor.proof : FlowColor.rule(context),
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 2,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? Colors.white : FlowColor.quiet(context),
+            fontSize: 8,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .55,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _SystemCommit extends StatelessWidget {
+  const _SystemCommit({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
+    excludeSemantics: true,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: CutSurface(
+        cut: 9,
+        color: FlowColor.loom,
+        accent: FlowColor.proof,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+        child: Center(
+          child: Text(
+            '$label →',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .7,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 // TODO(flow-loom-demolition): delete with the remaining legacy sheet helpers.
@@ -797,6 +959,7 @@ class _SettingsCard extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _PrivacyFact extends StatelessWidget {
   const _PrivacyFact({
     required this.icon,
