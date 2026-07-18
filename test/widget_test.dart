@@ -3,6 +3,7 @@ import 'package:expense_manager/widgets/ui/flow_ui.dart';
 import 'package:expense_manager/main.dart';
 import 'package:expense_manager/flow_os/primitives/loom_mark.dart';
 import 'package:expense_manager/flow_os/shell/command_rail.dart';
+import 'package:expense_manager/flow_os/shell/command_column.dart';
 import 'package:expense_manager/flow_os/ingestion/evidence_consent_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -117,6 +118,33 @@ void main() {
     expect(find.text('OPEN SMS TO FLOW?'), findsOneWidget);
     expect(find.bySemanticsLabel('KEEP CLOSED'), findsOneWidget);
     expect(find.bySemanticsLabel('OPEN CHANNEL →'), findsOneWidget);
+  });
+
+  testWidgets('Command Column stays bounded in compact and extended modes', (
+    tester,
+  ) async {
+    for (final extended in [false, true]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.dark(null),
+          home: Scaffold(
+            body: Row(
+              children: [
+                CommandColumn(
+                  selectedIndex: 1,
+                  extended: extended,
+                  onSelected: (_) {},
+                ),
+                const Expanded(child: SizedBox()),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.bySemanticsLabel('PROOF, Inspect evidence'), findsOneWidget);
+    }
   });
 
   testWidgets('Flow navigation remains bounded at 200% text', (tester) async {

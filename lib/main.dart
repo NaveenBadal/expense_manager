@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:local_auth_android/local_auth_android.dart';
 import 'flow_os/shell/command_rail.dart';
+import 'flow_os/shell/command_column.dart';
 import 'providers/expense_provider.dart';
 import 'providers/development_update_provider.dart';
 import 'providers/notification_ingestion_provider.dart';
@@ -381,10 +382,10 @@ class _AppShellState extends ConsumerState<AppShell>
           return Scaffold(
             body: Row(
               children: [
-                _FlowNavigationRail(
+                CommandColumn(
                   selectedIndex: _destination,
                   extended: constraints.maxWidth >= AppBreakpoint.extendedRail,
-                  onDestinationSelected: _selectDestination,
+                  onSelected: _selectDestination,
                 ),
                 VerticalDivider(
                   width: 1,
@@ -407,6 +408,7 @@ class _AppShellState extends ConsumerState<AppShell>
   }
 }
 
+// ignore: unused_element
 class _FlowNavigationRail extends StatelessWidget {
   const _FlowNavigationRail({
     required this.selectedIndex,
