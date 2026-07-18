@@ -29,7 +29,14 @@ class AiIngestionBatch {
     required TransactionSource source,
     required DateTime now,
   }) {
-    final payload = jsonDecode(_extractJson(content));
+    final Object? payload;
+    try {
+      payload = jsonDecode(_extractJson(content));
+    } on FormatException catch (error) {
+      throw IngestionSchemaException(
+        'The provider output was not valid JSON: ${error.message}',
+      );
+    }
     if (payload is! Map || payload['results'] is! List) {
       throw const IngestionSchemaException('Missing ingestion results.');
     }
@@ -162,13 +169,26 @@ class AiIngestionBatch {
     }
     // Extract the first balanced top-level JSON object or array, ignoring any
     // surrounding prose. Braces/brackets inside strings are skipped.
-    final balanced = _firstBalancedJson(text);
+    final balanced = _firstIngestionJson(text);
     return balanced ?? text;
   }
 
-  static String? _firstBalancedJson(String text) {
-    final start = text.indexOf(RegExp(r'[{\[]'));
-    if (start == -1) return null;
+  static String? _firstIngestionJson(String text) {
+    for (var start = 0; start < text.length; start++) {
+      if (text[start] != '{' && text[start] != '[') continue;
+      final candidate = _balancedJsonFrom(text, start);
+      if (candidate == null) continue;
+      try {
+        final decoded = jsonDecode(candidate);
+        if (decoded is Map && decoded['results'] is List) return candidate;
+      } catch (_) {
+        // Continue to the next possible JSON value in surrounding prose.
+      }
+    }
+    return null;
+  }
+
+  static String? _balancedJsonFrom(String text, int start) {
     final open = text[start];
     final close = open == '{' ? '}' : ']';
     var depth = 0;

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 enum AgentPartKind {
   conclusion,
   narrative,
@@ -70,6 +72,31 @@ class AgentPresentation {
       ),
     ],
   );
+
+  static AgentPresentation? tryFromProviderContent(String content) {
+    var text = content.trim();
+    if (text.startsWith('```')) {
+      final newline = text.indexOf('\n');
+      if (newline == -1) return null;
+      text = text.substring(newline + 1);
+      final fence = text.lastIndexOf('```');
+      if (fence != -1) text = text.substring(0, fence);
+      text = text.trim();
+    }
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is! Map ||
+          decoded.length != 1 ||
+          !decoded.containsKey('parts')) {
+        return null;
+      }
+      return AgentPresentation.fromComposeArguments(
+        Map<String, Object?>.from(decoded),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
 class AgentPresentationException implements Exception {

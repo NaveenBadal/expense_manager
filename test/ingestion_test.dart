@@ -110,6 +110,25 @@ void main() {
     );
   });
 
+  test('prose brackets before the valid envelope are ignored', () {
+    final content = jsonEncode({
+      'results': [
+        {
+          'id': candidate.fingerprint,
+          'decision': 'not_transaction',
+          'reason': 'Statement notice only.',
+        },
+      ],
+    });
+    final batch = AiIngestionBatch.parse(
+      content: 'Analysis [complete]. Result: $content',
+      candidates: [candidate],
+      source: TransactionSource.message,
+      now: DateTime(2026, 7, 18, 12),
+    );
+    expect(batch.results.single.decision, IngestionDecision.notTransaction);
+  });
+
   test('floating point money is rejected', () {
     expect(
       () => AiIngestionBatch.parse(

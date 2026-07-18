@@ -138,6 +138,26 @@ void main() {
       expect(toolMessage.single['content'], contains('updaterAvailable'));
     },
   );
+
+  test('compose JSON emitted as content remains a structured answer', () async {
+    const content =
+        '{"parts":[{"type":"conclusion","text":"Hello!"},{"type":"followUps","questions":["How can I help?"]}]}';
+    final provider = _FakeProvider([
+      const ProviderTurn(
+        message: {'role': 'assistant', 'content': content},
+        content: content,
+        toolCalls: [],
+      ),
+    ]);
+    final result = await AgentRunner(provider: provider, server: server).run(
+      question: 'Hi',
+      now: DateTime(2026, 7, 18),
+      locale: 'en_IN',
+      timeZone: 'Asia/Kolkata',
+    );
+    expect(result.presentation.unstructured, isFalse);
+    expect(result.presentation.parts, hasLength(2));
+  });
 }
 
 ProviderTurn _toolTurn(String name, Map<String, Object?> arguments) =>
@@ -169,6 +189,7 @@ class _FakeProvider implements AgentProvider {
     required List<Map<String, Object?>> messages,
     required List<McpToolDefinition> tools,
     void Function(String delta)? onContentDelta,
+    AgentCancellationToken? cancellation,
   }) async {
     this.messages
       ..clear()

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
@@ -161,8 +162,8 @@ class AppController extends AsyncNotifier<AppState> {
               batchId,
               items.map((item) => item.candidate.fingerprint),
             );
-        var requestJson = '';
-        var responseJson = '';
+        final requests = <String>[];
+        final responses = <String>[];
         late AiIngestionBatch analysis;
         try {
           analysis = await ref
@@ -174,15 +175,15 @@ class AppController extends AsyncNotifier<AppState> {
                 candidates: items.map((item) => item.candidate).toList(),
                 source: TransactionSource.notification,
                 now: DateTime.now(),
-                onRequest: (value) => requestJson = value,
-                onResponse: (value) => responseJson = value,
+                onRequest: requests.add,
+                onResponse: responses.add,
               );
           await ref
               .read(storeProvider)
-              .recordImportBatchRequest(batchId, requestJson);
+              .recordImportBatchRequest(batchId, _auditExchanges(requests));
           await ref
               .read(storeProvider)
-              .recordImportBatchResponse(batchId, responseJson);
+              .recordImportBatchResponse(batchId, _auditExchanges(responses));
           await ref
               .read(storeProvider)
               .commitIngestionBatch(
@@ -191,15 +192,15 @@ class AppController extends AsyncNotifier<AppState> {
                 batchId: batchId,
               );
         } catch (error) {
-          if (requestJson.isNotEmpty) {
+          if (requests.isNotEmpty) {
             await ref
                 .read(storeProvider)
-                .recordImportBatchRequest(batchId, requestJson);
+                .recordImportBatchRequest(batchId, _auditExchanges(requests));
           }
-          if (responseJson.isNotEmpty) {
+          if (responses.isNotEmpty) {
             await ref
                 .read(storeProvider)
-                .recordImportBatchResponse(batchId, responseJson);
+                .recordImportBatchResponse(batchId, _auditExchanges(responses));
           }
           await ref
               .read(storeProvider)
@@ -462,8 +463,8 @@ class AppController extends AsyncNotifier<AppState> {
               batchId,
               batch.map((item) => item.fingerprint),
             );
-        var requestJson = '';
-        var responseJson = '';
+        final requests = <String>[];
+        final responses = <String>[];
         late AiIngestionBatch analysis;
         try {
           analysis = await ref
@@ -475,15 +476,15 @@ class AppController extends AsyncNotifier<AppState> {
                 candidates: batch,
                 source: TransactionSource.message,
                 now: DateTime.now(),
-                onRequest: (value) => requestJson = value,
-                onResponse: (value) => responseJson = value,
+                onRequest: requests.add,
+                onResponse: responses.add,
               );
           await ref
               .read(storeProvider)
-              .recordImportBatchRequest(batchId, requestJson);
+              .recordImportBatchRequest(batchId, _auditExchanges(requests));
           await ref
               .read(storeProvider)
-              .recordImportBatchResponse(batchId, responseJson);
+              .recordImportBatchResponse(batchId, _auditExchanges(responses));
           imported += await ref
               .read(storeProvider)
               .commitIngestionBatch(
@@ -492,15 +493,15 @@ class AppController extends AsyncNotifier<AppState> {
                 batchId: batchId,
               );
         } catch (error) {
-          if (requestJson.isNotEmpty) {
+          if (requests.isNotEmpty) {
             await ref
                 .read(storeProvider)
-                .recordImportBatchRequest(batchId, requestJson);
+                .recordImportBatchRequest(batchId, _auditExchanges(requests));
           }
-          if (responseJson.isNotEmpty) {
+          if (responses.isNotEmpty) {
             await ref
                 .read(storeProvider)
-                .recordImportBatchResponse(batchId, responseJson);
+                .recordImportBatchResponse(batchId, _auditExchanges(responses));
           }
           await ref
               .read(storeProvider)
@@ -598,6 +599,22 @@ class AppController extends AsyncNotifier<AppState> {
     IngestionSchemaException(:final message) => message,
     _ => error.toString(),
   };
+
+  String _auditExchanges(List<String> values) {
+    if (values.length == 1) return values.single;
+    return jsonEncode([
+      for (var index = 0; index < values.length; index++)
+        {'attempt': index + 1, 'payload': _decodedOrText(values[index])},
+    ]);
+  }
+
+  Object _decodedOrText(String value) {
+    try {
+      return jsonDecode(value) as Object;
+    } catch (_) {
+      return value;
+    }
+  }
 
   void stopMessageImport() {
     if (!_value.importStatus.working) return;
@@ -706,6 +723,8 @@ class AppController extends AsyncNotifier<AppState> {
           )
           .toList();
       final draft = StringBuffer();
+      var structuredDraft = false;
+      var lastDraftPaint = DateTime.fromMillisecondsSinceEpoch(0);
       final result = await runner.run(
         question: trimmed,
         now: DateTime.now(),
@@ -716,6 +735,8 @@ class AppController extends AsyncNotifier<AppState> {
         onStage: (stage) {
           // Each stage begins a fresh reasoning turn; drop the prior draft.
           draft.clear();
+          structuredDraft = false;
+          lastDraftPaint = DateTime.fromMillisecondsSinceEpoch(0);
           if (state.hasValue) {
             state = AsyncData(
               _value.copyWith(askStage: stage, clearAskDraft: true),
@@ -724,8 +745,24 @@ class AppController extends AsyncNotifier<AppState> {
         },
         onContentDelta: (delta) {
           draft.write(delta);
-          if (state.hasValue) {
-            state = AsyncData(_value.copyWith(askDraft: draft.toString()));
+          final visible = draft.toString().trimLeft();
+          final becameStructured =
+              !structuredDraft &&
+              (visible.startsWith('{') || visible.startsWith('```'));
+          structuredDraft = structuredDraft || becameStructured;
+          final now = DateTime.now();
+          if (state.hasValue &&
+              (becameStructured ||
+                  (!structuredDraft &&
+                      now.difference(lastDraftPaint) >=
+                          const Duration(milliseconds: 50)))) {
+            lastDraftPaint = now;
+            state = AsyncData(
+              _value.copyWith(
+                askDraft: structuredDraft ? null : draft.toString(),
+                clearAskDraft: structuredDraft,
+              ),
+            );
           }
         },
       );

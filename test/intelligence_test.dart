@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:async';
 
+import 'package:fund_flow/agent/agent_runner.dart';
 import 'package:fund_flow/agent/mcp_protocol.dart';
 import 'package:fund_flow/intelligence/ai_client.dart';
 import 'package:fund_flow/domain/transaction.dart';
@@ -16,6 +18,7 @@ void main() {
         requestBody = jsonDecode(request.body) as Map<String, dynamic>;
         return http.Response(
           jsonEncode({
+            'done': true,
             'message': {
               'role': 'assistant',
               'content': '',
@@ -64,6 +67,91 @@ void main() {
   });
 
   test(
+    'stream preserves thinking, emits content deltas and requires done',
+    () async {
+      final chunks = [
+        {
+          'done': false,
+          'message': {'role': 'assistant', 'thinking': 'check tools'},
+        },
+        {
+          'done': false,
+          'message': {'role': 'assistant', 'content': 'Hello'},
+        },
+        {
+          'done': true,
+          'message': {'role': 'assistant', 'content': ''},
+        },
+      ].map(jsonEncode).join('\n');
+      final client = AiClient(
+        client: MockClient((_) async => http.Response(chunks, 200)),
+      );
+      addTearDown(client.close);
+      final deltas = <String>[];
+      final turn = await client
+          .configured(
+            endpoint: 'http://localhost:11434',
+            apiKey: 'secret',
+            model: 'model',
+          )
+          .nextTurn(
+            messages: const [],
+            tools: const [],
+            onContentDelta: deltas.add,
+          );
+      expect(turn.content, 'Hello');
+      expect(turn.message['thinking'], 'check tools');
+      expect(deltas, ['Hello']);
+    },
+  );
+
+  test('stop cancels an active provider stream', () async {
+    final stream = StreamController<List<int>>();
+    final client = AiClient(
+      client: MockClient.streaming(
+        (_, _) async => http.StreamedResponse(stream.stream, 200),
+      ),
+    );
+    addTearDown(client.close);
+    final token = AgentCancellationToken();
+    final future = client
+        .configured(
+          endpoint: 'http://localhost:11434',
+          apiKey: 'secret',
+          model: 'model',
+        )
+        .nextTurn(messages: const [], tools: const [], cancellation: token);
+    await Future<void>.delayed(Duration.zero);
+    token.cancel();
+    await expectLater(future, throwsA(isA<AgentRunCancelled>()));
+  });
+
+  test('truncated provider stream is rejected', () async {
+    final client = AiClient(
+      client: MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'done': false,
+            'message': {'role': 'assistant', 'content': 'Partial'},
+          }),
+          200,
+        ),
+      ),
+    );
+    addTearDown(client.close);
+    expect(
+      () => client
+          .configured(
+            endpoint: 'http://localhost:11434',
+            apiKey: 'secret',
+            model: 'model',
+          )
+          .nextTurn(messages: const [], tools: const []),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test(
     'ingestion exposes the exact safe request and raw provider response',
     () async {
       String? sent;
@@ -107,4 +195,72 @@ void main() {
       expect(returned, responseBody);
     },
   );
+
+  test('invalid ingestion output is corrected by one bounded AI retry', () async {
+    var calls = 0;
+    final candidate = MessageCandidate(
+      sender: 'Bank',
+      body: 'Sent Rs.279 to Wynk',
+      receivedAt: DateTime(2026, 7, 18),
+    );
+    final requests = <String>[];
+    final responses = <String>[];
+    final client = AiClient(
+      client: MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          return http.Response(
+            jsonEncode({
+              'message': {
+                'content':
+                    '```json\n[{"id":"${candidate.fingerprint}","amount":27900}]\n```',
+              },
+            }),
+            200,
+          );
+        }
+        return http.Response(
+          jsonEncode({
+            'message': {
+              'content': jsonEncode({
+                'results': [
+                  {
+                    'id': candidate.fingerprint,
+                    'decision': 'transaction',
+                    'reason': 'Completed outgoing transfer.',
+                    'amountMinor': 27900,
+                    'currency': 'INR',
+                    'direction': 'outgoing',
+                    'merchant': 'Wynk',
+                    'category': 'Subscription',
+                    'occurredAt': '2026-07-18T00:00:00',
+                    'confidence': 0.95,
+                  },
+                ],
+              }),
+            },
+          }),
+          200,
+        );
+      }),
+    );
+    addTearDown(client.close);
+
+    final result = await client.analyzeMessages(
+      endpoint: 'http://localhost:11434',
+      apiKey: 'secret',
+      model: 'gpt-oss:20b',
+      candidates: [candidate],
+      source: TransactionSource.message,
+      now: DateTime(2026, 7, 18, 12),
+      onRequest: requests.add,
+      onResponse: responses.add,
+    );
+
+    expect(calls, 2);
+    expect(requests, hasLength(2));
+    expect(responses, hasLength(2));
+    expect(requests.last, contains('previous output was rejected'));
+    expect(result.results.single.transaction?.amountMinor, 27900);
+  });
 }

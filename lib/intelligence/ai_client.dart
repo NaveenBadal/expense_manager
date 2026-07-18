@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import '../agent/agent_runner.dart';
 import '../agent/mcp_protocol.dart';
 import '../domain/transaction.dart';
@@ -66,47 +67,89 @@ class AiClient {
     void Function(String requestJson)? onRequest,
     void Function(String responseJson)? onResponse,
   }) async {
-    final requestBody = jsonEncode({
-      'model': model,
-      'stream': false,
-      // Reasoning models (e.g. gpt-oss) otherwise spend tens of seconds and
-      // thousands of tokens thinking before a mechanical extraction, and the
-      // reasoning trace tempts them off the required schema.
-      'think': false,
-      'format': IngestionPrompt.responseSchema,
-      'messages': [
-        {'role': 'system', 'content': IngestionPrompt.system(now)},
-        {'role': 'user', 'content': IngestionPrompt.user(candidates)},
-      ],
-    });
-    onRequest?.call(requestBody);
-    final response = await _client
-        .post(
-          _uri(endpoint),
-          headers: {
-            'Authorization': 'Bearer $apiKey',
-            'Content-Type': 'application/json',
-          },
-          body: requestBody,
-        )
-        .timeout(const Duration(seconds: 60));
-    onResponse?.call(response.body);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AiRequestFailure(response.statusCode);
+    final baseMessages = <Map<String, Object?>>[
+      {'role': 'system', 'content': IngestionPrompt.system(now)},
+      {'role': 'user', 'content': IngestionPrompt.user(candidates)},
+    ];
+    Future<String> send(List<Map<String, Object?>> messages) async {
+      final requestBody = jsonEncode({
+        'model': model,
+        'stream': false,
+        // Reasoning models (e.g. gpt-oss) otherwise spend tens of seconds and
+        // thousands of tokens thinking before a mechanical extraction, and the
+        // reasoning trace tempts them off the required schema.
+        'think': false,
+        'format': IngestionPrompt.responseSchema,
+        'messages': messages,
+      });
+      onRequest?.call(requestBody);
+      final response = await _client
+          .post(
+            _uri(endpoint),
+            headers: {
+              'Authorization': 'Bearer $apiKey',
+              'Content-Type': 'application/json',
+            },
+            body: requestBody,
+          )
+          .timeout(const Duration(seconds: 60));
+      onResponse?.call(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw AiRequestFailure(response.statusCode);
+      }
+      try {
+        final decoded = jsonDecode(response.body);
+        String? content;
+        if (decoded is Map) {
+          final message = decoded['message'];
+          if (message is Map) content = message['content']?.toString();
+        }
+        if (content == null || content.trim().isEmpty) {
+          throw const IngestionSchemaException(
+            'The provider returned no classifications.',
+          );
+        }
+        return content;
+      } on IngestionSchemaException {
+        rethrow;
+      } on FormatException {
+        throw const IngestionSchemaException(
+          'The provider response envelope was not valid JSON.',
+        );
+      }
     }
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final content = (decoded['message'] as Map?)?['content']?.toString();
-    if (content == null || content.trim().isEmpty) {
-      throw const IngestionSchemaException(
-        'The provider returned no classifications.',
+
+    final first = await send(baseMessages);
+    try {
+      return AiIngestionBatch.parse(
+        content: first,
+        candidates: candidates,
+        source: source,
+        now: now,
       );
+    } on IngestionSchemaException catch (firstError) {
+      final repaired = await send([
+        ...baseMessages,
+        {'role': 'assistant', 'content': first},
+        {
+          'role': 'user',
+          'content':
+              'Your previous output was rejected: ${firstError.message} Return the complete corrected JSON object now. Include exactly one result for every supplied id, including non-transactions. Use only the exact schema and field names from the system message.',
+        },
+      ]);
+      try {
+        return AiIngestionBatch.parse(
+          content: repaired,
+          candidates: candidates,
+          source: source,
+          now: now,
+        );
+      } on IngestionSchemaException catch (repairError) {
+        throw IngestionSchemaException(
+          'The provider failed both structured attempts. ${repairError.message}',
+        );
+      }
     }
-    return AiIngestionBatch.parse(
-      content: content,
-      candidates: candidates,
-      source: source,
-      now: now,
-    );
   }
 
   void close() => _client.close();
@@ -133,6 +176,7 @@ class _ConfiguredAiProvider implements AgentProvider {
     required List<Map<String, Object?>> messages,
     required List<McpToolDefinition> tools,
     void Function(String delta)? onContentDelta,
+    AgentCancellationToken? cancellation,
   }) async {
     final request = http.Request('POST', _uri)
       ..headers.addAll({
@@ -155,9 +199,11 @@ class _ConfiguredAiProvider implements AgentProvider {
     }
 
     final contentBuffer = StringBuffer();
+    final thinkingBuffer = StringBuffer();
     final rawCalls = <Map<Object?, Object?>>[];
     Object? role;
     var carry = '';
+    var completed = false;
 
     void handleLine(String line) {
       final trimmed = line.trim();
@@ -166,8 +212,7 @@ class _ConfiguredAiProvider implements AgentProvider {
       try {
         decoded = jsonDecode(trimmed);
       } on FormatException {
-        // Ignore keep-alive or non-JSON framing lines.
-        return;
+        throw const FormatException('Ollama returned malformed NDJSON.');
       }
       if (decoded is! Map) return;
       final rawMessage = decoded['message'];
@@ -178,6 +223,10 @@ class _ConfiguredAiProvider implements AgentProvider {
           contentBuffer.write(delta);
           onContentDelta?.call(delta);
         }
+        final thinking = rawMessage['thinking'];
+        if (thinking is String && thinking.isNotEmpty) {
+          thinkingBuffer.write(thinking);
+        }
         final calls = rawMessage['tool_calls'];
         if (calls is List) {
           for (final call in calls) {
@@ -185,37 +234,55 @@ class _ConfiguredAiProvider implements AgentProvider {
           }
         }
       }
+      if (decoded['done'] == true) completed = true;
     }
 
-    await for (final chunk
-        in streamed.stream.transform(utf8.decoder).timeout(
-          const Duration(seconds: 45),
-        )) {
-      carry += chunk;
-      var newline = carry.indexOf('\n');
-      while (newline != -1) {
-        handleLine(carry.substring(0, newline));
-        carry = carry.substring(newline + 1);
-        newline = carry.indexOf('\n');
+    final iterator = StreamIterator<String>(
+      streamed.stream
+          .transform(utf8.decoder)
+          .timeout(const Duration(seconds: 45)),
+    );
+    try {
+      while (true) {
+        final moved = cancellation == null
+            ? await iterator.moveNext()
+            : await Future.any<bool>([
+                iterator.moveNext(),
+                cancellation.whenCancelled.then<bool>(
+                  (_) => throw const AgentRunCancelled(),
+                ),
+              ]);
+        if (!moved) break;
+        carry += iterator.current;
+        var newline = carry.indexOf('\n');
+        while (newline != -1) {
+          handleLine(carry.substring(0, newline));
+          carry = carry.substring(newline + 1);
+          newline = carry.indexOf('\n');
+        }
       }
+    } finally {
+      await iterator.cancel();
     }
     if (carry.trim().isNotEmpty) handleLine(carry);
+    if (!completed) {
+      throw const FormatException(
+        'Ollama closed the response before marking it complete.',
+      );
+    }
 
     final content = contentBuffer.toString();
     final message = <String, Object?>{
       'role': role?.toString() ?? 'assistant',
       'content': content,
+      if (thinkingBuffer.isNotEmpty) 'thinking': thinkingBuffer.toString(),
       if (rawCalls.isNotEmpty) 'tool_calls': rawCalls,
     };
     final calls = <McpToolCall>[];
     for (var index = 0; index < rawCalls.length; index++) {
       calls.add(McpToolCall.fromProviderJson(rawCalls[index], index));
     }
-    return ProviderTurn(
-      message: message,
-      content: content,
-      toolCalls: calls,
-    );
+    return ProviderTurn(message: message, content: content, toolCalls: calls);
   }
 }
 

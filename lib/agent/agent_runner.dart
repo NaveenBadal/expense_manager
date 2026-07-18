@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'agent_presentation.dart';
 import 'agent_proposal.dart';
@@ -10,6 +11,7 @@ abstract interface class AgentProvider {
     required List<Map<String, Object?>> messages,
     required List<McpToolDefinition> tools,
     void Function(String delta)? onContentDelta,
+    AgentCancellationToken? cancellation,
   });
 }
 
@@ -49,8 +51,14 @@ class AgentRunResult {
 
 class AgentCancellationToken {
   bool _cancelled = false;
+  final Completer<void> _cancelledSignal = Completer<void>();
   bool get cancelled => _cancelled;
-  void cancel() => _cancelled = true;
+  Future<void> get whenCancelled => _cancelledSignal.future;
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    _cancelledSignal.complete();
+  }
 }
 
 class AgentRunner {
@@ -101,6 +109,7 @@ class AgentRunner {
         messages: messages,
         tools: _server.tools,
         onContentDelta: onContentDelta,
+        cancellation: cancellation,
       );
       _throwIfCancelled(cancellation);
       messages.add(response.message);
@@ -111,8 +120,9 @@ class AgentRunner {
             'The provider returned an empty answer.',
           );
         }
+        final structured = AgentPresentation.tryFromProviderContent(text);
         return AgentRunResult(
-          presentation: AgentPresentation.unstructured(text),
+          presentation: structured ?? AgentPresentation.unstructured(text),
           events: events,
         );
       }
