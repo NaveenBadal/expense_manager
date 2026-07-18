@@ -29,7 +29,7 @@ class AiIngestionBatch {
     required TransactionSource source,
     required DateTime now,
   }) {
-    final payload = jsonDecode(content);
+    final payload = jsonDecode(_extractJson(content));
     if (payload is! Map || payload['results'] is! List) {
       throw const IngestionSchemaException('Missing ingestion results.');
     }
@@ -142,6 +142,36 @@ class AiIngestionBatch {
       );
     }
     return AiIngestionBatch(results: values);
+  }
+
+  /// Recovers the JSON object from a model response that may be wrapped in
+  /// markdown code fences (```json ... ```) or surrounded by prose. Local
+  /// models frequently ignore the structured-output format constraint.
+  static String _extractJson(String content) {
+    var text = content.trim();
+    // Strip a leading fenced code block, e.g. ```json\n...\n``` or ```\n...\n```
+    if (text.startsWith('```')) {
+      final firstNewline = text.indexOf('\n');
+      if (firstNewline != -1) {
+        text = text.substring(firstNewline + 1);
+      } else {
+        text = text.substring(3);
+      }
+      final closingFence = text.lastIndexOf('```');
+      if (closingFence != -1) {
+        text = text.substring(0, closingFence);
+      }
+      text = text.trim();
+    }
+    // Fall back to the first balanced-looking JSON object if prose remains.
+    if (!text.startsWith('{')) {
+      final start = text.indexOf('{');
+      final end = text.lastIndexOf('}');
+      if (start != -1 && end > start) {
+        text = text.substring(start, end + 1);
+      }
+    }
+    return text;
   }
 
   static String _requiredText(Map<String, Object?> value, String key) {
