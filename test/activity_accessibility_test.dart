@@ -262,8 +262,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('Filter activity'), findsOneWidget);
-    expect(find.text('Show results'), findsOneWidget);
+    expect(find.text('QUERY EVIDENCE'), findsOneWidget);
+    expect(find.bySemanticsLabel('SHOW RESULTS'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -282,13 +282,13 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('1 to review'), findsOneWidget);
+    expect(find.text('1 TO REVIEW'), findsOneWidget);
     await tester.tap(find.text('Needs review'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Confirm'), findsOneWidget);
-    expect(find.text('Correct'), findsOneWidget);
-    expect(find.text('Not a transaction'), findsOneWidget);
+    expect(find.bySemanticsLabel('CONFIRM'), findsOneWidget);
+    expect(find.text('CORRECT'), findsOneWidget);
+    expect(find.text('NOT A TRANSACTION'), findsOneWidget);
     expect(find.text('55% · Check this'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

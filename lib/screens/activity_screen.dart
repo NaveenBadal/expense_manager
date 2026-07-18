@@ -18,7 +18,6 @@ import '../utils/currency_utils.dart';
 import '../widgets/development_update_ui.dart';
 import '../widgets/expense_form_sheet.dart';
 import '../widgets/money_chat_sheet.dart';
-import '../widgets/ui/flow_ui.dart';
 import 'settings_screen.dart';
 
 class ActivityScreen extends ConsumerStatefulWidget {
@@ -154,13 +153,11 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                 ],
                 if (all.any((item) => item.status == 'needs_review')) ...[
                   const SizedBox(height: AppSpacing.md),
-                  FilterChip(
+                  _FilterPort(
                     selected: _reviewOnly,
-                    avatar: const Icon(Icons.fact_check_outlined, size: 18),
-                    label: Text(
-                      '${all.where((item) => item.status == 'needs_review').length} to review',
-                    ),
-                    onSelected: (value) => setState(() => _reviewOnly = value),
+                    label:
+                        '${all.where((item) => item.status == 'needs_review').length} TO REVIEW',
+                    onTap: () => setState(() => _reviewOnly = !_reviewOnly),
                   ),
                 ],
                 const SizedBox(height: AppSpacing.lg),
@@ -248,107 +245,106 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      backgroundColor: FlowColor.canvas(context),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        'Filter activity',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CoordinateLabel('PROOF / QUERY BOUNDARY'),
+                          SizedBox(height: 4),
+                          Text(
+                            'QUERY EVIDENCE',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: .4,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     if (direction != 'all' ||
                         dateRange != null ||
                         category != null)
-                      TextButton(
-                        onPressed: () => setSheetState(() {
+                      _ProofTextAction(
+                        label: 'RESET',
+                        onTap: () => setSheetState(() {
                           direction = 'all';
                           dateRange = null;
                           category = null;
                         }),
-                        child: const Text('Reset'),
                       ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                Text(
-                  'Direction',
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 24),
+                const CoordinateLabel('AXIS / DIRECTION'),
+                const SizedBox(height: 9),
                 _DirectionFilter(
                   value: direction,
                   onChanged: (value) => setSheetState(() => direction = value),
                 ),
-                const SizedBox(height: 20),
-                Row(
+                const SizedBox(height: 22),
+                const CoordinateLabel('AXIS / TIME'),
+                const SizedBox(height: 9),
+                _FilterPort(
+                  selected: dateRange != null,
+                  label: dateRange == null
+                      ? 'ANY DATE'
+                      : '${DateFormat('d MMM').format(dateRange!.start)} — ${DateFormat('d MMM').format(dateRange!.end)}',
+                  onTap: () async {
+                    final now = DateTime.now();
+                    final value = await showDateRangePicker(
+                      context: context,
+                      firstDate: DateTime(now.year - 10),
+                      lastDate: now.add(const Duration(days: 1)),
+                      initialDateRange: dateRange,
+                      helpText: 'Choose date range',
+                    );
+                    if (value != null) setSheetState(() => dateRange = value);
+                  },
+                ),
+                const SizedBox(height: 22),
+                const CoordinateLabel('AXIS / CATEGORY'),
+                const SizedBox(height: 9),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final now = DateTime.now();
-                          final value = await showDateRangePicker(
-                            context: context,
-                            firstDate: DateTime(now.year - 10),
-                            lastDate: now.add(const Duration(days: 1)),
-                            initialDateRange: dateRange,
-                            helpText: 'Choose date range',
-                          );
-                          if (value != null) {
-                            setSheetState(() => dateRange = value);
-                          }
-                        },
-                        icon: const Icon(Icons.calendar_today_outlined),
-                        label: Text(
-                          dateRange == null
-                              ? 'Any date'
-                              : '${DateFormat('d MMM').format(dateRange!.start)}–${DateFormat('d MMM').format(dateRange!.end)}',
-                        ),
-                      ),
+                    _FilterPort(
+                      compact: true,
+                      selected: category == null,
+                      label: 'ANY',
+                      onTap: () => setSheetState(() => category = null),
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: DropdownButtonFormField<String?>(
-                        initialValue: category,
-                        decoration: const InputDecoration(
-                          labelText: 'Category',
-                          contentPadding: EdgeInsets.symmetric(horizontal: 14),
-                        ),
-                        items: [
-                          const DropdownMenuItem(
-                            value: null,
-                            child: Text('Any'),
-                          ),
-                          for (final value in categories)
-                            DropdownMenuItem(value: value, child: Text(value)),
-                        ],
-                        onChanged: (value) =>
-                            setSheetState(() => category = value),
+                    for (final value in categories)
+                      _FilterPort(
+                        compact: true,
+                        selected: category == value,
+                        label: value.toUpperCase(),
+                        onTap: () => setSheetState(() => category = value),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {
-                      setState(() {
-                        _direction = direction;
-                        _dateRange = dateRange;
-                        _category = category;
-                      });
-                      Navigator.pop(sheetContext);
-                    },
-                    child: const Text('Show results'),
-                  ),
+                _ProofPrimaryAction(
+                  label: 'SHOW RESULTS',
+                  onTap: () {
+                    setState(() {
+                      _direction = direction;
+                      _dateRange = dateRange;
+                      _category = category;
+                    });
+                    Navigator.pop(sheetContext);
+                  },
                 ),
               ],
             ),
@@ -879,35 +875,127 @@ class _DirectionFilter extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
-    final adaptive =
-        MediaQuery.sizeOf(context).width < 380 ||
-        MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    if (adaptive) {
-      return Wrap(
-        spacing: AppSpacing.sm,
-        runSpacing: AppSpacing.sm,
-        children: [
-          for (final option in _options)
-            ChoiceChip(
-              selected: value == option.$1,
-              label: Text(option.$2),
-              onSelected: (_) => onChanged(option.$1),
-            ),
-        ],
-      );
-    }
-    return SegmentedButton<String>(
-      expandedInsets: EdgeInsets.zero,
-      showSelectedIcon: false,
-      segments: [
-        for (final option in _options)
-          ButtonSegment(value: option.$1, label: Text(option.$2)),
+  Widget build(BuildContext context) => Row(
+    children: [
+      for (var index = 0; index < _options.length; index++) ...[
+        Expanded(
+          child: _FilterPort(
+            selected: value == _options[index].$1,
+            label: _options[index].$2.toUpperCase(),
+            onTap: () => onChanged(_options[index].$1),
+          ),
+        ),
+        if (index != _options.length - 1) const SizedBox(width: 6),
       ],
-      selected: {value},
-      onSelectionChanged: (selection) => onChanged(selection.first),
-    );
-  }
+    ],
+  );
+}
+
+class _FilterPort extends StatelessWidget {
+  const _FilterPort({
+    required this.selected,
+    required this.label,
+    required this.onTap,
+    this.compact = false,
+  });
+  final bool selected;
+  final String label;
+  final VoidCallback onTap;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    label: label,
+    excludeSemantics: true,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        constraints: BoxConstraints(
+          minWidth: compact ? 54 : 72,
+          minHeight: compact ? 40 : 48,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? FlowColor.loom : FlowColor.plane(context),
+          border: Border.all(
+            color: selected ? FlowColor.proof : FlowColor.rule(context),
+          ),
+        ),
+        child: Text(
+          label,
+          maxLines: 2,
+          overflow: TextOverflow.fade,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: selected ? Colors.white : FlowColor.quiet(context),
+            fontSize: 8,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .6,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _ProofTextAction extends StatelessWidget {
+  const _ProofTextAction({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: FlowColor.quiet(context),
+          fontSize: 8,
+          fontWeight: FontWeight.w900,
+          letterSpacing: .7,
+        ),
+      ),
+    ),
+  );
+}
+
+class _ProofPrimaryAction extends StatelessWidget {
+  const _ProofPrimaryAction({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: label,
+    excludeSemantics: true,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: CutSurface(
+        cut: 9,
+        color: FlowColor.loom,
+        accent: FlowColor.proof,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+        child: Center(
+          child: Text(
+            '$label →',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .7,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 class _FilterSummary extends StatelessWidget {
@@ -931,26 +1019,31 @@ class _FilterSummary extends StatelessWidget {
         '${DateFormat('d MMM').format(dateRange!.start)}–${DateFormat('d MMM').format(dateRange!.end)}',
     ];
     if (category != null) labels.add(category!);
-    return Row(
-      children: [
-        Icon(
-          Icons.filter_alt_rounded,
-          size: 18,
-          color: Theme.of(context).colorScheme.primary,
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            labels.join(' · '),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return CutSurface(
+      cut: 6,
+      color: FlowColor.plane(context),
+      border: false,
+      padding: const EdgeInsets.fromLTRB(12, 7, 5, 7),
+      child: Row(
+        children: [
+          Container(width: 6, height: 6, color: FlowColor.proof),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              labels.join(' / ').toUpperCase(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: FlowColor.quiet(context),
+                fontSize: 8,
+                fontWeight: FontWeight.w900,
+                letterSpacing: .55,
+              ),
             ),
           ),
-        ),
-        TextButton(onPressed: onClear, child: const Text('Clear')),
-      ],
+          _ProofTextAction(label: 'CLEAR', onTap: onClear),
+        ],
+      ),
     );
   }
 }
@@ -1334,34 +1427,23 @@ class _TransactionDetails extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: AlignmentDirectional.topStart,
-                end: AlignmentDirectional.bottomEnd,
-                colors: item.isIncome
-                    ? const [Color(0xFF087C6B), Color(0xFF174D49)]
-                    : const [FlowPalette.intelligence, Color(0xFF302491)],
-              ),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(20),
-                topRight: Radius.circular(46),
-                bottomLeft: Radius.circular(38),
-                bottomRight: Radius.circular(20),
-              ),
-            ),
+          CutSurface(
+            cut: 18,
+            color: FlowColor.plane(context),
+            accent: needsReview
+                ? FlowColor.amber
+                : item.isIncome
+                ? FlowColor.mint
+                : FlowColor.proof,
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    FlowOrb(
+                    LoomMark(
                       size: 38,
-                      state: needsReview
-                          ? FlowOrbState.attention
-                          : FlowOrbState.success,
+                      state: needsReview ? LoomState.review : LoomState.proven,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -1372,7 +1454,9 @@ class _TransactionDetails extends StatelessWidget {
                             ? 'UNDERSTANDING NEEDS REVIEW'
                             : 'AI-UNDERSTOOD EVENT',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: FlowPalette.signalCyan,
+                          color: needsReview
+                              ? FlowColor.amber
+                              : FlowColor.proof,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1,
                         ),
@@ -1381,7 +1465,7 @@ class _TransactionDetails extends StatelessWidget {
                     if (item.originalSms.isNotEmpty)
                       _EvidenceTag(
                         label: '${(item.confidence * 100).round()}% SIGNAL',
-                        color: Colors.white,
+                        color: FlowColor.proof,
                       ),
                   ],
                 ),
@@ -1389,7 +1473,7 @@ class _TransactionDetails extends StatelessWidget {
                 Text(
                   item.isIncome ? 'MONEY RECEIVED' : 'MONEY SENT',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Colors.white70,
+                    color: FlowColor.quiet(context),
                     fontWeight: FontWeight.w800,
                     letterSpacing: .8,
                   ),
@@ -1399,7 +1483,9 @@ class _TransactionDetails extends StatelessWidget {
                   '${item.isIncome ? '+' : '−'}${formatAmount(item.amount, item.currency)}',
                   style: AppTheme.money(
                     Theme.of(context).textTheme.headlineLarge?.copyWith(
-                      color: Colors.white,
+                      color: item.isIncome
+                          ? FlowColor.mint
+                          : FlowColor.content(context),
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1436,45 +1522,42 @@ class _TransactionDetails extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: FilledButton(
-                    onPressed: onConfirm,
-                    child: const Text('Confirm'),
+                  child: _ProofPrimaryAction(
+                    label: 'CONFIRM',
+                    onTap: onConfirm!,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: onEdit,
-                    child: const Text('Correct'),
+                  child: _FilterPort(
+                    selected: false,
+                    label: 'CORRECT',
+                    onTap: onEdit,
                   ),
                 ),
               ],
             ),
             if (onReject != null)
               Center(
-                child: TextButton(
-                  onPressed: onReject,
-                  child: const Text('Not a transaction'),
+                child: _ProofTextAction(
+                  label: 'NOT A TRANSACTION',
+                  onTap: onReject!,
                 ),
               ),
             if (onReanalyze != null)
               Center(
-                child: TextButton.icon(
-                  onPressed: onReanalyze,
-                  icon: const FlowOrb(size: 20),
-                  label: const Text('Re-analyze source with Flow'),
+                child: _ProofTextAction(
+                  label: 'RE-ANALYZE SOURCE WITH FLOW',
+                  onTap: onReanalyze!,
                 ),
               ),
           ],
           const SizedBox(height: 8),
           if (!needsReview)
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: onEdit,
-                icon: const Icon(Icons.edit_outlined),
-                label: const Text('Correct details'),
-              ),
+            _FilterPort(
+              selected: false,
+              label: 'CORRECT DETAILS',
+              onTap: onEdit,
             ),
         ],
       ),
@@ -1494,25 +1577,34 @@ class _DetailLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 10),
+    padding: const EdgeInsets.only(bottom: 2),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 96,
+        Container(
+          width: 104,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          color: FlowColor.raised(context),
           child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            label.toUpperCase(),
+            style: TextStyle(
+              color: FlowColor.quiet(context),
+              fontSize: 8,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .6,
             ),
           ),
         ),
         Expanded(
-          child: Text(
-            value,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: warning ? context.finance.warning : null,
-              fontWeight: FontWeight.w500,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            color: FlowColor.plane(context),
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: warning ? FlowColor.amber : FlowColor.content(context),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),
