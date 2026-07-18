@@ -421,28 +421,45 @@ class _WorkingOrError extends StatelessWidget {
   final AppState app;
   final VoidCallback onStop;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 18),
-    child: Row(
-      children: [
-        Icon(
-          app.error == null
-              ? Icons.manage_search_rounded
-              : Icons.error_outline_rounded,
-          color: app.error == null
-              ? context.current.intelligence
-              : context.current.review,
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Text(app.error ?? app.askStage ?? 'Working')),
-        if (app.asking)
-          CurrentButton(
-            label: 'Stop',
-            compact: true,
-            style: CurrentButtonStyle.text,
-            onPressed: onStop,
+  Widget build(BuildContext context) {
+    final draft = app.error == null ? app.askDraft?.trim() : null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                app.error == null
+                    ? Icons.manage_search_rounded
+                    : Icons.error_outline_rounded,
+                color: app.error == null
+                    ? context.current.intelligence
+                    : context.current.review,
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(app.error ?? app.askStage ?? 'Working')),
+              if (app.asking)
+                CurrentButton(
+                  label: 'Stop',
+                  compact: true,
+                  style: CurrentButtonStyle.text,
+                  onPressed: onStop,
+                ),
+            ],
           ),
-      ],
-    ),
-  );
+          if (draft != null && draft.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              draft,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: context.current.muted),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

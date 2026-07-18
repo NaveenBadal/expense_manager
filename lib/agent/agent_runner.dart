@@ -9,6 +9,7 @@ abstract interface class AgentProvider {
   Future<ProviderTurn> nextTurn({
     required List<Map<String, Object?>> messages,
     required List<McpToolDefinition> tools,
+    void Function(String delta)? onContentDelta,
   });
 }
 
@@ -74,6 +75,7 @@ class AgentRunner {
     List<Map<String, Object?>> history = const [],
     AgentCancellationToken? cancellation,
     void Function(String stage)? onStage,
+    void Function(String delta)? onContentDelta,
   }) async {
     final messages = <Map<String, Object?>>[
       {
@@ -98,6 +100,7 @@ class AgentRunner {
       final response = await _provider.nextTurn(
         messages: messages,
         tools: _server.tools,
+        onContentDelta: onContentDelta,
       );
       _throwIfCancelled(cancellation);
       messages.add(response.message);

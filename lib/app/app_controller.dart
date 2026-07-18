@@ -705,6 +705,7 @@ class AppController extends AsyncNotifier<AppState> {
             },
           )
           .toList();
+      final draft = StringBuffer();
       final result = await runner.run(
         question: trimmed,
         now: DateTime.now(),
@@ -713,8 +714,18 @@ class AppController extends AsyncNotifier<AppState> {
         history: history,
         cancellation: token,
         onStage: (stage) {
+          // Each stage begins a fresh reasoning turn; drop the prior draft.
+          draft.clear();
           if (state.hasValue) {
-            state = AsyncData(_value.copyWith(askStage: stage));
+            state = AsyncData(
+              _value.copyWith(askStage: stage, clearAskDraft: true),
+            );
+          }
+        },
+        onContentDelta: (delta) {
+          draft.write(delta);
+          if (state.hasValue) {
+            state = AsyncData(_value.copyWith(askDraft: draft.toString()));
           }
         },
       );
@@ -744,6 +755,7 @@ class AppController extends AsyncNotifier<AppState> {
           conversation: await ref.read(storeProvider).conversation(),
           asking: false,
           askStage: null,
+          clearAskDraft: true,
           pendingAgentProposal: proposal,
           clearPendingAgentProposal: proposal == null,
         ),
@@ -754,6 +766,7 @@ class AppController extends AsyncNotifier<AppState> {
         _value.copyWith(
           asking: false,
           askStage: null,
+          clearAskDraft: true,
           error: 'The answer was stopped. Nothing was changed.',
         ),
       );
@@ -768,7 +781,12 @@ class AppController extends AsyncNotifier<AppState> {
           'The answer could not be completed. Your activity was not changed.',
       };
       state = AsyncData(
-        _value.copyWith(asking: false, askStage: null, error: message),
+        _value.copyWith(
+          asking: false,
+          askStage: null,
+          clearAskDraft: true,
+          error: message,
+        ),
       );
     }
   }

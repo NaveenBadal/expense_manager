@@ -168,6 +168,7 @@ class _FakeProvider implements AgentProvider {
   Future<ProviderTurn> nextTurn({
     required List<Map<String, Object?>> messages,
     required List<McpToolDefinition> tools,
+    void Function(String delta)? onContentDelta,
   }) async {
     this.messages
       ..clear()

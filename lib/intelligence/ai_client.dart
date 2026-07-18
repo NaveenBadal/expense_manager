@@ -128,44 +128,88 @@ class _ConfiguredAiProvider implements AgentProvider {
   Future<ProviderTurn> nextTurn({
     required List<Map<String, Object?>> messages,
     required List<McpToolDefinition> tools,
+    void Function(String delta)? onContentDelta,
   }) async {
-    final response = await _client
-        .post(
-          _uri,
-          headers: {
-            'Authorization': 'Bearer $_apiKey',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode({
-            'model': _model,
-            'stream': false,
-            'messages': messages,
-            'tools': tools.map((tool) => tool.toProviderJson()).toList(),
-          }),
-        )
+    final request = http.Request('POST', _uri)
+      ..headers.addAll({
+        'Authorization': 'Bearer $_apiKey',
+        'Content-Type': 'application/json',
+      })
+      ..body = jsonEncode({
+        'model': _model,
+        'stream': true,
+        'messages': messages,
+        'tools': tools.map((tool) => tool.toProviderJson()).toList(),
+      });
+    final streamed = await _client
+        .send(request)
         .timeout(const Duration(seconds: 45));
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AiRequestFailure(response.statusCode);
+    if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
+      // Drain so the connection can be released before surfacing the error.
+      await streamed.stream.drain<void>();
+      throw AiRequestFailure(streamed.statusCode);
     }
-    final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-    final rawMessage = decoded['message'];
-    if (rawMessage is! Map) throw const FormatException('Missing AI message');
-    final message = Map<String, Object?>.from(rawMessage);
-    final rawCalls = message['tool_calls'];
-    final calls = <McpToolCall>[];
-    if (rawCalls is List) {
-      for (var index = 0; index < rawCalls.length; index++) {
-        calls.add(
-          McpToolCall.fromProviderJson(
-            Map<Object?, Object?>.from(rawCalls[index] as Map),
-            index,
-          ),
-        );
+
+    final contentBuffer = StringBuffer();
+    final rawCalls = <Map<Object?, Object?>>[];
+    Object? role;
+    var carry = '';
+
+    void handleLine(String line) {
+      final trimmed = line.trim();
+      if (trimmed.isEmpty) return;
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(trimmed);
+      } on FormatException {
+        // Ignore keep-alive or non-JSON framing lines.
+        return;
       }
+      if (decoded is! Map) return;
+      final rawMessage = decoded['message'];
+      if (rawMessage is Map) {
+        role ??= rawMessage['role'];
+        final delta = rawMessage['content'];
+        if (delta is String && delta.isNotEmpty) {
+          contentBuffer.write(delta);
+          onContentDelta?.call(delta);
+        }
+        final calls = rawMessage['tool_calls'];
+        if (calls is List) {
+          for (final call in calls) {
+            if (call is Map) rawCalls.add(Map<Object?, Object?>.from(call));
+          }
+        }
+      }
+    }
+
+    await for (final chunk
+        in streamed.stream.transform(utf8.decoder).timeout(
+          const Duration(seconds: 45),
+        )) {
+      carry += chunk;
+      var newline = carry.indexOf('\n');
+      while (newline != -1) {
+        handleLine(carry.substring(0, newline));
+        carry = carry.substring(newline + 1);
+        newline = carry.indexOf('\n');
+      }
+    }
+    if (carry.trim().isNotEmpty) handleLine(carry);
+
+    final content = contentBuffer.toString();
+    final message = <String, Object?>{
+      'role': role?.toString() ?? 'assistant',
+      'content': content,
+      if (rawCalls.isNotEmpty) 'tool_calls': rawCalls,
+    };
+    final calls = <McpToolCall>[];
+    for (var index = 0; index < rawCalls.length; index++) {
+      calls.add(McpToolCall.fromProviderJson(rawCalls[index], index));
     }
     return ProviderTurn(
       message: message,
-      content: message['content']?.toString() ?? '',
+      content: content,
       toolCalls: calls,
     );
   }

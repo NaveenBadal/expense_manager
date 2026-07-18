@@ -55,6 +55,7 @@ class AppState {
     this.importStatus = const ImportStatus(),
     this.asking = false,
     this.askStage,
+    this.askDraft,
     this.error,
     this.locked = false,
     this.pendingAgentProposal,
@@ -67,6 +68,7 @@ class AppState {
   final ImportStatus importStatus;
   final bool asking;
   final String? askStage;
+  final String? askDraft;
   final String? error;
   final bool locked;
   final AgentProposal? pendingAgentProposal;
@@ -80,6 +82,8 @@ class AppState {
     ImportStatus? importStatus,
     bool? asking,
     String? askStage,
+    String? askDraft,
+    bool clearAskDraft = false,
     String? error,
     bool clearError = false,
     bool? locked,
@@ -95,6 +99,7 @@ class AppState {
     importStatus: importStatus ?? this.importStatus,
     asking: asking ?? this.asking,
     askStage: askStage ?? this.askStage,
+    askDraft: clearAskDraft ? null : askDraft ?? this.askDraft,
     error: clearError ? null : error ?? this.error,
     locked: locked ?? this.locked,
     pendingAgentProposal: clearPendingAgentProposal
