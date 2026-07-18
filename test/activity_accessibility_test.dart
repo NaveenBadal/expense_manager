@@ -139,11 +139,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('YOUR MONEY\nLEARNS TO ANSWER.'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('Set up Flow'));
+    expect(
+      find.text('Understand your money\nwithout the busywork.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.bySemanticsLabel('Get started'));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    expect(find.text('ATTACH THE\nREASONING ENGINE.'), findsOneWidget);
+    expect(find.text('Connect the AI\nyou trust.'), findsOneWidget);
     expect(find.bySemanticsLabel('Connect intelligence'), findsOneWidget);
   });
 
@@ -259,7 +262,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('QUERY EVIDENCE'), findsOneWidget);
+    expect(find.text('Filter activity'), findsOneWidget);
     expect(find.bySemanticsLabel('SHOW RESULTS'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

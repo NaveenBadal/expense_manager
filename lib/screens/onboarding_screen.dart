@@ -75,11 +75,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           : LoomState.ready,
                     ),
                     const SizedBox(width: 13),
-                    const Expanded(
-                      child: CoordinateLabel('COMMISSION / FLOW AGENT'),
+                    Expanded(
+                      child: Text(
+                        'Fund Flow',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
                     ),
                     Text(
-                      '0${_page + 1}:0$_pageCount',
+                      '${_page + 1} of $_pageCount',
                       style: TextStyle(
                         color: FlowColor.proof,
                         fontSize: 9,
@@ -354,7 +358,7 @@ class _OnboardingSignal extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'PROOF ATTACHED',
+          'Ready to explore',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: FlowColor.mint,
             fontSize: 9,
@@ -422,10 +426,10 @@ class _PromiseStage extends StatelessWidget {
         children: [
           const _OnboardingSignal(),
           const SizedBox(height: AppSpacing.region),
-          const CoordinateLabel('PROMISE / EVIDENCE-BACKED AI'),
+          const CoordinateLabel('Welcome to Fund Flow'),
           const SizedBox(height: 10),
           Text(
-            'YOUR MONEY\nLEARNS TO ANSWER.',
+            'Understand your money\nwithout the busywork.',
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
               color: FlowColor.content(context),
               fontWeight: FontWeight.w900,
@@ -435,7 +439,7 @@ class _PromiseStage extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Flow turns bank messages into a private evidence network, reasons across it, and shows the proof behind every financial answer.',
+            'Fund Flow turns transaction messages into a private money record you can simply ask questions about.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: FlowColor.quiet(context),
               height: 1.45,
@@ -478,10 +482,10 @@ class _ConnectionStage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: AppSpacing.xxl),
-          const CoordinateLabel('INTELLIGENCE / ATTACH'),
+          const CoordinateLabel('Connect intelligence'),
           const SizedBox(height: 9),
           Text(
-            'ATTACH THE\nREASONING ENGINE.',
+            'Connect the AI\nyou trust.',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
               color: FlowColor.content(context),
               fontWeight: FontWeight.w900,
@@ -577,10 +581,10 @@ class _SmsStage extends StatelessWidget {
             state: aiReady ? LoomState.review : LoomState.offline,
           ),
           const SizedBox(height: AppSpacing.section),
-          const CoordinateLabel('CHANNEL / TRANSACTION SMS'),
+          const CoordinateLabel('Allow transaction messages'),
           const SizedBox(height: 8),
           Text(
-            'OPEN AN EVIDENCE\nCHANNEL.',
+            'Build your activity\nautomatically.',
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
               color: FlowColor.content(context),
               fontWeight: FontWeight.w900,
@@ -590,8 +594,8 @@ class _SmsStage extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(
             aiReady
-                ? 'Flow will scan recent messages on this device for supported bank and payment transactions, then analyze those candidates with your connected AI.'
-                : 'AI is not connected, so Flow cannot analyze transaction messages yet. You can connect it from Flow after setup.',
+                ? 'Fund Flow checks recent messages for bank and payment transactions, then asks your connected AI to understand only those candidates.'
+                : 'Intelligence is not connected, so messages cannot be understood yet. You can connect it later from Ask.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: FlowColor.quiet(context),
               height: 1.45,
@@ -658,10 +662,10 @@ class _AnalysisStage extends StatelessWidget {
           const SizedBox(height: AppSpacing.section),
           CoordinateLabel(
             complete
-                ? 'COMMISSION / COMPLETE'
+                ? 'Ready'
                 : error
-                ? 'COMMISSION / INTERRUPTED'
-                : 'COMMISSION / BUILDING PROOF',
+                ? 'Needs attention'
+                : 'Checking messages',
             color: error ? FlowColor.amber : FlowColor.proof,
           ),
           const SizedBox(height: 8),
@@ -682,13 +686,13 @@ class _AnalysisStage extends StatelessWidget {
           const SizedBox(height: AppSpacing.sm),
           Text(
             complete
-                ? 'Flow has finished checking recent transaction messages. Open the agent to explore what it understood.'
+                ? 'Your recent transaction messages are ready. Open Ask to explore what changed and where your money went.'
                 : error
                 ? sync.errorMessage ?? 'Analysis could not finish.'
                 : aiReady
                 ? sync.detail ??
                       'Preparing a private financial picture from your transaction messages.'
-                : 'The core SMS analysis and Flow agent require an AI connection.',
+                : 'Message analysis and questions require an AI connection.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: error ? FlowColor.amber : FlowColor.quiet(context),
             ),
@@ -859,10 +863,10 @@ class _BottomAction extends StatelessWidget {
         sync.phase == SyncPhase.analyzing;
     final primaryEnabled = !working && !running;
     final label = switch (page) {
-      0 => 'Set up Flow',
+      0 => 'Get started',
       1 => working ? 'Checking connection…' : 'Connect intelligence',
       2 => 'Allow and analyze',
-      3 when sync.phase == SyncPhase.complete => 'Open Flow',
+      3 when sync.phase == SyncPhase.complete => 'Open Ask',
       3 when sync.phase == SyncPhase.error => 'Try analysis again',
       3 => 'Connect AI',
       _ => 'Continue',
@@ -940,7 +944,7 @@ class _BottomAction extends StatelessWidget {
                           const SizedBox(width: 10),
                           Flexible(
                             child: Text(
-                              '${label.toUpperCase()} →',
+                              label,
                               maxLines: 2,
                               textAlign: TextAlign.center,
                               style: TextStyle(

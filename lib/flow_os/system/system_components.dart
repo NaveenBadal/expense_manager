@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../foundation/flow_color.dart';
-import '../primitives/coordinate_label.dart';
 import '../primitives/cut_surface.dart';
-import '../primitives/loom_mark.dart';
 
 class SystemMasthead extends StatelessWidget {
   const SystemMasthead({super.key, required this.aiOnline});
@@ -14,50 +12,34 @@ class SystemMasthead extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
     bottom: false,
     child: Padding(
-      padding: const EdgeInsets.fromLTRB(20, 15, 16, 8),
+      padding: const EdgeInsets.fromLTRB(24, 20, 20, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    CoordinateLabel('SYSTEM / LOCAL CONTROL'),
-                    SizedBox(height: 3),
-                    Text(
-                      'You',
-                      style: TextStyle(
-                        fontSize: 25,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: .6,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              LoomMark(
-                size: 42,
-                state: aiOnline ? LoomState.ready : LoomState.offline,
-              ),
-            ],
+          Text(
+            'Preferences and privacy',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: FlowColor.quiet(context)),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Container(
-                width: aiOnline ? 54 : 18,
-                height: 2,
-                color: aiOnline ? FlowColor.proof : FlowColor.amber,
-              ),
-              Expanded(
-                child: SizedBox(
-                  height: 1,
-                  child: ColoredBox(color: FlowColor.rule(context)),
-                ),
-              ),
-            ],
+          const SizedBox(height: 3),
+          Text(
+            'You',
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontFamily: 'Space Grotesk',
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            aiOnline
+                ? 'Intelligence is connected'
+                : 'Intelligence is not connected',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: aiOnline
+                  ? FlowColor.income(context)
+                  : FlowColor.review(context),
+            ),
           ),
         ],
       ),
@@ -71,8 +53,13 @@ class SystemSectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(2, 22, 0, 8),
-    child: CoordinateLabel(coordinate),
+    padding: const EdgeInsets.fromLTRB(2, 28, 0, 10),
+    child: Text(
+      coordinate,
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+    ),
   );
 }
 
@@ -103,31 +90,21 @@ class SystemNode extends StatelessWidget {
       NodeSignal.neutral => FlowColor.quiet(context),
     };
     final content = CutSurface(
-      cut: 10,
-      color: FlowColor.plane(context),
-      accent: color.withValues(alpha: .55),
-      padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+      cut: 12,
+      color: FlowColor.raised(context),
+      accent: FlowColor.rule(context),
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
       child: Row(
         children: [
-          SizedBox(
-            width: 36,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(width: 8, height: 8, color: color),
-                const SizedBox(height: 7),
-                Text(
-                  code,
-                  style: TextStyle(
-                    color: FlowColor.quiet(context),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: .7,
-                  ),
-                ),
-              ],
+          Container(
+            width: 3,
+            height: 30,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
+          const SizedBox(width: 13),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

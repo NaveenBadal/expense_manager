@@ -134,8 +134,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _EvidencePulse(events: all),
-                const SizedBox(height: AppSpacing.lg),
+                _ActivitySummary(events: all, hidden: hidden),
+                const SizedBox(height: 20),
                 _SearchField(
                   controller: _search,
                   query: _query,
@@ -261,10 +261,10 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          CoordinateLabel('PROOF / QUERY BOUNDARY'),
+                          CoordinateLabel('Filters'),
                           SizedBox(height: 4),
                           Text(
-                            'QUERY EVIDENCE',
+                            'Filter activity',
                             style: TextStyle(
                               fontSize: 22,
                               fontWeight: FontWeight.w900,
@@ -288,14 +288,14 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                const CoordinateLabel('AXIS / DIRECTION'),
+                const CoordinateLabel('Money direction'),
                 const SizedBox(height: 9),
                 _DirectionFilter(
                   value: direction,
                   onChanged: (value) => setSheetState(() => direction = value),
                 ),
                 const SizedBox(height: 22),
-                const CoordinateLabel('AXIS / TIME'),
+                const CoordinateLabel('Date range'),
                 const SizedBox(height: 9),
                 _FilterPort(
                   selected: dateRange != null,
@@ -315,7 +315,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   },
                 ),
                 const SizedBox(height: 22),
-                const CoordinateLabel('AXIS / CATEGORY'),
+                const CoordinateLabel('Category'),
                 const SizedBox(height: 9),
                 Wrap(
                   spacing: 7,
@@ -624,10 +624,10 @@ class _FirstRunOverview extends StatelessWidget {
         children: [
           const LoomMark(size: 52, state: LoomState.offline),
           const SizedBox(height: 20),
-          const CoordinateLabel('PROOF / UNCOMMISSIONED'),
+          const CoordinateLabel('No activity yet'),
           const SizedBox(height: 8),
           Text(
-            'NO EVIDENCE\nFIELD YET.',
+            'Your money record\nstarts here.',
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               color: FlowColor.content(context),
               fontWeight: FontWeight.w900,
@@ -636,7 +636,7 @@ class _FirstRunOverview extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Open the transaction-message channel. Flow will turn supported signals into a local, reviewable proof timeline.',
+            'Check your transaction messages to build a private, reviewable activity history.',
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: FlowColor.quiet(context),
               height: 1.45,
@@ -658,7 +658,7 @@ class _CompactSync extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: setupRequired ? 'Set up SMS evidence' : 'Sync SMS evidence',
+      label: setupRequired ? 'Set up message import' : 'Check messages',
       excludeSemantics: true,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -676,12 +676,12 @@ class _CompactSync extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CoordinateLabel('INGEST / SMS'),
+                    const CoordinateLabel('Transaction messages'),
                     const SizedBox(height: 3),
                     Text(
                       setupRequired
-                          ? 'Attach intelligence first'
-                          : 'Refresh the evidence field',
+                          ? 'Connect intelligence first'
+                          : 'Check for new activity',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: FlowColor.content(context),
                         fontWeight: FontWeight.w700,
@@ -691,7 +691,7 @@ class _CompactSync extends StatelessWidget {
                 ),
               ),
               const Text(
-                'OPEN →',
+                'Open',
                 style: TextStyle(
                   color: FlowColor.proof,
                   fontSize: 8,
@@ -770,7 +770,7 @@ class _ActiveSync extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     CoordinateLabel(
-                      active ? 'INGEST / ACTIVE' : 'INGEST / RESULT',
+                      active ? 'Checking messages' : 'Message check',
                       color: signal,
                     ),
                     const SizedBox(height: 3),
@@ -1013,10 +1013,11 @@ class _FilterSummary extends StatelessWidget {
   }
 }
 
-class _EvidencePulse extends StatelessWidget {
-  const _EvidencePulse({required this.events});
+class _ActivitySummary extends StatelessWidget {
+  const _ActivitySummary({required this.events, required this.hidden});
 
   final List<Expense> events;
+  final bool hidden;
 
   @override
   Widget build(BuildContext context) {
@@ -1029,7 +1030,7 @@ class _EvidencePulse extends StatelessWidget {
     return CutSurface(
       cut: 18,
       color: FlowColor.plane(context),
-      accent: needsReview > 0 ? FlowColor.amber : FlowColor.proof,
+      accent: FlowColor.rule(context),
       padding: const EdgeInsets.all(18),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1047,12 +1048,12 @@ class _EvidencePulse extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const CoordinateLabel('MATRIX / CURRENT STATE'),
+                  const CoordinateLabel('This month'),
                   const SizedBox(height: 4),
                   Text(
                     needsReview == 0
-                        ? 'Evidence resolved'
-                        : '$needsReview signals unresolved',
+                        ? '${events.length} transactions understood'
+                        : '$needsReview ${needsReview == 1 ? 'transaction needs' : 'transactions need'} review',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: FlowColor.content(context),
                       fontWeight: FontWeight.w800,
@@ -1065,17 +1066,25 @@ class _EvidencePulse extends StatelessWidget {
           final stats = Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _EvidenceMetric(value: '${events.length}', label: 'UNDERSTOOD'),
+              _EvidenceMetric(
+                value: hidden ? '•••' : '${events.length}',
+                label: 'Transactions',
+              ),
               const SizedBox(width: 22),
-              _EvidenceMetric(value: '$fromMessages', label: 'FROM SMS'),
+              _EvidenceMetric(
+                value: hidden ? '•••' : '$fromMessages',
+                label: 'From messages',
+              ),
             ],
           );
-          return compact
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [intro, const SizedBox(height: 20), stats],
-                )
-              : Row(children: [intro, const Spacer(), stats]);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              intro,
+              SizedBox(height: compact ? 20 : 16),
+              stats,
+            ],
+          );
         },
       ),
     );
@@ -1601,7 +1610,7 @@ class _EmptyState extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const CoordinateLabel('PROOF / NO MATCHING SIGNAL'),
+            const CoordinateLabel('No matching activity'),
             const SizedBox(height: 14),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1685,7 +1694,7 @@ class _ActivityLoading extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const CoordinateLabel('PROOF / ASSEMBLING'),
+                  const CoordinateLabel('Loading activity'),
                   const SizedBox(height: 3),
                   Text(
                     'Preparing local evidence',

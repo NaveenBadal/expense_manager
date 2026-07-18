@@ -468,8 +468,8 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                           const SizedBox(height: 20),
                                           Text(
                                             connected
-                                                ? 'What should we understand?'
-                                                : 'Connect Flow intelligence',
+                                                ? 'What would you like to know?'
+                                                : 'Connect intelligence',
                                             style: Theme.of(
                                               context,
                                             ).textTheme.headlineSmall,
@@ -477,8 +477,8 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                           const SizedBox(height: 8),
                                           Text(
                                             connected
-                                                ? 'Flow analyzes transaction messages, verifies answers against local records, and safely acts with your approval.'
-                                                : 'AI analysis is the core of Fund Flow. Connect Ollama to understand transaction SMS and ask questions about your money.',
+                                                ? 'Ask in your own words. Answers are checked against your private activity, and changes always need your approval.'
+                                                : 'Connect your AI provider to understand transaction messages and answer questions about your money.',
                                             style: Theme.of(context)
                                                 .textTheme
                                                 .bodyLarge
@@ -640,7 +640,7 @@ class _ThinkingCanvas extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'FLOW IS CHECKING',
+                  'Checking your activity',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: FlowColor.proof,
                     fontWeight: FontWeight.w900,
@@ -668,7 +668,7 @@ class _ThinkingCanvas extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Text(
-                      '■ STOP SAFELY',
+                      'Stop',
                       style: TextStyle(
                         color: FlowColor.quiet(context),
                         fontSize: 10,
@@ -722,7 +722,7 @@ class _AnswerCanvas extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'YOU ASKED',
+                    'You asked',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: FlowColor.proof,
                       fontWeight: FontWeight.w800,
@@ -898,7 +898,7 @@ class _ActivationCanvas extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CoordinateLabel('ACTIVATION / PRIVATE INTELLIGENCE'),
+          const CoordinateLabel('Private intelligence'),
           const SizedBox(height: 13),
           Text(
             'YOUR MONEY\nCAN EXPLAIN ITSELF.',
@@ -989,7 +989,9 @@ class _ActivationCanvas extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 11),
-          const Center(child: CoordinateLabel('NO ANALYSIS BEFORE CONSENT')),
+          const Center(
+            child: CoordinateLabel('Nothing is analyzed without permission'),
+          ),
         ],
       ),
     );
@@ -1196,7 +1198,7 @@ class _AnalyzeMessagesCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CoordinateLabel('INGEST / SMS'),
+                    const CoordinateLabel('Transaction messages'),
                     const SizedBox(height: 4),
                     Text(
                       'Build the evidence field',
@@ -1283,7 +1285,7 @@ class _SyncStateCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     CoordinateLabel(
-                      running ? 'INGEST / ACTIVE' : 'INGEST / RESULT',
+                      running ? 'Checking messages' : 'Message check',
                       color: signal,
                     ),
                     const SizedBox(height: 4),
@@ -1333,14 +1335,14 @@ class _SyncStateCard extends StatelessWidget {
               spacing: 14,
               runSpacing: 6,
               children: [
-                CoordinateLabel('${sync.imported} / UNDERSTOOD'),
-                CoordinateLabel('${sync.skipped} / SKIPPED'),
+                CoordinateLabel('${sync.imported} understood'),
+                CoordinateLabel('${sync.skipped} skipped'),
                 if (sync.failed > 0)
                   CoordinateLabel(
                     '${sync.failed} / RETRYABLE',
                     color: FlowColor.amber,
                   ),
-                CoordinateLabel('${sync.current}:${sync.total} / CHECKED'),
+                CoordinateLabel('${sync.current} of ${sync.total} checked'),
               ],
             ),
           ],
