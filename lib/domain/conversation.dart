@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import '../agent/agent_presentation.dart';
+
 enum MessageAuthor { person, assistant }
 
 class ConversationMessage {
@@ -8,6 +12,8 @@ class ConversationMessage {
     required this.createdAt,
     this.verified = false,
     this.supportingTransactionIds = const [],
+    this.parts = const [],
+    this.unstructured = false,
   });
   final int? id;
   final MessageAuthor author;
@@ -15,6 +21,8 @@ class ConversationMessage {
   final DateTime createdAt;
   final bool verified;
   final List<int> supportingTransactionIds;
+  final List<AgentPart> parts;
+  final bool unstructured;
 
   Map<String, Object?> toMap() => {
     'id': id,
@@ -23,6 +31,8 @@ class ConversationMessage {
     'created_at': createdAt.toUtc().toIso8601String(),
     'verified': verified ? 1 : 0,
     'supporting_ids': supportingTransactionIds.join(','),
+    'parts_json': jsonEncode(parts.map((part) => part.toJson()).toList()),
+    'unstructured': unstructured ? 1 : 0,
   };
   factory ConversationMessage.fromMap(Map<String, Object?> map) =>
       ConversationMessage(
@@ -36,5 +46,9 @@ class ConversationMessage {
             .where((e) => e.isNotEmpty)
             .map(int.parse)
             .toList(),
+        parts: ((jsonDecode(map['parts_json'] as String? ?? '[]') as List))
+            .map((value) => AgentPart.fromJson(value as Map<Object?, Object?>))
+            .toList(),
+        unstructured: map['unstructured'] == 1,
       );
 }

@@ -1,13 +1,14 @@
-import 'dart:math';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../data/fund_flow_store.dart';
+import '../agent/agent_proposal.dart';
+import '../agent/agent_runner.dart';
+import '../agent/local_mcp_server.dart';
 import '../data/secure_preferences.dart';
 import '../domain/conversation.dart';
-import '../domain/change_proposal.dart';
-import '../domain/finance_summary.dart';
 import '../domain/preferences.dart';
 import '../domain/transaction.dart';
 import '../ingestion/notification_source.dart';
@@ -38,6 +39,7 @@ final appControllerProvider = AsyncNotifierProvider<AppController, AppState>(
 );
 
 class AppController extends AsyncNotifier<AppState> {
+  AgentCancellationToken? _activeRun;
   @override
   Future<AppState> build() async {
     final secure = ref.read(securePreferencesProvider);
@@ -50,7 +52,7 @@ class AppController extends AsyncNotifier<AppState> {
     ]);
     var transactions = values[0] as List<MoneyTransaction>;
     if (prefs.captureNotifications) {
-      transactions = await _drainNotifications(transactions, key);
+      transactions = await _drainNotifications(transactions, key, prefs);
     }
     return AppState(
       preferences: prefs,
@@ -97,7 +99,11 @@ class AppController extends AsyncNotifier<AppState> {
     var transactions = _value.transactions;
     if (enabled) {
       final key = await ref.read(securePreferencesProvider).apiKey();
-      transactions = await _drainNotifications(transactions, key);
+      transactions = await _drainNotifications(
+        transactions,
+        key,
+        _value.preferences,
+      );
     }
     state = AsyncData(
       _value.copyWith(
@@ -112,6 +118,7 @@ class AppController extends AsyncNotifier<AppState> {
   Future<List<MoneyTransaction>> _drainNotifications(
     List<MoneyTransaction> existing,
     String apiKey,
+    AppPreferences preferences,
   ) async {
     if (apiKey.isEmpty) return existing;
     try {
@@ -131,9 +138,9 @@ class AppController extends AsyncNotifier<AppState> {
         final analysis = await ref
             .read(aiClientProvider)
             .analyzeMessages(
-              endpoint: _value.preferences.aiEndpoint,
+              endpoint: preferences.aiEndpoint,
               apiKey: apiKey,
-              model: _value.preferences.aiModel,
+              model: preferences.aiModel,
               candidates: items.map((item) => item.candidate).toList(),
               source: TransactionSource.notification,
               now: DateTime.now(),
@@ -415,52 +422,91 @@ class AppController extends AsyncNotifier<AppState> {
     try {
       final key = await ref.read(securePreferencesProvider).apiKey();
       if (key.isEmpty) throw const AiRequestFailure(401);
-      final context = _contextFor(trimmed);
-      final reply = await ref
-          .read(aiClientProvider)
-          .answer(
-            endpoint: _value.preferences.aiEndpoint,
-            apiKey: key,
-            model: _value.preferences.aiModel,
-            question: trimmed,
-            context: context.$1,
-          );
+      final server = LocalMcpServer(
+        transactions: () => _value.transactions,
+        preferences: () => _value.preferences,
+      );
+      final client = ref.read(aiClientProvider);
+      final runner = AgentRunner(
+        provider: client.configured(
+          endpoint: _value.preferences.aiEndpoint,
+          apiKey: key,
+          model: _value.preferences.aiModel,
+        ),
+        server: server,
+      );
+      final token = AgentCancellationToken();
+      _activeRun = token;
+      final history = _value.conversation
+          .where((message) => message.text.trim().isNotEmpty)
+          .toList()
+          .reversed
+          .take(12)
+          .toList()
+          .reversed
+          .map(
+            (message) => <String, Object?>{
+              'role': message.author == MessageAuthor.person
+                  ? 'user'
+                  : 'assistant',
+              'content': message.text,
+            },
+          )
+          .toList();
+      final result = await runner.run(
+        question: trimmed,
+        now: DateTime.now(),
+        locale: Platform.localeName,
+        timeZone: DateTime.now().timeZoneName,
+        history: history,
+        cancellation: token,
+        onStage: (stage) {
+          if (state.hasValue) {
+            state = AsyncData(_value.copyWith(askStage: stage));
+          }
+        },
+      );
+      _activeRun = null;
+      final supportingIds = <int>{};
+      for (final part in result.presentation.parts) {
+        final raw = part.data['transactionIds'];
+        if (raw is List) supportingIds.addAll(raw.whereType<int>());
+      }
       final assistant = ConversationMessage(
         author: MessageAuthor.assistant,
-        text: reply.answer,
+        text: result.presentation.plainText,
         createdAt: DateTime.now(),
-        verified: true,
-        supportingTransactionIds: context.$2,
+        verified: !result.presentation.unstructured,
+        supportingTransactionIds: supportingIds.toList(),
+        parts: result.presentation.parts,
+        unstructured: result.presentation.unstructured,
       );
-      await ref.read(storeProvider).addMessage(assistant);
-      ChangeProposal? proposal;
-      final requested = reply.categoryChange;
-      if (requested != null) {
-        final matches = _value.transactions.where(
-          (value) => value.id == requested.transactionId,
-        );
-        if (matches.length == 1 &&
-            requested.category.length <= 40 &&
-            requested.category != matches.single.category) {
-          final transaction = matches.single;
-          proposal = ChangeProposal(
-            transactionId: requested.transactionId,
-            merchant: transaction.merchant,
-            fromCategory: transaction.category,
-            toCategory: requested.category,
-          );
-        }
+      final messageId = await ref.read(storeProvider).addMessage(assistant);
+      await ref.read(storeProvider).recordToolEvents(messageId, result.events);
+      AgentProposal? proposal;
+      if (result.proposal != null) {
+        proposal = await ref.read(storeProvider).saveProposal(result.proposal!);
       }
       state = AsyncData(
         _value.copyWith(
           conversation: await ref.read(storeProvider).conversation(),
           asking: false,
           askStage: null,
-          pendingChange: proposal,
-          clearPendingChange: proposal == null,
+          pendingAgentProposal: proposal,
+          clearPendingAgentProposal: proposal == null,
+        ),
+      );
+    } on AgentRunCancelled {
+      _activeRun = null;
+      state = AsyncData(
+        _value.copyWith(
+          asking: false,
+          askStage: null,
+          error: 'The answer was stopped. Nothing was changed.',
         ),
       );
     } catch (error) {
+      _activeRun = null;
       final message = switch (error) {
         AiRequestFailure(statusCode: 401 || 403) =>
           'Reconnect intelligence in You.',
@@ -475,78 +521,240 @@ class AppController extends AsyncNotifier<AppState> {
     }
   }
 
-  Future<void> applyPendingChange() async {
-    final proposal = _value.pendingChange;
-    if (proposal == null) return;
-    final matches = _value.transactions.where(
-      (value) => value.id == proposal.transactionId,
-    );
-    if (matches.length != 1) {
-      state = AsyncData(_value.copyWith(clearPendingChange: true));
+  void stopAgent() => _activeRun?.cancel();
+
+  Future<void> rejectAgentProposal() async {
+    final proposal = _value.pendingAgentProposal;
+    if (proposal?.id != null) {
+      await ref
+          .read(storeProvider)
+          .setProposalStatus(proposal!.id!, AgentProposalStatus.rejected);
+    }
+    state = AsyncData(_value.copyWith(clearPendingAgentProposal: true));
+  }
+
+  Future<void> approveAgentProposal() async {
+    final proposal = _value.pendingAgentProposal;
+    if (proposal == null || proposal.id == null) return;
+    if (DateTime.now().isAfter(proposal.expiresAt)) {
+      await ref
+          .read(storeProvider)
+          .setProposalStatus(proposal.id!, AgentProposalStatus.expired);
+      state = AsyncData(
+        _value.copyWith(
+          clearPendingAgentProposal: true,
+          error: 'That proposal expired. Ask Fund Flow to prepare it again.',
+        ),
+      );
+      return;
+    }
+    final applied = await _applyAgentProposal(proposal);
+    if (!applied) {
+      await ref
+          .read(storeProvider)
+          .setProposalStatus(proposal.id!, AgentProposalStatus.stale);
+      state = AsyncData(
+        _value.copyWith(
+          clearPendingAgentProposal: true,
+          error: 'The affected data changed. Nothing was applied.',
+        ),
+      );
       return;
     }
     await ref
         .read(storeProvider)
-        .saveTransaction(
-          matches.single.copyWith(category: proposal.toCategory),
-        );
+        .setProposalStatus(proposal.id!, AgentProposalStatus.approved);
     state = AsyncData(
       _value.copyWith(
         transactions: await ref.read(storeProvider).transactions(),
-        clearPendingChange: true,
-        lastAppliedChange: proposal,
+        conversation: await ref.read(storeProvider).conversation(),
+        preferences: _value.preferences,
+        clearPendingAgentProposal: true,
+        lastAgentAction: proposal.title,
+        clearError: true,
       ),
     );
   }
 
-  void rejectPendingChange() {
-    state = AsyncData(_value.copyWith(clearPendingChange: true));
+  Future<bool> _applyAgentProposal(AgentProposal proposal) async {
+    final arguments = proposal.arguments;
+    switch (proposal.kind) {
+      case AgentProposalKind.createTransaction:
+        final value = _transactionFromArguments(arguments);
+        await ref
+            .read(storeProvider)
+            .applyTransactionChanges(
+              upserts: [value],
+              deletes: const [],
+              undoKind: 'delete_created_transaction',
+              undoPayload: {'createdAt': DateTime.now().toIso8601String()},
+            );
+        return true;
+      case AgentProposalKind.updateTransaction:
+        final id = arguments['id'] as int;
+        final matches = _value.transactions.where((item) => item.id == id);
+        if (matches.length != 1) return false;
+        final before = matches.single;
+        final after = _transactionFromArguments(arguments, existing: before);
+        await ref
+            .read(storeProvider)
+            .applyTransactionChanges(
+              upserts: [after],
+              deletes: const [],
+              undoKind: 'restore_transaction',
+              undoPayload: {'transaction': before.toMap()},
+            );
+        return true;
+      case AgentProposalKind.deleteTransaction:
+        final id = arguments['id'] as int;
+        final matches = _value.transactions.where((item) => item.id == id);
+        if (matches.length != 1) return false;
+        await ref
+            .read(storeProvider)
+            .applyTransactionChanges(
+              upserts: const [],
+              deletes: [id],
+              undoKind: 'restore_transaction',
+              undoPayload: {'transaction': matches.single.toMap()},
+            );
+        return true;
+      case AgentProposalKind.bulkCategory:
+        final ids = (arguments['ids'] as List).cast<int>();
+        final category = arguments['category'].toString().trim();
+        final matches = _value.transactions
+            .where((item) => ids.contains(item.id))
+            .toList();
+        if (matches.length != ids.toSet().length || category.isEmpty) {
+          return false;
+        }
+        await ref
+            .read(storeProvider)
+            .applyTransactionChanges(
+              upserts: matches.map((item) => item.copyWith(category: category)),
+              deletes: const [],
+              undoKind: 'restore_transactions',
+              undoPayload: {
+                'transactions': matches.map((item) => item.toMap()).toList(),
+              },
+            );
+        return true;
+      case AgentProposalKind.updateSettings:
+        var preferences = _value.preferences;
+        final appearance = arguments['appearance']?.toString();
+        if (appearance != null) {
+          preferences = preferences.copyWith(
+            appearance: AppearancePreference.values.byName(appearance),
+          );
+        }
+        if (arguments['currency'] != null) {
+          preferences = preferences.copyWith(
+            currency: arguments['currency'].toString().toUpperCase(),
+          );
+        }
+        if (arguments['hideAmounts'] is bool) {
+          preferences = preferences.copyWith(
+            hideAmounts: arguments['hideAmounts'] as bool,
+          );
+        }
+        if (arguments['messageLookbackDays'] is int) {
+          preferences = preferences.copyWith(
+            messageLookbackDays: arguments['messageLookbackDays'] as int,
+          );
+        }
+        await ref.read(storeProvider).saveUndo('restore_settings', {
+          'appearance': _value.preferences.appearance.name,
+          'currency': _value.preferences.currency,
+          'hideAmounts': _value.preferences.hideAmounts,
+          'messageLookbackDays': _value.preferences.messageLookbackDays,
+          'captureNotifications': _value.preferences.captureNotifications,
+        });
+        await updatePreferences(preferences);
+        if (arguments['captureNotifications'] is bool) {
+          return setNotificationCapture(
+            arguments['captureNotifications'] as bool,
+          );
+        }
+        return true;
+      case AgentProposalKind.setAppLock:
+        await ref.read(storeProvider).saveUndo('restore_app_lock', {
+          'enabled': _value.preferences.lockApp,
+        });
+        return setAppLock(arguments['enabled'] as bool);
+      case AgentProposalKind.clearConversation:
+        await clearConversation();
+        return true;
+    }
   }
 
-  Future<void> undoLastChange() async {
-    final change = _value.lastAppliedChange;
-    if (change == null) return;
-    final matches = _value.transactions.where(
-      (value) => value.id == change.transactionId,
-    );
-    if (matches.length == 1) {
-      await ref
-          .read(storeProvider)
-          .saveTransaction(
-            matches.single.copyWith(category: change.fromCategory),
-          );
+  Future<void> undoLastAgentAction() async {
+    final record = await ref.read(storeProvider).latestUndo();
+    if (record == null) return;
+    if (record.kind == 'restore_settings') {
+      final payload = record.payload;
+      final preferences = _value.preferences.copyWith(
+        appearance: AppearancePreference.values.byName(
+          payload['appearance'].toString(),
+        ),
+        currency: payload['currency'].toString(),
+        hideAmounts: payload['hideAmounts'] as bool,
+        messageLookbackDays: payload['messageLookbackDays'] as int,
+      );
+      await updatePreferences(preferences);
+      final capture = payload['captureNotifications'] as bool;
+      if (capture != preferences.captureNotifications) {
+        await setNotificationCapture(capture);
+      }
+      await ref.read(storeProvider).consumeUndo(record.id);
+    } else if (record.kind == 'restore_app_lock') {
+      await setAppLock(record.payload['enabled'] as bool);
+      await ref.read(storeProvider).consumeUndo(record.id);
+    } else {
+      await ref.read(storeProvider).applyTransactionUndo(record);
     }
     state = AsyncData(
       _value.copyWith(
         transactions: await ref.read(storeProvider).transactions(),
-        clearLastAppliedChange: true,
+        clearLastAgentAction: true,
+        clearError: true,
       ),
     );
   }
 
-  (String, List<int>) _contextFor(String question) {
-    final now = DateTime.now();
-    final from = DateTime(now.year, now.month);
-    final month = _value.transactions
-        .where((e) => !e.occurredAt.isBefore(from))
-        .toList();
-    final summaries = FinanceEngine.summarize(month);
-    final totals = summaries
-        .map(
-          (e) =>
-              '${e.currency}: incoming ${e.incomingMinor} minor units, outgoing ${e.outgoingMinor} minor units, net ${e.netMinor} minor units',
-        )
-        .join('\n');
-    final recent = month
-        .take(min(100, month.length))
-        .map(
-          (e) =>
-              'id=${e.id}; ${e.occurredAt.toIso8601String()}; ${e.direction.name}; ${e.amountMinor} ${e.currency} minor units; merchant=${e.merchant}; category=${e.category}',
-        )
-        .join('\n');
-    return (
-      'Current month deterministic totals:\n$totals\nTransactions:\n$recent',
-      month.map((e) => e.id).whereType<int>().toList(),
+  MoneyTransaction _transactionFromArguments(
+    Map<String, Object?> arguments, {
+    MoneyTransaction? existing,
+  }) {
+    final occurredAt = arguments['occurredAt'] == null
+        ? existing?.occurredAt ?? DateTime.now()
+        : DateTime.parse(arguments['occurredAt'].toString()).toLocal();
+    return MoneyTransaction(
+      id: existing?.id,
+      amountMinor:
+          arguments['amountMinor'] as int? ?? existing?.amountMinor ?? 0,
+      currency:
+          arguments['currency']?.toString().toUpperCase() ??
+          existing?.currency ??
+          _value.preferences.currency,
+      direction: arguments['direction'] == null
+          ? existing?.direction ?? TransactionDirection.outgoing
+          : TransactionDirection.values.byName(
+              arguments['direction'].toString(),
+            ),
+      merchant:
+          arguments['merchant']?.toString().trim() ??
+          existing?.merchant ??
+          'Transaction',
+      category:
+          arguments['category']?.toString().trim() ??
+          existing?.category ??
+          'Other',
+      occurredAt: occurredAt,
+      source: existing?.source ?? TransactionSource.manual,
+      reviewState: existing?.reviewState ?? ReviewState.confirmed,
+      confidence: existing?.confidence ?? 1,
+      account: arguments['account']?.toString() ?? existing?.account,
+      note: arguments['note']?.toString() ?? existing?.note,
+      sourceText: existing?.sourceText,
     );
   }
 }

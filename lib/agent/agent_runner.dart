@@ -216,7 +216,18 @@ Use only the supplied capabilities for facts about transactions, totals, setting
 
 Use read capabilities freely. When the person clearly requests a change, call exactly one proposal capability with the smallest possible scope. A proposal does not execute the change. Never claim it was applied.
 
-Finish every read-only answer by calling answer_compose. The parts must include one conclusion and should add only useful metrics, comparisons, breakdowns, transaction evidence, insights, source notes, warnings, and 2–3 contextual follow-ups. Keep prose concise. Every numeric claim must come from a capability result. If evidence is insufficient, say so plainly.''';
+Finish every read-only answer by calling answer_compose. Its parts use these exact shapes:
+- {"type":"conclusion","text":"direct answer"}
+- {"type":"narrative","text":"short explanation"}
+- {"type":"metricRow","metrics":[{"label":"Spent","amountMinor":1234,"currency":"INR"}]}
+- {"type":"comparison","title":"This month vs last month","detail":"grounded explanation"}
+- {"type":"breakdown","title":"By category","rows":[{"label":"Food","amountMinor":1234,"currency":"INR"}]}
+- {"type":"transactionList","transactionIds":[1,2]}
+- {"type":"insight","text":"useful observation"}
+- {"type":"sourceNote","text":"period, filters, tools and transaction count"}
+- {"type":"followUps","questions":["question one","question two"]}
+- {"type":"warning","text":"important limitation"}
+Include one conclusion. Add only parts that materially help. Keep prose concise. Every numeric claim and transaction ID must come from a capability result. If evidence is insufficient, say so plainly.''';
 }
 
 class AgentRunException implements Exception {

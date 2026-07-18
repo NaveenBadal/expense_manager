@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_controller.dart';
 import '../../app/app_state.dart';
+import '../../agent/agent_proposal.dart';
 import '../../domain/conversation.dart';
-import '../../domain/change_proposal.dart';
 import '../../domain/finance_summary.dart';
+import '../../domain/transaction.dart';
 import '../../ui/components/current_button.dart';
 import '../../ui/components/current_field.dart';
 import '../../ui/components/current_header.dart';
@@ -13,6 +14,7 @@ import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
 import '../../ui/format/money_format.dart';
 import '../you/connect_intelligence_sheet.dart';
+import 'agent_answer_view.dart';
 
 class AskScreen extends ConsumerStatefulWidget {
   const AskScreen({super.key});
@@ -33,11 +35,11 @@ class _State extends ConsumerState<AskScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen(appControllerProvider, (previous, next) {
-      final before = previous?.value?.pendingChange;
-      final after = next.value?.pendingChange;
+      final before = previous?.value?.pendingAgentProposal;
+      final after = next.value?.pendingAgentProposal;
       if (before == null && after != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _showChangeApproval(after);
+          if (mounted) _showAgentApproval(after);
         });
       }
     });
@@ -82,9 +84,19 @@ class _State extends ConsumerState<AskScreen> {
                                 (app.asking || app.error != null ? 1 : 0),
                             itemBuilder: (context, i) {
                               if (i == app.conversation.length) {
-                                return _WorkingOrError(app: app);
+                                return _WorkingOrError(
+                                  app: app,
+                                  onStop: () => ref
+                                      .read(appControllerProvider.notifier)
+                                      .stopAgent(),
+                                );
                               }
-                              return _MessageView(message: app.conversation[i]);
+                              return _MessageView(
+                                message: app.conversation[i],
+                                transactions: app.transactions,
+                                onFollowUp: _ask,
+                                onTransaction: _showTransaction,
+                              );
                             },
                           ),
                   ),
@@ -111,13 +123,13 @@ class _State extends ConsumerState<AskScreen> {
                       ),
                     ),
                   ),
-                  if (app.lastAppliedChange != null) ...[
+                  if (app.lastAgentAction != null) ...[
                     const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: Text(
-                            '${app.lastAppliedChange!.merchant} moved to ${app.lastAppliedChange!.toCategory}.',
+                            '${app.lastAgentAction} was applied.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
@@ -127,7 +139,7 @@ class _State extends ConsumerState<AskScreen> {
                           style: CurrentButtonStyle.text,
                           onPressed: () => ref
                               .read(appControllerProvider.notifier)
-                              .undoLastChange(),
+                              .undoLastAgentAction(),
                         ),
                       ],
                     ),
@@ -152,24 +164,23 @@ class _State extends ConsumerState<AskScreen> {
     ref.read(appControllerProvider.notifier).ask(value);
   }
 
-  Future<void> _showChangeApproval(ChangeProposal proposal) =>
+  Future<void> _showAgentApproval(AgentProposal proposal) =>
       showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
         builder: (sheet) => CurrentSheet(
-          title: 'Change ${proposal.merchant}?',
-          explanation:
-              'Category will change from ${proposal.fromCategory} to ${proposal.toCategory}. This affects one local transaction and can be undone.',
+          title: proposal.title,
+          explanation: proposal.explanation,
           actions: Row(
             children: [
               Expanded(
                 child: CurrentButton(
-                  label: 'Not now',
+                  label: 'Reject',
                   style: CurrentButtonStyle.outline,
                   onPressed: () {
                     ref
                         .read(appControllerProvider.notifier)
-                        .rejectPendingChange();
+                        .rejectAgentProposal();
                     Navigator.pop(sheet);
                   },
                 ),
@@ -177,11 +188,13 @@ class _State extends ConsumerState<AskScreen> {
               const SizedBox(width: 10),
               Expanded(
                 child: CurrentButton(
-                  label: 'Change category',
+                  label: proposal.requiresAuthentication
+                      ? 'Approve securely'
+                      : 'Approve change',
                   onPressed: () async {
                     await ref
                         .read(appControllerProvider.notifier)
-                        .applyPendingChange();
+                        .approveAgentProposal();
                     if (sheet.mounted) Navigator.pop(sheet);
                   },
                 ),
@@ -192,10 +205,37 @@ class _State extends ConsumerState<AskScreen> {
         ),
       ).whenComplete(() {
         if (mounted &&
-            ref.read(appControllerProvider).value?.pendingChange != null) {
-          ref.read(appControllerProvider.notifier).rejectPendingChange();
+            ref.read(appControllerProvider).value?.pendingAgentProposal !=
+                null) {
+          ref.read(appControllerProvider.notifier).rejectAgentProposal();
         }
       });
+
+  Future<void> _showTransaction(
+    MoneyTransaction item,
+  ) => showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => CurrentSheet(
+      title: item.merchant,
+      explanation:
+          '${item.category} · ${item.direction == TransactionDirection.incoming ? 'Money in' : 'Money out'}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            formatMoney(item.amountMinor, item.currency),
+            style: Theme.of(context).textTheme.headlineLarge,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'This transaction was opened from the evidence used in the answer.',
+            style: TextStyle(color: context.current.muted),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _EmptyAsk extends StatelessWidget {
@@ -306,8 +346,16 @@ class _EmptyAsk extends StatelessWidget {
 }
 
 class _MessageView extends StatelessWidget {
-  const _MessageView({required this.message});
+  const _MessageView({
+    required this.message,
+    required this.transactions,
+    required this.onFollowUp,
+    required this.onTransaction,
+  });
   final ConversationMessage message;
+  final List<MoneyTransaction> transactions;
+  final ValueChanged<String> onFollowUp;
+  final ValueChanged<MoneyTransaction> onTransaction;
   @override
   Widget build(BuildContext context) {
     if (message.author == MessageAuthor.person) {
@@ -334,7 +382,15 @@ class _MessageView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(message.text, style: Theme.of(context).textTheme.bodyLarge),
+          if (message.parts.isNotEmpty)
+            AgentAnswerView(
+              parts: message.parts,
+              transactions: transactions,
+              onFollowUp: onFollowUp,
+              onTransaction: onTransaction,
+            )
+          else
+            Text(message.text, style: Theme.of(context).textTheme.bodyLarge),
           if (message.verified) ...[
             const SizedBox(height: 12),
             Row(
@@ -361,8 +417,9 @@ class _MessageView extends StatelessWidget {
 }
 
 class _WorkingOrError extends StatelessWidget {
-  const _WorkingOrError({required this.app});
+  const _WorkingOrError({required this.app, required this.onStop});
   final AppState app;
+  final VoidCallback onStop;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 18),
@@ -378,6 +435,13 @@ class _WorkingOrError extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(child: Text(app.error ?? app.askStage ?? 'Working')),
+        if (app.asking)
+          CurrentButton(
+            label: 'Stop',
+            compact: true,
+            style: CurrentButtonStyle.text,
+            onPressed: onStop,
+          ),
       ],
     ),
   );
