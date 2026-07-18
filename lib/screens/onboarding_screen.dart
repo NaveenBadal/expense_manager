@@ -6,6 +6,7 @@ import '../models/ai_provider.dart';
 import '../providers/expense_provider.dart';
 import '../services/ollama_cloud_service.dart';
 import '../theme/app_tokens.dart';
+import '../widgets/ui/flow_ui.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -50,75 +51,83 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final sync = ref.watch(syncProvider);
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.page,
-                AppSpacing.lg,
-                AppSpacing.page,
-                AppSpacing.sm,
-              ),
-              child: Row(
-                children: [
-                  _FlowMark(active: _working || sync.isAnalyzing),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Text(
-                      'FLOW',
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        letterSpacing: 1.6,
+      body: FlowAtmosphere(
+        alignment: const Alignment(.65, -.9),
+        child: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.lg,
+                  AppSpacing.page,
+                  AppSpacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    FlowOrb(
+                      size: 42,
+                      state: _working || sync.isAnalyzing
+                          ? FlowOrbState.thinking
+                          : FlowOrbState.ready,
+                    ),
+                    const SizedBox(width: AppSpacing.md),
+                    Expanded(
+                      child: Text(
+                        'FLOW',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          letterSpacing: 1.6,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${_page + 1} / $_pageCount',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
-                  ),
-                  Text(
-                    '${_page + 1} / $_pageCount',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
+                  ],
+                ),
+              ),
+              Expanded(
+                child: PageView(
+                  controller: _pages,
+                  physics: const NeverScrollableScrollPhysics(),
+                  onPageChanged: (page) => setState(() => _page = page),
+                  children: [
+                    const _PromiseStage(),
+                    _ConnectionStage(
+                      keyController: _key,
+                      endpointController: _endpoint,
+                      model: _model,
+                      showKey: _showKey,
+                      showAdvanced: _showAdvanced,
+                      error: _connectionError,
+                      onToggleKey: () => setState(() => _showKey = !_showKey),
+                      onToggleAdvanced: () =>
+                          setState(() => _showAdvanced = !_showAdvanced),
+                      onModelChanged: (value) => setState(() => _model = value),
                     ),
-                  ),
-                ],
+                    _SmsStage(aiReady: !_continuedWithoutAi),
+                    _AnalysisStage(sync: sync, aiReady: !_continuedWithoutAi),
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: PageView(
-                controller: _pages,
-                physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (page) => setState(() => _page = page),
-                children: [
-                  const _PromiseStage(),
-                  _ConnectionStage(
-                    keyController: _key,
-                    endpointController: _endpoint,
-                    model: _model,
-                    showKey: _showKey,
-                    showAdvanced: _showAdvanced,
-                    error: _connectionError,
-                    onToggleKey: () => setState(() => _showKey = !_showKey),
-                    onToggleAdvanced: () =>
-                        setState(() => _showAdvanced = !_showAdvanced),
-                    onModelChanged: (value) => setState(() => _model = value),
-                  ),
-                  _SmsStage(aiReady: !_continuedWithoutAi),
-                  _AnalysisStage(sync: sync, aiReady: !_continuedWithoutAi),
-                ],
+              _BottomAction(
+                page: _page,
+                working: _working || _restoring,
+                sync: sync,
+                onBack: _back,
+                onPrimary: _primaryAction,
+                onSkipAi: _page == 1 && !_working ? _skipAi : null,
+                onSkipSms: _page == 2 && !_working ? _skipSms : null,
+                onStop: sync.isAnalyzing
+                    ? () => ref.read(syncProvider.notifier).cancel()
+                    : null,
               ),
-            ),
-            _BottomAction(
-              page: _page,
-              working: _working || _restoring,
-              sync: sync,
-              onBack: _back,
-              onPrimary: _primaryAction,
-              onSkipAi: _page == 1 && !_working ? _skipAi : null,
-              onSkipSms: _page == 2 && !_working ? _skipSms : null,
-              onStop: sync.isAnalyzing
-                  ? () => ref.read(syncProvider.notifier).cancel()
-                  : null,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -282,31 +291,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 }
 
-class _FlowMark extends StatelessWidget {
-  const _FlowMark({required this.active});
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return AnimatedContainer(
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : AppMotion.medium,
-      width: 42,
-      height: 42,
-      decoration: ShapeDecoration(
-        color: active ? scheme.primary : scheme.primaryContainer,
-        shape: ExpressiveShape.hero(),
-      ),
-      child: Icon(
-        Icons.blur_on_rounded,
-        color: active ? scheme.onPrimary : scheme.primary,
-      ),
-    );
-  }
-}
-
 class _PromiseStage extends StatelessWidget {
   const _PromiseStage();
 
@@ -337,7 +321,11 @@ class _PromiseStage extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
-                Icon(Icons.sms_outlined, size: 108, color: scheme.primary),
+                Icon(
+                  Icons.sms_outlined,
+                  size: 108,
+                  color: scheme.primary.withValues(alpha: .84),
+                ),
                 Positioned(
                   right: 54,
                   bottom: 44,
@@ -345,7 +333,7 @@ class _PromiseStage extends StatelessWidget {
                     radius: 30,
                     backgroundColor: scheme.primary,
                     foregroundColor: scheme.onPrimary,
-                    child: const Icon(Icons.blur_on_rounded, size: 32),
+                    child: const FlowOrb(size: 56),
                   ),
                 ),
               ],
@@ -560,7 +548,17 @@ class _AnalysisStage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: AppSpacing.xxl),
-          _FlowMark(active: !complete && !error && aiReady),
+          FlowOrb(
+            size: 64,
+            state: complete
+                ? FlowOrbState.success
+                : error
+                ? FlowOrbState.attention
+                : aiReady
+                ? FlowOrbState.syncing
+                : FlowOrbState.offline,
+            progress: progress,
+          ),
           const SizedBox(height: AppSpacing.section),
           Text(
             complete
@@ -588,8 +586,10 @@ class _AnalysisStage extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.region),
           if (!complete && !error && aiReady) ...[
-            LinearProgressIndicator(value: progress, minHeight: 8),
-            const SizedBox(height: AppSpacing.md),
+            if (progress != null) ...[
+              LinearProgressIndicator(value: progress, minHeight: 8),
+              const SizedBox(height: AppSpacing.md),
+            ],
             Text(
               sync.total > 0
                   ? '${sync.current} of ${sync.total} messages analyzed'
@@ -752,10 +752,7 @@ class _BottomAction extends StatelessWidget {
                 child: FilledButton(
                   onPressed: primaryEnabled ? onPrimary : null,
                   child: working
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
+                      ? const Icon(Icons.hourglass_top_rounded)
                       : Text(label),
                 ),
               ),

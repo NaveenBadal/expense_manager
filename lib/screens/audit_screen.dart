@@ -20,13 +20,17 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(parsedSmsAuditProvider);
+    final width = MediaQuery.sizeOf(context).width;
+    final inset = width > AppBreakpoint.contentMax + 40
+        ? (width - AppBreakpoint.contentMax) / 2
+        : AppSpacing.page;
     return FlowScaffold(
       eyebrow: 'See what happened during import',
       title: 'Import history',
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            padding: EdgeInsets.fromLTRB(inset, 0, inset, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -62,7 +66,7 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
         ),
         async.when(
           loading: () => const SliverFillRemaining(
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: Icon(Icons.hourglass_top_rounded, size: 32)),
           ),
           error: (error, _) => SliverFillRemaining(
             child: StatePanel(
@@ -93,7 +97,7 @@ class _AuditScreenState extends ConsumerState<AuditScreen> {
               );
             }
             return SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+              padding: EdgeInsets.fromLTRB(inset, 0, inset, 40),
               sliver: SliverList.separated(
                 itemCount: items.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 10),

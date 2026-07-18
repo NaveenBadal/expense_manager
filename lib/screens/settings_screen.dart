@@ -8,6 +8,7 @@ import '../services/development_update_service.dart';
 import '../services/ollama_cloud_service.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/development_update_ui.dart';
+import '../widgets/ui/flow_ui.dart';
 import 'audit_screen.dart';
 import 'custom_categories_screen.dart';
 import 'logs_screen.dart';
@@ -59,7 +60,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ? (screenWidth - AppBreakpoint.contentMax) / 2
         : AppSpacing.lg;
     return Scaffold(
-      appBar: AppBar(title: const Text('You')),
+      appBar: AppBar(
+        toolbarHeight: 76,
+        title: Text('You', style: Theme.of(context).textTheme.headlineMedium),
+      ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(contentInset, 0, contentInset, 40),
         children: [
@@ -76,10 +80,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SettingsCard(
             children: [
               ListTile(
-                leading: Icon(
-                  _connected || aiConfigured
-                      ? Icons.cloud_done_outlined
-                      : Icons.cloud_outlined,
+                leading: FlowOrb(
+                  size: 42,
+                  state: _testing
+                      ? FlowOrbState.thinking
+                      : _connected || aiConfigured
+                      ? FlowOrbState.ready
+                      : FlowOrbState.offline,
                 ),
                 title: const Text('Ollama Cloud'),
                 subtitle: Text(
@@ -184,27 +191,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: SegmentedButton<ThemeMode>(
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
-                      value: ThemeMode.system,
-                      icon: Icon(Icons.brightness_auto_outlined),
-                      label: Text('System'),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.light,
-                      icon: Icon(Icons.light_mode_outlined),
-                      label: Text('Light'),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.dark,
-                      icon: Icon(Icons.dark_mode_outlined),
-                      label: Text('Dark'),
-                    ),
-                  ],
-                  selected: {themeMode},
-                  onSelectionChanged: (value) => _setTheme(value.first),
+                child: _ThemeModeSelector(
+                  value: themeMode,
+                  onChanged: _setTheme,
                 ),
               ),
               SwitchListTile(
@@ -294,16 +283,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Primary currency',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Used for new transactions, monthly guides, and spending limits. Existing records keep their original currency.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                const FlowSheetHeader(
+                  leading: Icon(Icons.payments_outlined),
+                  title: 'Primary currency',
+                  description:
+                      'Used for new transactions, monthly guides, and spending limits. Existing records keep their original currency.',
                 ),
                 const SizedBox(height: 24),
                 DropdownButtonFormField<String>(
@@ -361,16 +345,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Connect Ollama Cloud',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Used for Flow answers and transaction SMS understanding when you start them.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+                const FlowSheetHeader(
+                  leading: FlowOrb(size: 44),
+                  title: 'Connect Ollama Cloud',
+                  description:
+                      'Used for Flow answers and transaction SMS understanding when you start them.',
                 ),
                 const SizedBox(height: 24),
                 TextField(
@@ -563,9 +542,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Data and AI privacy',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+            FlowSheetHeader(
+              leading: Icon(Icons.privacy_tip_outlined),
+              title: 'Data and AI privacy',
+              description:
+                  'A clear map of what Flow processes and where your financial evidence stays.',
             ),
             SizedBox(height: 24),
             _PrivacyFact(
@@ -614,17 +595,61 @@ class _SectionTitle extends StatelessWidget {
   );
 }
 
+class _ThemeModeSelector extends StatelessWidget {
+  const _ThemeModeSelector({required this.value, required this.onChanged});
+
+  final ThemeMode value;
+  final ValueChanged<ThemeMode> onChanged;
+
+  static const _options = [
+    (ThemeMode.system, Icons.brightness_auto_outlined, 'System'),
+    (ThemeMode.light, Icons.light_mode_outlined, 'Light'),
+    (ThemeMode.dark, Icons.dark_mode_outlined, 'Dark'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final adaptive =
+        MediaQuery.sizeOf(context).width < 380 ||
+        MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    if (adaptive) {
+      return Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: [
+          for (final option in _options)
+            ChoiceChip(
+              selected: value == option.$1,
+              avatar: Icon(option.$2, size: 18),
+              label: Text(option.$3),
+              onSelected: (_) => onChanged(option.$1),
+            ),
+        ],
+      );
+    }
+    return SegmentedButton<ThemeMode>(
+      showSelectedIcon: false,
+      segments: [
+        for (final option in _options)
+          ButtonSegment(
+            value: option.$1,
+            icon: Icon(option.$2),
+            label: Text(option.$3),
+          ),
+      ],
+      selected: {value},
+      onSelectionChanged: (selection) => onChanged(selection.first),
+    );
+  }
+}
+
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({required this.children});
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(30),
-      boxShadow: PremiumShadows.soft(context),
-    ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
     child: Card(
       shape: ExpressiveShape.card(),
       clipBehavior: Clip.antiAlias,

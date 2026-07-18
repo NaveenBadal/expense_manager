@@ -19,6 +19,7 @@ class AgentArtifactCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (artifact.isEmpty) return const SizedBox.shrink();
     final scheme = Theme.of(context).colorScheme;
+    final accent = _accent(context);
     return Semantics(
       container: true,
       label: artifact.title,
@@ -26,7 +27,10 @@ class AgentArtifactCard extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 10),
         decoration: ShapeDecoration(
           color: scheme.surfaceContainer,
-          shape: ExpressiveShape.card(radius: AppRadius.xl),
+          shape: ExpressiveShape.card(
+            radius: AppRadius.xl,
+            color: scheme.outlineVariant.withValues(alpha: .45),
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: Padding(
@@ -40,14 +44,10 @@ class AgentArtifactCard extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: scheme.primaryContainer,
+                      color: accent.withValues(alpha: .14),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(
-                      _icon,
-                      size: 20,
-                      color: scheme.onPrimaryContainer,
-                    ),
+                    child: Icon(_icon, size: 20, color: accent),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -67,11 +67,7 @@ class AgentArtifactCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(
-                    Icons.verified_user_outlined,
-                    size: 18,
-                    color: scheme.primary,
-                  ),
+                  Icon(Icons.verified_user_outlined, size: 18, color: accent),
                 ],
               ),
               const SizedBox(height: 16),
@@ -108,6 +104,14 @@ class AgentArtifactCard extends StatelessWidget {
     AgentArtifactKind.action => Icons.task_alt_rounded,
     AgentArtifactKind.insight => Icons.lightbulb_outline_rounded,
     _ => Icons.blur_on_outlined,
+  };
+
+  Color _accent(BuildContext context) => switch (artifact.kind) {
+    AgentArtifactKind.anomalies => context.finance.warning,
+    AgentArtifactKind.forecast ||
+    AgentArtifactKind.recurring => context.finance.income,
+    AgentArtifactKind.action => Theme.of(context).colorScheme.tertiary,
+    _ => Theme.of(context).colorScheme.primary,
   };
 
   Widget _content(BuildContext context) => switch (artifact.kind) {

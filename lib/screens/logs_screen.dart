@@ -12,23 +12,28 @@ class LogsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final logs = ref.watch(aiLogProvider);
+    final width = MediaQuery.sizeOf(context).width;
+    final inset = width > AppBreakpoint.contentMax + 40
+        ? (width - AppBreakpoint.contentMax) / 2
+        : AppSpacing.page;
     return FlowScaffold(
       eyebrow: 'Requests, results and errors',
       title: 'AI activity',
       actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: IconButton(
-            tooltip: 'Clear history',
-            onPressed: () => _clear(context, ref),
-            icon: const Icon(Icons.delete_sweep_outlined),
+        if (logs.value?.isNotEmpty ?? false)
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: IconButton(
+              tooltip: 'Clear history',
+              onPressed: () => _clear(context, ref),
+              icon: const Icon(Icons.delete_sweep_outlined),
+            ),
           ),
-        ),
       ],
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            padding: EdgeInsets.fromLTRB(inset, 0, inset, 12),
             child: Text(
               'A technical history of AI extraction. Clearing it does not remove any transactions.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -40,7 +45,7 @@ class LogsScreen extends ConsumerWidget {
         ),
         logs.when(
           loading: () => const SliverFillRemaining(
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: Icon(Icons.hourglass_top_rounded, size: 32)),
           ),
           error: (error, _) => SliverFillRemaining(
             child: StatePanel(
@@ -59,7 +64,7 @@ class LogsScreen extends ConsumerWidget {
                   ),
                 )
               : SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
+                  padding: EdgeInsets.fromLTRB(inset, 8, inset, 40),
                   sliver: SliverList.separated(
                     itemCount: items.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),

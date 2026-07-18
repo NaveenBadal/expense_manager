@@ -99,10 +99,7 @@ class DevelopmentUpdateSettingsCard extends ConsumerWidget {
         ),
         subtitle: Text(_status(state)),
         trailing: busy
-            ? const SizedBox.square(
-                dimension: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const Icon(Icons.hourglass_top_rounded)
             : const Icon(Icons.chevron_right_rounded),
         onTap: busy
             ? null

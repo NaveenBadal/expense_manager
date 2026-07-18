@@ -13,6 +13,7 @@ import 'package:expense_manager/widgets/agent_artifact_card.dart';
 import 'package:expense_manager/models/agent_artifact.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
@@ -107,9 +108,19 @@ void main() {
       ),
       findsOneWidget,
     );
+
+    await tester.dragUntilVisible(
+      find.text('Personalization'),
+      find.byType(ListView),
+      const Offset(0, -240),
+    );
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ChoiceChip), findsNWidgets(3));
   });
 
   testWidgets('AI-first onboarding supports 200% text', (tester) async {
+    FlutterSecureStorage.setMockInitialValues({});
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);

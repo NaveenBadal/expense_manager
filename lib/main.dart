@@ -13,6 +13,7 @@ import 'screens/settings_screen.dart';
 import 'services/notification_service.dart';
 import 'theme/app_tokens.dart';
 import 'widgets/money_chat_sheet.dart';
+import 'widgets/ui/flow_ui.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +40,25 @@ class ExpenseManagerApp extends ConsumerWidget {
       themeMode: themeMode,
       theme: AppTheme.light(null),
       darkTheme: AppTheme.dark(null),
+      highContrastTheme: AppTheme.highContrastLight(null),
+      highContrastDarkTheme: AppTheme.highContrastDark(null),
+      builder: (context, child) {
+        final dark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: dark
+              ? SystemUiOverlayStyle.light.copyWith(
+                  statusBarColor: Colors.transparent,
+                  systemNavigationBarColor: Colors.transparent,
+                  systemNavigationBarIconBrightness: Brightness.light,
+                )
+              : SystemUiOverlayStyle.dark.copyWith(
+                  statusBarColor: Colors.transparent,
+                  systemNavigationBarColor: Colors.transparent,
+                  systemNavigationBarIconBrightness: Brightness.dark,
+                ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const _AppGate(),
     );
   }
@@ -55,7 +75,7 @@ class _AppGate extends ConsumerWidget {
     final settingsAsync = ref.watch(settingsInitializer);
 
     if (settingsAsync.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: FlowOrb(size: 52)));
     }
     if (settingsAsync.hasError) {
       return Scaffold(
@@ -84,8 +104,7 @@ class _AppGate extends ConsumerWidget {
     }
 
     return onboardingAsync.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: Center(child: FlowOrb(size: 52))),
       error: (_, _) => const AppShell(),
       data: (done) {
         if (!done) return const OnboardingScreen();
@@ -361,30 +380,15 @@ class _AppShellState extends ConsumerState<AppShell>
           return Scaffold(
             body: Row(
               children: [
-                NavigationRail(
+                _FlowNavigationRail(
                   selectedIndex: _destination,
                   extended: constraints.maxWidth >= AppBreakpoint.extendedRail,
-                  groupAlignment: -.72,
                   onDestinationSelected: _selectDestination,
-                  destinations: const [
-                    NavigationRailDestination(
-                      icon: Icon(Icons.blur_on_outlined),
-                      selectedIcon: Icon(Icons.blur_on_rounded),
-                      label: Text('Flow'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.receipt_long_outlined),
-                      selectedIcon: Icon(Icons.receipt_long_rounded),
-                      label: Text('Activity'),
-                    ),
-                    NavigationRailDestination(
-                      icon: Icon(Icons.person_outline_rounded),
-                      selectedIcon: Icon(Icons.person_rounded),
-                      label: Text('You'),
-                    ),
-                  ],
                 ),
-                VerticalDivider(width: 1, color: scheme.outlineVariant),
+                VerticalDivider(
+                  width: 1,
+                  color: scheme.outlineVariant.withValues(alpha: .5),
+                ),
                 Expanded(child: pages),
               ],
             ),
@@ -398,6 +402,161 @@ class _AppShellState extends ConsumerState<AppShell>
           ),
         );
       },
+    );
+  }
+}
+
+class _FlowNavigationRail extends StatelessWidget {
+  const _FlowNavigationRail({
+    required this.selectedIndex,
+    required this.extended,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final bool extended;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    const items = [
+      (Icons.blur_on_outlined, 'Flow', 'Flow agent'),
+      (Icons.receipt_long_outlined, 'Activity', 'Activity and evidence'),
+      (Icons.person_outline_rounded, 'You', 'Your settings and privacy'),
+    ];
+    return FlowAtmosphere(
+      alignment: const Alignment(-1, -1),
+      child: SafeArea(
+        child: SizedBox(
+          width: extended ? 232 : 88,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: extended ? 12 : 8),
+                  child: Row(
+                    mainAxisAlignment: extended
+                        ? MainAxisAlignment.start
+                        : MainAxisAlignment.center,
+                    children: [
+                      const FlowOrb(size: 38),
+                      if (extended) ...[
+                        const SizedBox(width: 12),
+                        Text(
+                          'Fund Flow',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 52),
+                for (var index = 0; index < items.length; index++) ...[
+                  _FlowRailDestination(
+                    selected: selectedIndex == index,
+                    extended: extended,
+                    icon: items[index].$1,
+                    label: items[index].$2,
+                    tooltip: items[index].$3,
+                    onTap: () => onDestinationSelected(index),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                const Spacer(),
+                if (extended)
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Private by design',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FlowRailDestination extends StatelessWidget {
+  const _FlowRailDestination({
+    required this.selected,
+    required this.extended,
+    required this.icon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final bool extended;
+  final IconData icon;
+  final String label;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: tooltip,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const StadiumBorder(),
+          child: AnimatedContainer(
+            height: 56,
+            duration: reduce ? Duration.zero : AppMotion.medium,
+            curve: AppMotion.emphasizedDecelerate,
+            padding: EdgeInsets.symmetric(horizontal: extended ? 16 : 0),
+            decoration: ShapeDecoration(
+              color: selected
+                  ? scheme.primaryContainer.withValues(alpha: .72)
+                  : Colors.transparent,
+              shape: const StadiumBorder(),
+            ),
+            child: Row(
+              mainAxisAlignment: extended
+                  ? MainAxisAlignment.start
+                  : MainAxisAlignment.center,
+              children: [
+                if (selected && label == 'Flow')
+                  const FlowOrb(size: 24)
+                else
+                  Icon(
+                    icon,
+                    color: selected
+                        ? scheme.onPrimaryContainer
+                        : scheme.onSurfaceVariant,
+                  ),
+                if (extended) ...[
+                  const SizedBox(width: 14),
+                  Text(
+                    label,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: selected
+                          ? scheme.onPrimaryContainer
+                          : scheme.onSurfaceVariant,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -455,30 +614,139 @@ class FlowNavigationBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NavigationBar(
-      selectedIndex: selectedIndex,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      onDestinationSelected: onDestinationSelected,
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.blur_on_outlined),
-          selectedIcon: Icon(Icons.blur_on_rounded),
-          label: 'Flow',
-          tooltip: 'Flow agent',
+    final scheme = Theme.of(context).colorScheme;
+    const destinations = [
+      (Icons.blur_on_outlined, Icons.blur_on_rounded, 'Flow', 'Flow agent'),
+      (
+        Icons.receipt_long_outlined,
+        Icons.receipt_long_rounded,
+        'Activity',
+        'Activity and evidence',
+      ),
+      (
+        Icons.person_outline_rounded,
+        Icons.person_rounded,
+        'You',
+        'Your settings and privacy',
+      ),
+    ];
+    return ColoredBox(
+      color: scheme.surface.withValues(alpha: .96),
+      child: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+        child: FlowGlass(
+          radius: AppRadius.xl,
+          padding: const EdgeInsets.all(5),
+          child: SizedBox(
+            height: 58,
+            child: Row(
+              children: [
+                for (var index = 0; index < destinations.length; index++)
+                  Expanded(
+                    child: _FlowDestination(
+                      selected: selectedIndex == index,
+                      icon: destinations[index].$1,
+                      selectedIcon: destinations[index].$2,
+                      label: destinations[index].$3,
+                      tooltip: destinations[index].$4,
+                      onTap: () => onDestinationSelected(index),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
-        NavigationDestination(
-          icon: Icon(Icons.receipt_long_outlined),
-          selectedIcon: Icon(Icons.receipt_long_rounded),
-          label: 'Activity',
-          tooltip: 'Activity',
+      ),
+    );
+  }
+}
+
+class _FlowDestination extends StatelessWidget {
+  const _FlowDestination({
+    required this.selected,
+    required this.icon,
+    required this.selectedIcon,
+    required this.label,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final IconData selectedIcon;
+  final String label;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    final showLabel =
+        selected && MediaQuery.textScalerOf(context).scale(1) <= 1.3;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: tooltip,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          child: Center(
+            child: AnimatedContainer(
+              width: showLabel ? 108 : 52,
+              height: 46,
+              duration: reduceMotion ? Duration.zero : AppMotion.medium,
+              curve: AppMotion.emphasizedDecelerate,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: ShapeDecoration(
+                color: selected
+                    ? scheme.primaryContainer.withValues(alpha: .72)
+                    : Colors.transparent,
+                shape: const StadiumBorder(),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AnimatedSwitcher(
+                    duration: reduceMotion ? Duration.zero : AppMotion.fast,
+                    child: selected && label == 'Flow'
+                        ? const FlowOrb(key: ValueKey('orb'), size: 22)
+                        : Icon(
+                            selected ? selectedIcon : icon,
+                            key: ValueKey(selected),
+                            size: 22,
+                            color: selected
+                                ? scheme.onPrimaryContainer
+                                : scheme.onSurfaceVariant,
+                          ),
+                  ),
+                  AnimatedSize(
+                    duration: reduceMotion ? Duration.zero : AppMotion.medium,
+                    curve: AppMotion.emphasizedDecelerate,
+                    child: showLabel
+                        ? Padding(
+                            padding: const EdgeInsetsDirectional.only(start: 8),
+                            child: Text(
+                              label,
+                              style: Theme.of(context).textTheme.labelLarge
+                                  ?.copyWith(
+                                    color: scheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline_rounded),
-          selectedIcon: Icon(Icons.person_rounded),
-          label: 'You',
-          tooltip: 'Your settings and privacy',
-        ),
-      ],
+      ),
     );
   }
 }

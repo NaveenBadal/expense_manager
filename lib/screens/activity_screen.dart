@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +13,7 @@ import '../utils/currency_utils.dart';
 import '../widgets/development_update_ui.dart';
 import '../widgets/expense_form_sheet.dart';
 import '../widgets/money_chat_sheet.dart';
+import '../widgets/ui/flow_ui.dart';
 import 'settings_screen.dart';
 
 class ActivityScreen extends ConsumerStatefulWidget {
@@ -51,7 +51,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Activity'),
+            Text('Activity', style: Theme.of(context).textTheme.headlineMedium),
             Text(
               'All transactions',
               style: TextStyle(
@@ -229,7 +229,6 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
               itemBuilder: (context, index) {
                 final group = groups.entries.elementAt(index);
                 return _StaggeredReveal(
-                  index: index,
                   child: _TransactionGroup(
                     day: group.key,
                     transactions: group.value,
@@ -315,17 +314,9 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
                 const SizedBox(height: 10),
-                SegmentedButton<String>(
-                  expandedInsets: EdgeInsets.zero,
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(value: 'all', label: Text('All')),
-                    ButtonSegment(value: 'out', label: Text('Money out')),
-                    ButtonSegment(value: 'in', label: Text('Money in')),
-                  ],
-                  selected: {direction},
-                  onSelectionChanged: (value) =>
-                      setSheetState(() => direction = value.first),
+                _DirectionFilter(
+                  value: direction,
+                  onChanged: (value) => setSheetState(() => direction = value),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -622,8 +613,9 @@ class _SmsSyncCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final idle = state.phase == SyncPhase.idle;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return AnimatedSwitcher(
-      duration: AppMotion.medium,
+      duration: reduceMotion ? Duration.zero : AppMotion.medium,
       switchInCurve: AppMotion.emphasizedDecelerate,
       transitionBuilder: (child, animation) => SizeTransition(
         sizeFactor: animation,
@@ -856,15 +848,61 @@ class _ActiveSync extends StatelessWidget {
               ],
             ),
             if (active) ...[
-              const SizedBox(height: 14),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-                child: LinearProgressIndicator(value: progress, minHeight: 6),
-              ),
+              if (progress != null) ...[
+                const SizedBox(height: 14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                  child: LinearProgressIndicator(value: progress, minHeight: 6),
+                ),
+              ],
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _DirectionFilter extends StatelessWidget {
+  const _DirectionFilter({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  static const _options = [
+    ('all', 'All'),
+    ('out', 'Money out'),
+    ('in', 'Money in'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final adaptive =
+        MediaQuery.sizeOf(context).width < 380 ||
+        MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    if (adaptive) {
+      return Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: [
+          for (final option in _options)
+            ChoiceChip(
+              selected: value == option.$1,
+              label: Text(option.$2),
+              onSelected: (_) => onChanged(option.$1),
+            ),
+        ],
+      );
+    }
+    return SegmentedButton<String>(
+      expandedInsets: EdgeInsets.zero,
+      showSelectedIcon: false,
+      segments: [
+        for (final option in _options)
+          ButtonSegment(value: option.$1, label: Text(option.$2)),
+      ],
+      selected: {value},
+      onSelectionChanged: (selection) => onChanged(selection.first),
     );
   }
 }
@@ -1038,10 +1076,18 @@ class _TransactionRow extends StatelessWidget {
         onTap: onTap,
         onLongPress: onEdit,
         borderRadius: ExpressiveShape.playful(index),
-        child: Ink(
-          color: needsReview
-              ? context.finance.warningSurface
-              : Theme.of(context).colorScheme.surfaceContainer,
+        child: Container(
+          decoration: BoxDecoration(
+            color: needsReview
+                ? context.finance.warningSurface
+                : Theme.of(context).colorScheme.surfaceContainer,
+            borderRadius: ExpressiveShape.playful(index),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: .34),
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
@@ -1236,7 +1282,7 @@ class _TransactionDetails extends StatelessWidget {
               Center(
                 child: TextButton.icon(
                   onPressed: onReanalyze,
-                  icon: const Icon(Icons.blur_on_rounded),
+                  icon: const FlowOrb(size: 20),
                   label: const Text('Re-analyze source with Flow'),
                 ),
               ),
@@ -1370,78 +1416,66 @@ class _ActivityLoading extends StatelessWidget {
   const _ActivityLoading();
 
   @override
-  Widget build(BuildContext context) => ListView.separated(
-    padding: const EdgeInsets.all(16),
-    itemCount: 7,
-    separatorBuilder: (_, _) => const SizedBox(height: 12),
-    itemBuilder: (_, index) => Container(
-      height: index == 0
-          ? 56
-          : index == 1
-          ? 112
-          : 72,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-      ),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 40),
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: AppRadius.all(AppRadius.md),
+              ),
+              child: Icon(Icons.receipt_long_outlined, color: scheme.primary),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Loading activity',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text(
+                    'Preparing your local evidence',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.hourglass_top_rounded, color: scheme.primary),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.region),
+        for (var index = 0; index < 5; index++) ...[
+          Container(
+            height: 76,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHigh.withValues(
+                alpha: 1 - index * .1,
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.xl),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
+  }
 }
 
-class _StaggeredReveal extends StatefulWidget {
-  const _StaggeredReveal({required this.index, required this.child});
+class _StaggeredReveal extends StatelessWidget {
+  const _StaggeredReveal({required this.child});
 
-  final int index;
   final Widget child;
 
   @override
-  State<_StaggeredReveal> createState() => _StaggeredRevealState();
-}
-
-class _StaggeredRevealState extends State<_StaggeredReveal>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 380),
-    );
-    _fade = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-    _slide = Tween<Offset>(begin: const Offset(0.0, 0.08), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: AppMotion.emphasizedDecelerate,
-          ),
-        );
-
-    Future.delayed(
-      Duration(milliseconds: math.min(widget.index * 60, 300)),
-      () {
-        if (mounted) _controller.forward();
-      },
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(position: _slide, child: widget.child),
-    );
-  }
+  Widget build(BuildContext context) => child;
 }

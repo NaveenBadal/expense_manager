@@ -11,6 +11,12 @@ class CustomCategoriesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(customCategoryListProvider);
+    final width = MediaQuery.sizeOf(context).width;
+    final inset = width > AppBreakpoint.contentMax + 40
+        ? (width - AppBreakpoint.contentMax) / 2
+        : AppSpacing.page;
+    final singleColumn =
+        width < 420 || MediaQuery.textScalerOf(context).scale(1) > 1.3;
     return FlowScaffold(
       eyebrow: 'Personalize how transactions are grouped',
       title: 'Categories',
@@ -20,17 +26,17 @@ class CustomCategoriesScreen extends ConsumerWidget {
         label: const Text('New category'),
       ),
       slivers: [
-        const SliverToBoxAdapter(
+        SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 18),
-            child: Text(
+            padding: EdgeInsets.fromLTRB(inset, 0, inset, 18),
+            child: const Text(
               'Built-in categories cover the essentials. Add only the distinctions that change how you understand your spending.',
             ),
           ),
         ),
         async.when(
           loading: () => const SliverFillRemaining(
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: Icon(Icons.hourglass_top_rounded, size: 32)),
           ),
           error: (error, _) => SliverFillRemaining(
             child: StatePanel(
@@ -50,21 +56,21 @@ class CustomCategoriesScreen extends ConsumerWidget {
                   ),
                 )
               : SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                  padding: EdgeInsets.fromLTRB(inset, 0, inset, 100),
                   sliver: SliverGrid.builder(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 1.35,
-                        ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: singleColumn ? 1 : 2,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: singleColumn ? 2.25 : 1.35,
+                    ),
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final item = items[index];
                       return _CategoryCell(
                         index: index,
                         item: item,
+                        horizontal: singleColumn,
                         onTap: () => _open(context, item),
                         onDelete: () => _delete(context, ref, item),
                       );
@@ -117,11 +123,13 @@ class _CategoryCell extends StatelessWidget {
   const _CategoryCell({
     required this.index,
     required this.item,
+    required this.horizontal,
     required this.onTap,
     required this.onDelete,
   });
   final int index;
   final CustomCategory item;
+  final bool horizontal;
   final VoidCallback onTap, onDelete;
   @override
   Widget build(BuildContext context) => Material(
@@ -135,37 +143,82 @@ class _CategoryCell extends StatelessWidget {
       onLongPress: onDelete,
       child: Padding(
         padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: item.color,
-                borderRadius: AppRadius.all(14),
+        child: horizontal
+            ? Row(
+                children: [
+                  _CategoryIcon(item: item),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(child: _CategoryLabel(item: item)),
+                  IconButton(
+                    tooltip: 'Delete ${item.name}',
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _CategoryIcon(item: item),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Delete ${item.name}',
+                        onPressed: onDelete,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  _CategoryLabel(item: item),
+                ],
               ),
-              child: Icon(item.iconData, color: Colors.white, size: 20),
-            ),
-            const Spacer(),
-            Text(
-              item.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            Text(
-              'Hold to remove',
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
       ),
     ),
+  );
+}
+
+class _CategoryIcon extends StatelessWidget {
+  const _CategoryIcon({required this.item});
+  final CustomCategory item;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 42,
+    height: 42,
+    decoration: BoxDecoration(
+      color: item.color,
+      borderRadius: AppRadius.all(14),
+    ),
+    child: Icon(item.iconData, color: Colors.white, size: 20),
+  );
+}
+
+class _CategoryLabel extends StatelessWidget {
+  const _CategoryLabel({required this.item});
+  final CustomCategory item;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        item.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+      ),
+      Text(
+        'Custom category',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
+    ],
   );
 }
 

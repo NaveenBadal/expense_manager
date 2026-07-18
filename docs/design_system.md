@@ -1,7 +1,7 @@
 # Fund Flow — AI-First Product and Design System
 
 Status: **LOCKED canonical specification**
-Version: 2.0
+Version: 3.0
 Locked: 2026-07-18
 
 This document is the source of truth for every product, interaction, content,
@@ -11,6 +11,116 @@ wins unless the product owner explicitly changes the product direction.
 
 Flutter primitives live in `lib/theme/app_tokens.dart` and
 `lib/theme/app_theme.dart`. Product behavior belongs here, not only in code.
+
+## 0. Visual constitution — Quiet Intelligence 3.0
+
+This is a product-specific system, not a Material or Apple skin. It combines
+Material 3 Expressive's emotional clarity (confident type, meaningful shape,
+responsive motion, tonal color) with Apple's content-first hierarchy,
+concentric geometry, and distinct floating control layer. The result must
+always look like **Flow**: calm financial evidence organized around a visibly
+alive intelligence.
+
+### The visual promise
+
+At first glance the app says “an intelligent agent is already working for me.”
+At second glance it says “my evidence is safe, legible, and under my control.”
+Expression belongs to the agent, progress, and key conclusions. Transactions,
+settings, and supporting metadata remain quiet.
+
+### Signature anatomy
+
+1. **Canvas** — a near-neutral tonal field with a restrained radial atmosphere
+   around the active agent region. Never use decorative gradients behind long
+   text or ledger content.
+2. **Intelligence signal** — the Flow Orb is the only brand hero: a layered,
+   softly luminous mark that changes state for ready, thinking, syncing,
+   success, attention, and offline. Do not substitute random AI sparkle icons.
+3. **Content layer** — opaque or standard tonal surfaces. Evidence never uses
+   transparent glass because legibility and trust outrank spectacle.
+4. **Functional layer** — navigation, composer, and transient controls may use
+   an adaptive translucent material with a strong legibility fallback. Never
+   stack glass on glass.
+5. **Semantic layer** — teal means money in, rose means money out, amber means
+   attention, and violet means Flow intelligence. Semantic colors never swap
+   meaning between themes.
+
+### Geometry
+
+- The device, outer surface, inner surface, and control radii are concentric.
+- Content surfaces use 24–32dp continuous corners; controls use capsules.
+- Hero surfaces may use Flow's asymmetric 32/64 silhouette once per viewport.
+- Selected navigation expands into a soft capsule; unselected destinations are
+  visually weightless. Minimum target is 48dp.
+- Avoid boxes inside boxes. Group with space first, tone second, dividers last.
+
+### Depth and material
+
+- Tier 0 canvas: no shadow.
+- Tier 1 evidence: tonal contrast, optional 1dp hairline, no shadow.
+- Tier 2 active intelligence: subtle violet ambient light and soft elevation.
+- Tier 3 functional float: adaptive translucent material, hairline highlight,
+  and grounded shadow. Limited to nav, composer, menus, and modal controls.
+- Blur is an enhancement, never a dependency. Reduced transparency/high
+  contrast receives an opaque `surfaceContainer` equivalent.
+
+### Typography
+
+- Space Grotesk is Flow's voice: hero statements, agent conclusions, section
+  headlines, and large financial figures only.
+- Inter is the user's world: conversation, evidence, controls, metadata.
+- Headlines are left aligned, compact, and decisive. Body text uses 1.45 line
+  height. Money uses tabular figures and never truncates a material amount.
+- Use sentence case. Avoid generic headings such as “Dashboard” or “Overview.”
+
+### Motion
+
+- Motion explains agent state or preserves spatial continuity; it never loops
+  merely to decorate.
+- Press: 100ms scale to 0.98. Small state change: 220ms. Spatial reveal: 360ms.
+  Hero/route transformation: 520ms. Use emphasized deceleration.
+- The Flow Orb never runs an ambient loop. Thinking and syncing use a static
+  active treatment plus real progress updates; success resolves once.
+- Navigation selection changes shape and label weight in one continuous move.
+- `disableAnimations` removes scale, drift, shimmer, and auto-motion while
+  preserving immediate state feedback.
+
+### Primary-screen compositions
+
+- **Flow:** immersive agent canvas → compact state control → current brief or
+  conversation → persistent floating composer. The empty state is a useful AI
+  starting point, never a blank chat screen.
+- **Activity:** evidence ledger, not dashboard. Search/filter controls float;
+  records remain calm, dense, and provenance-forward.
+- **You:** identity and trust first: intelligence, SMS sources, privacy, then
+  personalization. Advanced/manual maintenance is visually recessed.
+- **Onboarding:** one promise per scene, one primary action, one evolving Flow
+  Orb. Connection and analysis feel like activating one continuous agent.
+
+### Quality vetoes
+
+Reject a UI change if it adds glass to content, creates another competing
+accent, uses an unlabeled icon for an unfamiliar action, hides provenance,
+promotes manual entry above AI analysis, introduces a one-off radius/color, or
+reduces contrast/touch size. “Wow” comes from coherence and response, not from
+decoration density.
+
+### Energy and rendering contract
+
+- No continuous animation, ambient ticker, live backdrop blur, shimmer, or
+  periodic decorative timer is permitted.
+- Never use an indeterminate spinner or progress bar. Show static status copy
+  until measurable progress exists, then update a determinate indicator only
+  when the underlying value changes.
+- Existing scroll content is always painted immediately. Never animate a
+  lazily-built row from opacity zero or delay it with a timer.
+- Short animations run only in direct response to an interaction or real state
+  change and stop within 520ms. Off-screen destinations remain under
+  `TickerMode(enabled: false)`.
+- Static gradients and shadows must be bounded and reusable. Prefer tone,
+  border, and geometry over raster-expensive effects.
+- Haptics communicate consequential selection or approval, never typing,
+  scrolling, or passive state changes.
 
 ---
 

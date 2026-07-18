@@ -95,6 +95,18 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (widget.initialExpense == null) ...[
+                              Text(
+                                'MANUAL FALLBACK',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: scheme.primary,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 1.1,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                            ],
                             Text(
                               widget.initialExpense == null
                                   ? 'Add transaction'
@@ -174,8 +186,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              _BouncyPrefix(
-                                controller: _amount,
+                              _AmountPrefix(
                                 child: DropdownButtonHideUnderline(
                                   child: DropdownButton<String>(
                                     value: _currency,
@@ -346,12 +357,7 @@ class _ExpenseFormSheetState extends ConsumerState<ExpenseFormSheet> {
                       child: FilledButton.icon(
                         onPressed: _saving ? null : _save,
                         icon: _saving
-                            ? const SizedBox.square(
-                                dimension: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
+                            ? const Icon(Icons.hourglass_top_rounded)
                             : const Icon(Icons.check_rounded),
                         label: Text(
                           widget.initialExpense == null
@@ -610,52 +616,10 @@ class _SourcePanel extends StatelessWidget {
   }
 }
 
-class _BouncyPrefix extends StatefulWidget {
-  const _BouncyPrefix({required this.child, required this.controller});
+class _AmountPrefix extends StatelessWidget {
+  const _AmountPrefix({required this.child});
   final Widget child;
-  final TextEditingController controller;
 
   @override
-  State<_BouncyPrefix> createState() => _BouncyPrefixState();
-}
-
-class _BouncyPrefixState extends State<_BouncyPrefix>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 90),
-    );
-    _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.15), weight: 50),
-      TweenSequenceItem(tween: Tween(begin: 1.15, end: 1.0), weight: 50),
-    ]).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
-    widget.controller.addListener(_triggerBounce);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_triggerBounce);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _triggerBounce() {
-    if (_controller.isAnimating) {
-      _controller.stop();
-    }
-    _controller.forward(from: 0.0);
-    HapticFeedback.lightImpact();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ScaleTransition(scale: _scale, child: widget.child);
-  }
+  Widget build(BuildContext context) => child;
 }

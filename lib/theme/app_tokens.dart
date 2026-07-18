@@ -34,6 +34,20 @@ class AppSpacing {
   static const double narrative = 48;
 }
 
+/// Stable brand and canvas colors. Dynamic color may influence secondary
+/// decoration, but never changes Flow's identity or finance semantics.
+class FlowPalette {
+  const FlowPalette._();
+
+  static const intelligence = Color(0xFF6558E8);
+  static const intelligenceBright = Color(0xFF8B7CFF);
+  static const electric = Color(0xFFB8AEFF);
+  static const night = Color(0xFF111018);
+  static const paper = Color(0xFFF8F7FC);
+  static const lightAtmosphere = Color(0xFFEAE6FF);
+  static const darkAtmosphere = Color(0xFF292348);
+}
+
 /// Shared adaptive layout thresholds. Feature screens must use these rather
 /// than introducing one-off width checks.
 class AppBreakpoint {
@@ -50,9 +64,9 @@ class AppBreakpoint {
 class AppMotion {
   const AppMotion._();
 
-  static const Duration fast = Duration(milliseconds: 200);
-  static const Duration medium = Duration(milliseconds: 340);
-  static const Duration slow = Duration(milliseconds: 500);
+  static const Duration fast = Duration(milliseconds: 220);
+  static const Duration medium = Duration(milliseconds: 360);
+  static const Duration slow = Duration(milliseconds: 520);
 
   /// Expressive emphasized easing — overshoots subtly, feels alive.
   static const Curve emphasized = Cubic(0.2, 0.0, 0.0, 1.0);
@@ -228,16 +242,6 @@ class PremiumShadows {
       ),
     ];
   }
-
-  static List<BoxShadow> soft(BuildContext context) {
-    return [
-      BoxShadow(
-        color: Colors.black.withValues(alpha: 0.03),
-        offset: const Offset(0, 4),
-        blurRadius: 18,
-      ),
-    ];
-  }
 }
 
 /// Restrained press feedback for non-standard tappable surfaces.
@@ -284,18 +288,21 @@ class _CalmPressState extends State<CalmPress>
   }
 
   void _handleTapDown(TapDownDetails _) {
+    if (MediaQuery.disableAnimationsOf(context)) return;
     if (widget.onTap != null || widget.onLongPress != null) {
       _controller.forward();
     }
   }
 
   void _handleTapUp(TapUpDetails _) {
+    if (MediaQuery.disableAnimationsOf(context)) return;
     if (widget.onTap != null || widget.onLongPress != null) {
       _controller.reverse();
     }
   }
 
   void _handleTapCancel() {
+    if (MediaQuery.disableAnimationsOf(context)) return;
     if (widget.onTap != null || widget.onLongPress != null) {
       _controller.reverse();
     }

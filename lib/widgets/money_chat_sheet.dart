@@ -17,6 +17,7 @@ import '../theme/app_tokens.dart';
 import '../screens/settings_screen.dart';
 import '../utils/currency_utils.dart';
 import 'agent_artifact_card.dart';
+import 'ui/flow_ui.dart';
 
 class MoneyChatSheet extends ConsumerStatefulWidget {
   const MoneyChatSheet({
@@ -172,7 +173,7 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
   void _scrollToLatest({bool animate = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scrollController.hasClients) return;
-      if (animate) {
+      if (animate && !MediaQuery.disableAnimationsOf(context)) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 220),
@@ -349,21 +350,15 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    name.contains('delete')
-                        ? Icons.delete_outline_rounded
-                        : Icons.blur_on_rounded,
-                    size: 32,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Review Flow’s action',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Flow will $action.',
-                    style: Theme.of(context).textTheme.bodyLarge,
+                  FlowSheetHeader(
+                    leading: name.contains('delete')
+                        ? Icon(
+                            Icons.delete_outline_rounded,
+                            color: Theme.of(context).colorScheme.error,
+                          )
+                        : const FlowOrb(size: 44),
+                    title: 'Review Flow’s action',
+                    description: 'Flow will $action.',
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -515,7 +510,14 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.blur_on_rounded, color: scheme.primary),
+            FlowOrb(
+              size: 28,
+              state: _thinking
+                  ? FlowOrbState.thinking
+                  : connected
+                  ? FlowOrbState.ready
+                  : FlowOrbState.offline,
+            ),
             const SizedBox(width: 10),
             const Text('Flow'),
           ],
@@ -536,451 +538,470 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
           const SizedBox(width: 4),
         ],
       ),
-      body: SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(contentInset, 14, contentInset, 16),
-          child: Column(
-            children: [
-              Expanded(
-                child: messages.isEmpty
-                    ? ListView(
-                        controller: _scrollController,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(4, 32, 4, 26),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  width: 56,
-                                  height: 56,
-                                  decoration: BoxDecoration(
-                                    color: scheme.primaryContainer,
-                                    borderRadius: AppRadius.all(AppRadius.lg),
-                                  ),
-                                  child: Icon(
-                                    Icons.blur_on_rounded,
-                                    size: 28,
-                                    color: scheme.onPrimaryContainer,
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                Text(
-                                  connected
-                                      ? 'What should we understand?'
-                                      : 'Connect Flow intelligence',
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.headlineSmall,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  connected
-                                      ? 'Flow analyzes transaction messages, verifies answers against local records, and safely acts with your approval.'
-                                      : 'AI analysis is the core of Fund Flow. Connect Ollama to understand transaction SMS and ask questions about your money.',
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(
-                                        color: scheme.onSurfaceVariant,
-                                      ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (!connected)
+      body: FlowAtmosphere(
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(contentInset, 14, contentInset, 16),
+            child: Column(
+              children: [
+                Expanded(
+                  child: messages.isEmpty
+                      ? ListView(
+                          controller: _scrollController,
+                          children: [
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: Material(
-                                color: scheme.primaryContainer,
-                                shape: ExpressiveShape.card(
-                                  radius: AppRadius.xl,
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: InkWell(
-                                  onTap: _openSettings,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          Icons.cloud_outlined,
-                                          color: scheme.onPrimaryContainer,
-                                        ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                'Connect intelligence',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .titleSmall
-                                                    ?.copyWith(
-                                                      color: scheme
-                                                          .onPrimaryContainer,
-                                                    ),
-                                              ),
-                                              Text(
-                                                'Required for SMS understanding and verified answers.',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall
-                                                    ?.copyWith(
-                                                      color: scheme
-                                                          .onPrimaryContainer,
-                                                    ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Icon(
-                                          Icons.arrow_forward_rounded,
-                                          color: scheme.onPrimaryContainer,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          FutureBuilder<_FlowBrief>(
-                            future: _briefFuture,
-                            builder: (context, snapshot) {
-                              final brief = snapshot.data;
-                              if (brief == null || brief.transactions == 0) {
-                                return const SizedBox.shrink();
-                              }
-                              return Column(
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 18),
-                                    child: _FinancialBriefCard(
-                                      brief: brief,
-                                      onPrompt: _ask,
-                                    ),
-                                  ),
-                                  for (final prompt in _promptsFor(brief))
-                                    _QuestionTile(
-                                      icon: prompt.$1,
-                                      label: prompt.$2,
-                                      onPressed: () => _ask(prompt.$2),
-                                    ),
-                                ],
-                              );
-                            },
-                          ),
-                          if (connected && sync.phase != SyncPhase.idle)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 18),
-                              child: _SyncStateCard(
-                                sync: sync,
-                                onRetry: _startSmsAnalysis,
-                                onStop: () =>
-                                    ref.read(syncProvider.notifier).cancel(),
-                              ),
-                            ),
-                          if (connected && sync.phase == SyncPhase.idle)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 18),
-                              child: _AnalyzeMessagesCard(
-                                onPressed: _startSmsAnalysis,
-                              ),
-                            ),
-                        ],
-                      )
-                    : ListView.builder(
-                        controller: _scrollController,
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: const EdgeInsets.only(top: 8, bottom: 16),
-                        itemCount:
-                            messages.length +
-                            (_thinking || _failedQuestion != null ? 1 : 0),
-                        itemBuilder: (_, index) {
-                          if (index == messages.length) {
-                            if (!_thinking) {
-                              return _RetryMessage(
-                                onRetry: () => _ask(_failedQuestion, false),
-                                detail: _failureDetail,
-                              );
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.all(18),
+                              padding: const EdgeInsets.fromLTRB(4, 32, 4, 26),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Row(
-                                    children: [
-                                      SizedBox.square(
-                                        dimension: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: scheme.primary,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Text(
-                                          _stage,
-                                          style: TextStyle(
-                                            color: scheme.primary,
-                                          ),
-                                        ),
-                                      ),
-                                      TextButton(
-                                        onPressed: _cancel,
-                                        child: const Text('Stop'),
-                                      ),
-                                    ],
+                                  FlowOrb(
+                                    size: 64,
+                                    state: connected
+                                        ? FlowOrbState.ready
+                                        : FlowOrbState.offline,
                                   ),
-                                  if (_streamingText.isNotEmpty) ...[
-                                    const SizedBox(height: 12),
-                                    MarkdownBody(
-                                      data: mobileFriendlyMarkdown(
-                                        _streamingText,
-                                      ),
-                                    ),
-                                  ],
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    connected
+                                        ? 'What should we understand?'
+                                        : 'Connect Flow intelligence',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.headlineSmall,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    connected
+                                        ? 'Flow analyzes transaction messages, verifies answers against local records, and safely acts with your approval.'
+                                        : 'AI analysis is the core of Fund Flow. Connect Ollama to understand transaction SMS and ask questions about your money.',
+                                    style: Theme.of(context).textTheme.bodyLarge
+                                        ?.copyWith(
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                  ),
                                 ],
                               ),
-                            );
-                          }
-                          final message = messages[index];
-                          final artifact = AgentArtifact.decode(
-                            message.artifactJson,
-                          );
-                          return _AnimatedMessage(
-                            key: ValueKey(
-                              message.id ??
-                                  message.timestamp.millisecondsSinceEpoch,
                             ),
-                            child: Align(
-                              alignment: message.user
-                                  ? Alignment.centerRight
-                                  : Alignment.centerLeft,
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 14),
-                                padding: const EdgeInsets.all(18),
-                                constraints: const BoxConstraints(
-                                  maxWidth: 520,
-                                ),
-                                decoration: message.user
-                                    ? BoxDecoration(
-                                        color: scheme.primaryContainer,
-                                        borderRadius: const BorderRadius.only(
-                                          topLeft: Radius.circular(24),
-                                          topRight: Radius.circular(24),
-                                          bottomLeft: Radius.circular(24),
-                                          bottomRight: Radius.circular(6),
-                                        ),
-                                      )
-                                    : BoxDecoration(
-                                        color: scheme.surfaceContainerLow,
-                                        borderRadius: const BorderRadius.only(
-                                          topLeft: Radius.circular(24),
-                                          topRight: Radius.circular(48),
-                                          bottomLeft: Radius.circular(48),
-                                          bottomRight: Radius.circular(16),
-                                        ),
-                                        border: Border.all(
-                                          color: scheme.outlineVariant
-                                              .withValues(alpha: 0.5),
-                                          width: 1.0,
-                                        ),
-                                        boxShadow: PremiumShadows.soft(context),
+                            if (!connected)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: Material(
+                                  color: scheme.primaryContainer,
+                                  shape: ExpressiveShape.card(
+                                    radius: AppRadius.xl,
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: InkWell(
+                                    onTap: _openSettings,
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.cloud_outlined,
+                                            color: scheme.onPrimaryContainer,
+                                          ),
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Connect intelligence',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleSmall
+                                                      ?.copyWith(
+                                                        color: scheme
+                                                            .onPrimaryContainer,
+                                                      ),
+                                                ),
+                                                Text(
+                                                  'Required for SMS understanding and verified answers.',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: scheme
+                                                            .onPrimaryContainer,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.arrow_forward_rounded,
+                                            color: scheme.onPrimaryContainer,
+                                          ),
+                                        ],
                                       ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            FutureBuilder<_FlowBrief>(
+                              future: _briefFuture,
+                              builder: (context, snapshot) {
+                                final brief = snapshot.data;
+                                if (brief == null || brief.transactions == 0) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Column(
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        bottom: 18,
+                                      ),
+                                      child: _FinancialBriefCard(
+                                        brief: brief,
+                                        onPrompt: _ask,
+                                      ),
+                                    ),
+                                    for (final prompt in _promptsFor(brief))
+                                      _QuestionTile(
+                                        icon: prompt.$1,
+                                        label: prompt.$2,
+                                        onPressed: () => _ask(prompt.$2),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                            if (connected && sync.phase != SyncPhase.idle)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 18),
+                                child: _SyncStateCard(
+                                  sync: sync,
+                                  onRetry: _startSmsAnalysis,
+                                  onStop: () =>
+                                      ref.read(syncProvider.notifier).cancel(),
+                                ),
+                              ),
+                            if (connected && sync.phase == SyncPhase.idle)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 18),
+                                child: _AnalyzeMessagesCard(
+                                  onPressed: _startSmsAnalysis,
+                                ),
+                              ),
+                          ],
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          padding: const EdgeInsets.only(top: 8, bottom: 16),
+                          itemCount:
+                              messages.length +
+                              (_thinking || _failedQuestion != null ? 1 : 0),
+                          itemBuilder: (_, index) {
+                            if (index == messages.length) {
+                              if (!_thinking) {
+                                return _RetryMessage(
+                                  onRetry: () => _ask(_failedQuestion, false),
+                                  detail: _failureDetail,
+                                );
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.all(18),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    if (message.user)
-                                      Text(
-                                        message.text,
-                                        style: TextStyle(
-                                          color: scheme.onPrimaryContainer,
-                                          height: 1.45,
+                                    Row(
+                                      children: [
+                                        const FlowOrb(
+                                          size: 24,
+                                          state: FlowOrbState.thinking,
                                         ),
-                                      )
-                                    else
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          if (!artifact.isEmpty)
-                                            AgentArtifactCard(
-                                              artifact: artifact,
-                                              onPrompt: _ask,
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Text(
+                                            _stage,
+                                            style: TextStyle(
+                                              color: scheme.primary,
                                             ),
-                                          MarkdownBody(
-                                            data: mobileFriendlyMarkdown(
-                                              message.text,
-                                            ),
-                                            selectable: true,
-                                            styleSheet: MarkdownStyleSheet(
-                                              p: TextStyle(
-                                                color: scheme.onSurface,
-                                                height: 1.5,
-                                                fontSize: 14,
-                                              ),
-                                              strong: TextStyle(
-                                                color: scheme.primary,
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                              em: TextStyle(
-                                                color: scheme.secondary,
-                                                fontStyle: FontStyle.italic,
-                                              ),
-                                              listBullet: TextStyle(
-                                                color: scheme.primary,
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                              code: TextStyle(
-                                                color: scheme.onSurface,
-                                                backgroundColor: scheme
-                                                    .surfaceContainerHighest,
-                                                fontFamily: 'monospace',
-                                              ),
-                                              blockquoteDecoration:
-                                                  BoxDecoration(
-                                                    border: Border(
-                                                      left: BorderSide(
-                                                        color: scheme.primary,
-                                                        width: 3,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              blockquotePadding:
-                                                  const EdgeInsets.only(
-                                                    left: 12,
-                                                  ),
-                                            ),
-                                          ),
-                                          if (widget.onOpenActivity != null)
-                                            TextButton(
-                                              onPressed: widget.onOpenActivity,
-                                              child: const Text('View'),
-                                            ),
-                                        ],
-                                      ),
-                                    if (message.sources > 0) ...[
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            message.verified
-                                                ? Icons.verified_outlined
-                                                : Icons.fact_check_outlined,
-                                            size: 16,
-                                            color: scheme.primary,
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            child: Text(
-                                              '${message.verified ? 'Verified' : 'Checked'} with ${message.sources} local records',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .labelSmall
-                                                  ?.copyWith(
-                                                    color:
-                                                        scheme.onSurfaceVariant,
-                                                  ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      if (message.filterDetails.isNotEmpty)
-                                        Theme(
-                                          data: Theme.of(context).copyWith(
-                                            dividerColor: Colors.transparent,
-                                          ),
-                                          child: ExpansionTile(
-                                            tilePadding: EdgeInsets.zero,
-                                            childrenPadding: EdgeInsets.zero,
-                                            dense: true,
-                                            title: Text(
-                                              'How this was answered',
-                                              style: TextStyle(
-                                                color: scheme.onSurfaceVariant,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                            children: [
-                                              Align(
-                                                alignment: Alignment.centerLeft,
-                                                child: Text(
-                                                  _formatFilterDetails(
-                                                    message.filterDetails,
-                                                  ),
-                                                  style: TextStyle(
-                                                    color:
-                                                        scheme.onSurfaceVariant,
-                                                    fontSize: 11,
-                                                    height: 1.45,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
                                           ),
                                         ),
-                                    ],
-                                    if (!message.user) ...[
-                                      const SizedBox(height: 6),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: IconButton(
-                                          tooltip: 'Copy answer',
-                                          visualDensity: VisualDensity.compact,
-                                          onPressed: () =>
-                                              _copyAnswer(message.text),
-                                          icon: const Icon(
-                                            Icons.content_copy_rounded,
-                                            size: 18,
-                                          ),
+                                        TextButton(
+                                          onPressed: _cancel,
+                                          child: const Text('Stop'),
+                                        ),
+                                      ],
+                                    ),
+                                    if (_streamingText.isNotEmpty) ...[
+                                      const SizedBox(height: 12),
+                                      MarkdownBody(
+                                        data: mobileFriendlyMarkdown(
+                                          _streamingText,
                                         ),
                                       ),
                                     ],
                                   ],
                                 ),
+                              );
+                            }
+                            final message = messages[index];
+                            final artifact = AgentArtifact.decode(
+                              message.artifactJson,
+                            );
+                            return _AnimatedMessage(
+                              key: ValueKey(
+                                message.id ??
+                                    message.timestamp.millisecondsSinceEpoch,
                               ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _controller,
-                      enabled: connected && !_thinking,
-                      onSubmitted: (_) => _ask(),
-                      minLines: 1,
-                      maxLines: 4,
-                      decoration: InputDecoration(
-                        hintText: connected
-                            ? 'Ask about your money…'
-                            : 'Connect intelligence to ask Flow',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(28),
-                          borderSide: BorderSide.none,
+                              child: Align(
+                                alignment: message.user
+                                    ? Alignment.centerRight
+                                    : Alignment.centerLeft,
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 14),
+                                  padding: const EdgeInsets.all(18),
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 520,
+                                  ),
+                                  decoration: message.user
+                                      ? BoxDecoration(
+                                          color: scheme.primaryContainer,
+                                          borderRadius: const BorderRadius.only(
+                                            topLeft: Radius.circular(24),
+                                            topRight: Radius.circular(24),
+                                            bottomLeft: Radius.circular(24),
+                                            bottomRight: Radius.circular(6),
+                                          ),
+                                        )
+                                      : BoxDecoration(
+                                          color: scheme.surfaceContainerLow,
+                                          borderRadius: const BorderRadius.only(
+                                            topLeft: Radius.circular(24),
+                                            topRight: Radius.circular(48),
+                                            bottomLeft: Radius.circular(48),
+                                            bottomRight: Radius.circular(16),
+                                          ),
+                                          border: Border.all(
+                                            color: scheme.outlineVariant
+                                                .withValues(alpha: 0.5),
+                                            width: 1.0,
+                                          ),
+                                        ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (message.user)
+                                        Text(
+                                          message.text,
+                                          style: TextStyle(
+                                            color: scheme.onPrimaryContainer,
+                                            height: 1.45,
+                                          ),
+                                        )
+                                      else
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                const FlowOrb(size: 22),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'Flow',
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelLarge
+                                                      ?.copyWith(
+                                                        color: scheme.primary,
+                                                      ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 12),
+                                            if (!artifact.isEmpty)
+                                              AgentArtifactCard(
+                                                artifact: artifact,
+                                                onPrompt: _ask,
+                                              ),
+                                            MarkdownBody(
+                                              data: mobileFriendlyMarkdown(
+                                                message.text,
+                                              ),
+                                              selectable: true,
+                                              styleSheet: MarkdownStyleSheet(
+                                                p: TextStyle(
+                                                  color: scheme.onSurface,
+                                                  height: 1.5,
+                                                  fontSize: 14,
+                                                ),
+                                                strong: TextStyle(
+                                                  color: scheme.primary,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                                em: TextStyle(
+                                                  color: scheme.secondary,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                                listBullet: TextStyle(
+                                                  color: scheme.primary,
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                                code: TextStyle(
+                                                  color: scheme.onSurface,
+                                                  backgroundColor: scheme
+                                                      .surfaceContainerHighest,
+                                                  fontFamily: 'monospace',
+                                                ),
+                                                blockquoteDecoration:
+                                                    BoxDecoration(
+                                                      border: Border(
+                                                        left: BorderSide(
+                                                          color: scheme.primary,
+                                                          width: 3,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                blockquotePadding:
+                                                    const EdgeInsets.only(
+                                                      left: 12,
+                                                    ),
+                                              ),
+                                            ),
+                                            if (widget.onOpenActivity != null)
+                                              TextButton(
+                                                onPressed:
+                                                    widget.onOpenActivity,
+                                                child: const Text('View'),
+                                              ),
+                                          ],
+                                        ),
+                                      if (message.sources > 0) ...[
+                                        const SizedBox(height: 10),
+                                        Row(
+                                          children: [
+                                            Icon(
+                                              message.verified
+                                                  ? Icons.verified_outlined
+                                                  : Icons.fact_check_outlined,
+                                              size: 16,
+                                              color: scheme.primary,
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Expanded(
+                                              child: Text(
+                                                '${message.verified ? 'Verified' : 'Checked'} with ${message.sources} local records',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color: scheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (message.filterDetails.isNotEmpty)
+                                          Theme(
+                                            data: Theme.of(context).copyWith(
+                                              dividerColor: Colors.transparent,
+                                            ),
+                                            child: ExpansionTile(
+                                              tilePadding: EdgeInsets.zero,
+                                              childrenPadding: EdgeInsets.zero,
+                                              dense: true,
+                                              title: Text(
+                                                'How this was answered',
+                                                style: TextStyle(
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                              children: [
+                                                Align(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: Text(
+                                                    _formatFilterDetails(
+                                                      message.filterDetails,
+                                                    ),
+                                                    style: TextStyle(
+                                                      color: scheme
+                                                          .onSurfaceVariant,
+                                                      fontSize: 11,
+                                                      height: 1.45,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                      ],
+                                      if (!message.user) ...[
+                                        const SizedBox(height: 6),
+                                        Align(
+                                          alignment: Alignment.centerRight,
+                                          child: IconButton(
+                                            tooltip: 'Copy answer',
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            onPressed: () =>
+                                                _copyAnswer(message.text),
+                                            icon: const Icon(
+                                              Icons.content_copy_rounded,
+                                              size: 18,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                FlowGlass(
+                  radius: AppRadius.xxl,
+                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          enabled: connected && !_thinking,
+                          onSubmitted: (_) => _ask(),
+                          minLines: 1,
+                          maxLines: 4,
+                          decoration: InputDecoration(
+                            filled: false,
+                            hintText: connected
+                                ? 'Ask Flow about your money…'
+                                : 'Connect intelligence to ask Flow',
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      IconButton.filled(
+                        tooltip: 'Ask Flow',
+                        onPressed: !connected || _thinking ? null : _ask,
+                        style: IconButton.styleFrom(
+                          backgroundColor: scheme.primary,
+                          foregroundColor: scheme.onPrimary,
+                          fixedSize: const Size(52, 52),
+                        ),
+                        icon: const Icon(Icons.arrow_upward_rounded),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                    onPressed: !connected || _thinking ? null : _ask,
-                    style: IconButton.styleFrom(
-                      backgroundColor: scheme.primary,
-                      foregroundColor: scheme.onPrimary,
-                      fixedSize: const Size(52, 52),
-                    ),
-                    icon: const Icon(Icons.arrow_upward_rounded),
-                  ),
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1053,41 +1074,41 @@ class _AgentStateButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final (label, icon, color) = !connected
-        ? ('Connect AI', Icons.link_off_rounded, scheme.error)
+    final (label, state, color) = !connected
+        ? ('Connect AI', FlowOrbState.offline, scheme.primary)
         : switch (sync.phase) {
             SyncPhase.requestingPermissions ||
             SyncPhase.fetchingSms ||
             SyncPhase.analyzing => (
               'Syncing',
-              Icons.sync_rounded,
+              FlowOrbState.syncing,
               scheme.primary,
             ),
             SyncPhase.error => (
               'Needs help',
-              Icons.error_outline_rounded,
+              FlowOrbState.attention,
               scheme.error,
             ),
             SyncPhase.complete => (
               'Updated',
-              Icons.check_circle_outline_rounded,
+              FlowOrbState.success,
               context.finance.income,
             ),
-            _ => ('Ready', Icons.circle, context.finance.income),
+            _ => ('Ready', FlowOrbState.ready, context.finance.income),
           };
     if (compact) {
       return IconButton(
         onPressed: onPressed,
         tooltip: label,
-        icon: Icon(icon, color: color),
+        icon: FlowOrb(size: 26, state: state),
       );
     }
     return Padding(
       padding: const EdgeInsets.only(right: 4),
       child: ActionChip(
         onPressed: onPressed,
-        avatar: Icon(icon, size: 16, color: color),
-        label: Text(label),
+        avatar: ExcludeSemantics(child: FlowOrb(size: 20, state: state)),
+        label: Text(label, style: TextStyle(color: color)),
         tooltip: connected
             ? 'Analyze transaction messages'
             : 'Connect Flow intelligence',
@@ -1114,11 +1135,7 @@ class _AnalyzeMessagesCard extends StatelessWidget {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Row(
             children: [
-              CircleAvatar(
-                backgroundColor: scheme.primary,
-                foregroundColor: scheme.onPrimary,
-                child: const Icon(Icons.sms_outlined),
-              ),
+              const FlowOrb(size: 48),
               const SizedBox(width: AppSpacing.lg),
               Expanded(
                 child: Column(
@@ -1179,13 +1196,14 @@ class _SyncStateCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(
-                error
-                    ? Icons.error_outline_rounded
+              FlowOrb(
+                size: 40,
+                state: error
+                    ? FlowOrbState.attention
                     : running
-                    ? Icons.blur_on_rounded
-                    : Icons.verified_rounded,
-                color: error ? scheme.error : scheme.primary,
+                    ? FlowOrbState.syncing
+                    : FlowOrbState.success,
+                progress: progress,
               ),
               const SizedBox(width: AppSpacing.md),
               Expanded(
@@ -1207,8 +1225,10 @@ class _SyncStateCard extends StatelessWidget {
                 : sync.detail ?? 'Preparing analysis…',
           ),
           if (running) ...[
-            const SizedBox(height: AppSpacing.md),
-            LinearProgressIndicator(value: progress),
+            if (progress != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              LinearProgressIndicator(value: progress),
+            ],
           ],
           if (sync.total > 0) ...[
             const SizedBox(height: AppSpacing.sm),
@@ -1293,7 +1313,7 @@ class _FinancialBriefCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.blur_on_rounded, color: scheme.onPrimaryContainer),
+                  const FlowOrb(size: 30),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -1498,52 +1518,10 @@ String _formatFilterDetails(String raw) {
   }
 }
 
-class _AnimatedMessage extends StatefulWidget {
+class _AnimatedMessage extends StatelessWidget {
   const _AnimatedMessage({super.key, required this.child});
   final Widget child;
 
   @override
-  State<_AnimatedMessage> createState() => _AnimatedMessageState();
-}
-
-class _AnimatedMessageState extends State<_AnimatedMessage>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _fade = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-    _slide = Tween<Offset>(begin: const Offset(0.0, 0.12), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: AppMotion.emphasizedDecelerate,
-          ),
-        );
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(position: _slide, child: widget.child),
-    );
-  }
+  Widget build(BuildContext context) => child;
 }

@@ -1,33 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'app_tokens.dart';
 
 class AppTheme {
   const AppTheme._();
 
-  static const seed = Color(0xFF5B4BDB);
+  static const seed = FlowPalette.intelligence;
   static const _tabular = [FontFeature.tabularFigures()];
 
   static ThemeData light(ColorScheme? _) => _build(Brightness.light);
   static ThemeData dark(ColorScheme? _) => _build(Brightness.dark);
+  static ThemeData highContrastLight(ColorScheme? _) =>
+      _build(Brightness.light, contrastLevel: .65);
+  static ThemeData highContrastDark(ColorScheme? _) =>
+      _build(Brightness.dark, contrastLevel: .65);
 
-  static ThemeData _build(Brightness brightness) {
+  static ThemeData _build(Brightness brightness, {double contrastLevel = .15}) {
     final dark = brightness == Brightness.dark;
     final generated = ColorScheme.fromSeed(
       seedColor: seed,
       brightness: brightness,
       dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
-      contrastLevel: .15,
+      contrastLevel: contrastLevel,
     );
     // Flow's intelligence signal and financial semantics must remain stable.
     // Device wallpaper colors are intentionally not allowed to redefine the
     // brand or trust states of this finance product.
-    final scheme = generated;
+    final scheme = dark
+        ? generated.copyWith(surface: FlowPalette.night)
+        : generated.copyWith(
+            surface: FlowPalette.paper,
+            surfaceContainerLowest: const Color(0xFFFFFFFF),
+            surfaceContainerLow: const Color(0xFFFFFFFF),
+            surfaceContainer: const Color(0xFFF3F1F7),
+            surfaceContainerHigh: const Color(0xFFEDEAF2),
+            surfaceContainerHighest: const Color(0xFFE5E1EB),
+          );
     final base = ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: scheme.surface,
+      scaffoldBackgroundColor: dark ? FlowPalette.night : FlowPalette.paper,
       fontFamily: 'Inter',
       visualDensity: VisualDensity.standard,
       splashFactory: InkSparkle.splashFactory,
@@ -66,12 +80,23 @@ class AppTheme {
         labelLarge: text.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
+        backgroundColor: Colors.transparent,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
+        systemOverlayStyle: dark
+            ? SystemUiOverlayStyle.light.copyWith(
+                statusBarColor: Colors.transparent,
+                systemNavigationBarColor: Colors.transparent,
+                systemNavigationBarIconBrightness: Brightness.light,
+              )
+            : SystemUiOverlayStyle.dark.copyWith(
+                statusBarColor: Colors.transparent,
+                systemNavigationBarColor: Colors.transparent,
+                systemNavigationBarIconBrightness: Brightness.dark,
+              ),
         titleTextStyle: display(
           text.headlineSmall,
           FontWeight.w600,
@@ -107,6 +132,16 @@ class AppTheme {
           borderSide: BorderSide(color: scheme.primary, width: 2.5),
         ),
       ),
+      searchBarTheme: SearchBarThemeData(
+        elevation: const WidgetStatePropertyAll(0),
+        backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+        surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+        shape: const WidgetStatePropertyAll(StadiumBorder()),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        ),
+        constraints: const BoxConstraints(minHeight: 56),
+      ),
       chipTheme: base.chipTheme.copyWith(
         shape: const StadiumBorder(),
         side: BorderSide(color: scheme.outlineVariant),
@@ -132,6 +167,37 @@ class AppTheme {
             ),
           ),
         ),
+      ),
+      switchTheme: SwitchThemeData(
+        trackOutlineColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? Colors.transparent
+              : scheme.outline,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? scheme.primary
+              : scheme.surfaceContainerHighest,
+        ),
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? scheme.onPrimary
+              : scheme.onSurfaceVariant,
+        ),
+      ),
+      sliderTheme: base.sliderTheme.copyWith(
+        activeTrackColor: scheme.primary,
+        inactiveTrackColor: scheme.surfaceContainerHighest,
+        thumbColor: scheme.primary,
+        overlayColor: scheme.primary.withValues(alpha: .12),
+        trackHeight: 5,
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: scheme.primary,
+        linearTrackColor: scheme.surfaceContainerHighest,
+        circularTrackColor: scheme.surfaceContainerHighest,
+        linearMinHeight: 6,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -160,9 +226,9 @@ class AppTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        height: 76,
+        height: 72,
         elevation: 0,
-        backgroundColor: scheme.surfaceContainer,
+        backgroundColor: Colors.transparent,
         indicatorColor: scheme.secondaryContainer,
         indicatorShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
@@ -205,6 +271,42 @@ class AppTheme {
         color: scheme.outlineVariant.withValues(alpha: .7),
         thickness: 1,
       ),
+      expansionTileTheme: ExpansionTileThemeData(
+        iconColor: scheme.primary,
+        collapsedIconColor: scheme.onSurfaceVariant,
+        textColor: scheme.onSurface,
+        collapsedTextColor: scheme.onSurface,
+        shape: const Border(),
+        collapsedShape: const Border(),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: scheme.surfaceContainerHigh,
+        surfaceTintColor: Colors.transparent,
+        elevation: 3,
+        shape: ExpressiveShape.card(radius: AppRadius.lg),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: ShapeDecoration(
+          color: scheme.inverseSurface,
+          shape: const StadiumBorder(),
+        ),
+        textStyle: text.labelMedium?.copyWith(color: scheme.onInverseSurface),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        preferBelow: false,
+      ),
+      datePickerTheme: DatePickerThemeData(
+        backgroundColor: scheme.surfaceContainerLow,
+        surfaceTintColor: Colors.transparent,
+        shape: ExpressiveShape.card(radius: AppRadius.xxl),
+        headerBackgroundColor: scheme.primaryContainer,
+        headerForegroundColor: scheme.onPrimaryContainer,
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: scheme.surfaceContainerLow,
+        shape: ExpressiveShape.card(radius: AppRadius.xxl),
+        hourMinuteShape: ExpressiveShape.soft(),
+        dayPeriodShape: const StadiumBorder(),
+      ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: scheme.inverseSurface,
@@ -225,7 +327,7 @@ class AppTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
-        shape: ExpressiveShape.hero(),
+        shape: ExpressiveShape.card(radius: AppRadius.xxl),
       ),
       extensions: [dark ? FinanceColors.dark : FinanceColors.light],
     );
