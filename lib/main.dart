@@ -19,7 +19,6 @@ import 'screens/settings_screen.dart';
 import 'services/notification_service.dart';
 import 'theme/app_tokens.dart';
 import 'widgets/money_chat_sheet.dart';
-import 'widgets/ui/flow_ui.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,7 +80,9 @@ class _AppGate extends ConsumerWidget {
     final settingsAsync = ref.watch(settingsInitializer);
 
     if (settingsAsync.isLoading) {
-      return const Scaffold(body: Center(child: FlowOrb(size: 52)));
+      return const Scaffold(
+        body: Center(child: LoomMark(size: 52, state: LoomState.checking)),
+      );
     }
     if (settingsAsync.hasError) {
       return Scaffold(
@@ -115,7 +116,9 @@ class _AppGate extends ConsumerWidget {
     }
 
     return onboardingAsync.when(
-      loading: () => const Scaffold(body: Center(child: FlowOrb(size: 52))),
+      loading: () => const Scaffold(
+        body: Center(child: LoomMark(size: 52, state: LoomState.checking)),
+      ),
       error: (_, _) => const AppShell(),
       data: (done) {
         if (!done) return const OnboardingScreen();
@@ -455,169 +458,6 @@ class _AppShellState extends ConsumerState<AppShell>
 }
 
 // ignore: unused_element
-class _FlowNavigationRail extends StatelessWidget {
-  const _FlowNavigationRail({
-    required this.selectedIndex,
-    required this.extended,
-    required this.onDestinationSelected,
-  });
-
-  final int selectedIndex;
-  final bool extended;
-  final ValueChanged<int> onDestinationSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    const items = [
-      (Icons.blur_on_outlined, 'Ask', 'Ask Flow'),
-      (Icons.receipt_long_outlined, 'Proof', 'Evidence timeline'),
-      (Icons.person_outline_rounded, 'Control', 'Control and privacy'),
-    ];
-    return FlowAtmosphere(
-      alignment: const Alignment(-1, -1),
-      child: SafeArea(
-        child: SizedBox(
-          width: extended ? 232 : 88,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 20, 12, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: extended ? 12 : 8),
-                  child: Row(
-                    mainAxisAlignment: extended
-                        ? MainAxisAlignment.start
-                        : MainAxisAlignment.center,
-                    children: [
-                      const FlowOrb(size: 38),
-                      if (extended) ...[
-                        const SizedBox(width: 12),
-                        Text(
-                          'Fund Flow',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 52),
-                for (var index = 0; index < items.length; index++) ...[
-                  _FlowRailDestination(
-                    selected: selectedIndex == index,
-                    extended: extended,
-                    icon: items[index].$1,
-                    label: items[index].$2,
-                    tooltip: items[index].$3,
-                    onTap: () => onDestinationSelected(index),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                const Spacer(),
-                if (extended)
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      'Private by design',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FlowRailDestination extends StatelessWidget {
-  const _FlowRailDestination({
-    required this.selected,
-    required this.extended,
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final bool selected;
-  final bool extended;
-  final IconData icon;
-  final String label;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final reduce = MediaQuery.disableAnimationsOf(context);
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: tooltip,
-      excludeSemantics: true,
-      child: Tooltip(
-        message: tooltip,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const StadiumBorder(),
-          child: AnimatedContainer(
-            height: 56,
-            duration: reduce ? Duration.zero : AppMotion.medium,
-            curve: AppMotion.emphasizedDecelerate,
-            padding: EdgeInsets.symmetric(horizontal: extended ? 16 : 0),
-            decoration: ShapeDecoration(
-              color: selected
-                  ? scheme.primary.withValues(alpha: .1)
-                  : Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-                side: selected
-                    ? BorderSide(color: scheme.primary.withValues(alpha: .24))
-                    : BorderSide.none,
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: extended
-                  ? MainAxisAlignment.start
-                  : MainAxisAlignment.center,
-              children: [
-                if (label == 'Ask')
-                  FlowOrb(
-                    size: 24,
-                    state: selected ? FlowOrbState.ready : FlowOrbState.offline,
-                  )
-                else
-                  Icon(
-                    icon,
-                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                  ),
-                if (extended) ...[
-                  const SizedBox(width: 14),
-                  Text(
-                    label,
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: selected
-                          ? scheme.primary
-                          : scheme.onSurfaceVariant,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Keeps every primary destination mounted so expensive history, Markdown, and
-/// settings trees are never constructed during a navigation animation.
 class _DestinationLayer extends StatelessWidget {
   const _DestinationLayer({required this.active, required this.child});
 
@@ -644,173 +484,3 @@ class _DestinationLayer extends StatelessWidget {
 
 /// The phone navigation occupies layout space so it can never cover content or
 /// collide with a screen-level action. See docs/design_system.md.
-class FlowNavigationBar extends StatelessWidget {
-  const FlowNavigationBar({
-    super.key,
-    required this.selectedIndex,
-    required this.onDestinationSelected,
-  });
-
-  final int selectedIndex;
-  final ValueChanged<int> onDestinationSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    const destinations = [
-      (Icons.blur_on_outlined, Icons.blur_on_rounded, 'Ask', 'Ask Flow'),
-      (
-        Icons.receipt_long_outlined,
-        Icons.receipt_long_rounded,
-        'Proof',
-        'Evidence timeline',
-      ),
-      (
-        Icons.person_outline_rounded,
-        Icons.person_rounded,
-        'Control',
-        'Control and privacy',
-      ),
-    ];
-    return ColoredBox(
-      color: scheme.surface.withValues(alpha: .96),
-      child: SafeArea(
-        top: false,
-        minimum: const EdgeInsets.fromLTRB(12, 6, 12, 8),
-        child: FlowGlass(
-          radius: AppRadius.xl,
-          padding: const EdgeInsets.all(5),
-          child: SizedBox(
-            height: 58,
-            child: Row(
-              children: [
-                for (var index = 0; index < destinations.length; index++)
-                  Expanded(
-                    child: _FlowDestination(
-                      selected: selectedIndex == index,
-                      icon: destinations[index].$1,
-                      selectedIcon: destinations[index].$2,
-                      label: destinations[index].$3,
-                      tooltip: destinations[index].$4,
-                      onTap: () => onDestinationSelected(index),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FlowDestination extends StatelessWidget {
-  const _FlowDestination({
-    required this.selected,
-    required this.icon,
-    required this.selectedIcon,
-    required this.label,
-    required this.tooltip,
-    required this.onTap,
-  });
-
-  final bool selected;
-  final IconData icon;
-  final IconData selectedIcon;
-  final String label;
-  final String tooltip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final showLabel =
-        selected && MediaQuery.textScalerOf(context).scale(1) <= 1.3;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: tooltip,
-      excludeSemantics: true,
-      child: Tooltip(
-        message: tooltip,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          child: Center(
-            child: AnimatedContainer(
-              width: showLabel ? 108 : 52,
-              height: 46,
-              duration: reduceMotion ? Duration.zero : AppMotion.medium,
-              curve: AppMotion.emphasizedDecelerate,
-              // Leave a small rounding buffer for the longest label
-              // ("Activity"). At some Android font metrics, 12px padding on
-              // both sides exceeded the compact capsule by a fraction of a
-              // logical pixel.
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: ShapeDecoration(
-                color: selected
-                    ? scheme.primary.withValues(alpha: .1)
-                    : Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(17),
-                  side: selected
-                      ? BorderSide(color: scheme.primary.withValues(alpha: .24))
-                      : BorderSide.none,
-                ),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  AnimatedSwitcher(
-                    duration: reduceMotion ? Duration.zero : AppMotion.fast,
-                    child: label == 'Ask'
-                        ? FlowOrb(
-                            key: const ValueKey('flow-field'),
-                            size: 22,
-                            state: selected
-                                ? FlowOrbState.ready
-                                : FlowOrbState.offline,
-                          )
-                        : Icon(
-                            selected ? selectedIcon : icon,
-                            key: ValueKey(selected),
-                            size: 22,
-                            color: selected
-                                ? scheme.primary
-                                : scheme.onSurfaceVariant,
-                          ),
-                  ),
-                  Flexible(
-                    child: AnimatedSize(
-                      duration: reduceMotion ? Duration.zero : AppMotion.medium,
-                      curve: AppMotion.emphasizedDecelerate,
-                      child: showLabel
-                          ? Padding(
-                              padding: const EdgeInsetsDirectional.only(
-                                start: 8,
-                              ),
-                              child: Text(
-                                label,
-                                maxLines: 1,
-                                overflow: TextOverflow.fade,
-                                softWrap: false,
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      color: scheme.primary,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                              ),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
