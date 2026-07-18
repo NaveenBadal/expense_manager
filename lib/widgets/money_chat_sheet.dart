@@ -16,6 +16,10 @@ import '../models/assistant_message.dart';
 import '../models/transaction_query.dart';
 import '../flow_os/ask/flow_masthead.dart';
 import '../flow_os/ask/query_dock.dart';
+import '../flow_os/foundation/flow_color.dart';
+import '../flow_os/primitives/coordinate_label.dart';
+import '../flow_os/primitives/cut_surface.dart';
+import '../flow_os/primitives/loom_mark.dart';
 import '../theme/app_tokens.dart';
 import '../screens/settings_screen.dart';
 import '../utils/currency_utils.dart';
@@ -716,13 +720,12 @@ class _ThinkingCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 14, 4, 24),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const FlowOrb(size: 32, state: FlowOrbState.thinking),
+          const LoomMark(size: 36, state: LoomState.checking),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -731,7 +734,7 @@ class _ThinkingCanvas extends StatelessWidget {
                 Text(
                   'FLOW IS CHECKING',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: FlowPalette.signalCyan,
+                    color: FlowColor.proof,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1,
                   ),
@@ -744,17 +747,28 @@ class _ThinkingCanvas extends StatelessWidget {
                     data: mobileFriendlyMarkdown(streamingText),
                     styleSheet: MarkdownStyleSheet(
                       p: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: scheme.onSurface,
+                        color: FlowColor.content(context),
                         height: 1.5,
                       ),
                     ),
                   ),
                 ],
                 const SizedBox(height: 6),
-                TextButton.icon(
-                  onPressed: onStop,
-                  icon: const Icon(Icons.stop_circle_outlined, size: 18),
-                  label: const Text('Stop safely'),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onStop,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    child: Text(
+                      '■ STOP SAFELY',
+                      style: TextStyle(
+                        color: FlowColor.quiet(context),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .7,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -782,7 +796,6 @@ class _AnswerCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     if (message.user) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(4, 10, 4, 22),
@@ -790,13 +803,10 @@ class _AnswerCanvas extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 3,
-              height: 34,
+              width: 8,
+              height: 8,
               margin: const EdgeInsets.only(top: 2),
-              decoration: BoxDecoration(
-                color: scheme.primary,
-                borderRadius: BorderRadius.circular(2),
-              ),
+              color: FlowColor.proof,
             ),
             const SizedBox(width: 13),
             Expanded(
@@ -806,7 +816,7 @@ class _AnswerCanvas extends StatelessWidget {
                   Text(
                     'YOU ASKED',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.primary,
+                      color: FlowColor.proof,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.15,
                     ),
@@ -814,9 +824,11 @@ class _AnswerCanvas extends StatelessWidget {
                   const SizedBox(height: 5),
                   Text(
                     message.text,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(height: 1.35),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: FlowColor.content(context),
+                      height: 1.35,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -842,8 +854,8 @@ class _AnswerCanvas extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    scheme.primary.withValues(alpha: .7),
-                    FlowPalette.signalCyan.withValues(alpha: .16),
+                    FlowColor.proof.withValues(alpha: .8),
+                    FlowColor.loom.withValues(alpha: .12),
                   ],
                 ),
               ),
@@ -858,12 +870,12 @@ class _AnswerCanvas extends StatelessWidget {
                   offset: const Offset(-44, 0),
                   child: Row(
                     children: [
-                      const FlowOrb(size: 28),
+                      const LoomMark(size: 30, state: LoomState.proven),
                       const SizedBox(width: 16),
                       Text(
                         'FLOW ANSWER',
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: scheme.primary,
+                          color: FlowColor.proof,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.15,
                         ),
@@ -873,7 +885,7 @@ class _AnswerCanvas extends StatelessWidget {
                         _ProofStamp(
                           icon: Icons.verified_rounded,
                           label: 'VERIFIED',
-                          color: context.finance.income,
+                          color: FlowColor.mint,
                         ),
                     ],
                   ),
@@ -888,28 +900,25 @@ class _AnswerCanvas extends StatelessWidget {
                   selectable: true,
                   styleSheet: MarkdownStyleSheet(
                     p: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: scheme.onSurface,
+                      color: FlowColor.content(context),
                       height: 1.55,
                     ),
                     strong: TextStyle(
-                      color: scheme.primary,
+                      color: FlowColor.loomBright,
                       fontWeight: FontWeight.w800,
                     ),
                     listBullet: TextStyle(
-                      color: FlowPalette.signalCyan,
+                      color: FlowColor.proof,
                       fontWeight: FontWeight.w900,
                     ),
                     code: TextStyle(
-                      color: scheme.onSurface,
-                      backgroundColor: scheme.surfaceContainerHighest,
+                      color: FlowColor.content(context),
+                      backgroundColor: FlowColor.plane(context),
                       fontFamily: 'monospace',
                     ),
                     blockquoteDecoration: BoxDecoration(
                       border: Border(
-                        left: BorderSide(
-                          color: FlowPalette.signalCyan,
-                          width: 3,
-                        ),
+                        left: BorderSide(color: FlowColor.proof, width: 3),
                       ),
                     ),
                     blockquotePadding: const EdgeInsets.only(left: 12),
@@ -917,16 +926,11 @@ class _AnswerCanvas extends StatelessWidget {
                 ),
                 if (message.sources > 0) ...[
                   const SizedBox(height: 18),
-                  Container(
-                    width: double.infinity,
+                  CutSurface(
+                    color: FlowColor.plane(context),
+                    accent: FlowColor.proof.withValues(alpha: .5),
+                    cut: 10,
                     padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: scheme.primary.withValues(alpha: .07),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: scheme.primary.withValues(alpha: .16),
-                      ),
-                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -940,7 +944,7 @@ class _AnswerCanvas extends StatelessWidget {
                           Text(
                             _formatFilterDetails(message.filterDetails),
                             style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
+                                ?.copyWith(color: FlowColor.quiet(context)),
                           ),
                         ],
                       ],
@@ -981,104 +985,103 @@ class _ActivationCanvas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 34, 4, 24),
+      padding: const EdgeInsets.fromLTRB(0, 36, 0, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const FlowOrb(size: 72, state: FlowOrbState.offline),
-              const SizedBox(width: 18),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const CoordinateLabel('ACTIVATION / PRIVATE INTELLIGENCE'),
+          const SizedBox(height: 13),
+          Text(
+            'YOUR MONEY\nCAN EXPLAIN ITSELF.',
+            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+              color: FlowColor.content(context),
+              fontWeight: FontWeight.w900,
+              height: .98,
+              letterSpacing: -.8,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'Flow turns transaction messages into a private evidence network, then answers questions against what it can prove.',
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: FlowColor.quiet(context),
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 30),
+          CutSurface(
+            cut: 18,
+            color: FlowColor.plane(context),
+            accent: FlowColor.rule(context),
+            padding: const EdgeInsets.fromLTRB(17, 18, 17, 5),
+            child: const Column(
+              children: [
+                _ActivationStep(
+                  number: '01',
+                  title: 'Attach intelligence',
+                  detail: 'Encrypted credential · controlled by you',
+                  active: true,
+                ),
+                _ActivationStep(
+                  number: '02',
+                  title: 'Open an evidence channel',
+                  detail: 'Transaction SMS only · explicit consent',
+                ),
+                _ActivationStep(
+                  number: '03',
+                  title: 'Ask. Trace. Decide.',
+                  detail: 'Every conclusion links back to local proof',
+                  last: true,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Semantics(
+            button: true,
+            label: 'Connect AI securely',
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onConnect,
+              child: CutSurface(
+                cut: 14,
+                color: FlowColor.loom,
+                accent: FlowColor.proof,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 17,
+                  vertical: 15,
+                ),
+                child: const Row(
                   children: [
-                    Text(
-                      'FLOW IS OFFLINE',
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: FlowPalette.signalCyan,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.25,
+                    LoomMark(size: 30),
+                    SizedBox(width: 13),
+                    Expanded(
+                      child: Text(
+                        'ATTACH INTELLIGENCE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: .8,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
                     Text(
-                      'Turn messages into answers.',
-                      style: Theme.of(context).textTheme.headlineMedium,
+                      '01 →',
+                      style: TextStyle(
+                        color: FlowColor.proof,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .8,
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 22),
-          Text(
-            'Connect your AI once. Flow then understands transaction SMS, checks its conclusions against local records, and answers with proof.',
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: scheme.onSurfaceVariant,
-              height: 1.5,
             ),
           ),
-          const SizedBox(height: 28),
-          const _ActivationStep(
-            number: '01',
-            title: 'Connect intelligence',
-            detail: 'Your credential stays encrypted on this device.',
-            active: true,
-          ),
-          const _ActivationStep(
-            number: '02',
-            title: 'Choose message access',
-            detail: 'Flow reads transaction candidates only after consent.',
-          ),
-          const _ActivationStep(
-            number: '03',
-            title: 'Ask with evidence',
-            detail: 'Answers show records checked, confidence, and source.',
-            last: true,
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: onConnect,
-              style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 18,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-              ),
-              child: const Row(
-                children: [
-                  FlowOrb(size: 24),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Connect AI securely',
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Icon(Icons.arrow_forward_rounded),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              'Nothing is analyzed until you start it.',
-              style: Theme.of(
-                context,
-              ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ),
+          const SizedBox(height: 11),
+          const Center(child: CoordinateLabel('NO ANALYSIS BEFORE CONSENT')),
         ],
       ),
     );
@@ -1102,8 +1105,7 @@ class _ActivationStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final color = active ? scheme.primary : scheme.outline;
+    final color = active ? FlowColor.proof : FlowColor.quiet(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1112,18 +1114,17 @@ class _ActivationStep extends StatelessWidget {
           child: Column(
             children: [
               Container(
-                width: 24,
-                height: 24,
+                width: 28,
+                height: 22,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: active ? .18 : .08),
-                  borderRadius: BorderRadius.circular(8),
+                  color: active ? FlowColor.loom : Colors.transparent,
                   border: Border.all(color: color.withValues(alpha: .4)),
                 ),
                 child: Text(
                   number,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: color,
+                    color: active ? Colors.white : color,
                     fontSize: 9,
                     fontWeight: FontWeight.w900,
                   ),
@@ -1132,7 +1133,7 @@ class _ActivationStep extends StatelessWidget {
               if (!last)
                 Container(
                   width: 2,
-                  height: 48,
+                  height: 42,
                   color: color.withValues(alpha: .22),
                 ),
             ],
@@ -1145,12 +1146,18 @@ class _ActivationStep extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: Theme.of(context).textTheme.titleSmall),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: FlowColor.content(context),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   detail,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                    color: FlowColor.quiet(context),
                   ),
                 ),
               ],
@@ -1211,34 +1218,40 @@ class _QuestionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-      child: Material(
-        color: scheme.surfaceContainerHigh,
-        shape: ExpressiveShape.card(radius: AppRadius.xl),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: onPressed,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.lg,
-            ),
+          child: CutSurface(
+            cut: 9,
+            color: FlowColor.plane(context),
+            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
             child: Row(
               children: [
-                Icon(icon, size: 20, color: scheme.primary),
-                const SizedBox(width: AppSpacing.md),
+                Icon(icon, size: 16, color: FlowColor.proof),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     label,
-                    style: Theme.of(context).textTheme.bodyLarge,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: FlowColor.content(context),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                Icon(
-                  Icons.arrow_outward_rounded,
-                  size: 18,
-                  color: scheme.onSurfaceVariant,
+                const Text(
+                  'ASK →',
+                  style: TextStyle(
+                    color: FlowColor.proof,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .8,
+                  ),
                 ),
               ],
             ),
@@ -1255,39 +1268,55 @@ class _AnalyzeMessagesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.secondaryContainer,
-      shape: ExpressiveShape.hero(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
+    return Semantics(
+      button: true,
+      label: 'Analyze transaction messages',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onPressed,
-        customBorder: ExpressiveShape.hero(),
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
+        child: CutSurface(
+          cut: 14,
+          color: FlowColor.plane(context),
+          accent: FlowColor.proof,
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              const FlowOrb(size: 48),
-              const SizedBox(width: AppSpacing.lg),
+              const LoomMark(size: 42),
+              const SizedBox(width: 15),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const CoordinateLabel('INGEST / SMS'),
+                    const SizedBox(height: 4),
                     Text(
-                      'Understand transaction SMS',
-                      style: Theme.of(context).textTheme.titleMedium,
+                      'Build the evidence field',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: FlowColor.content(context),
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.xs),
+                    const SizedBox(height: 3),
                     Text(
-                      'Analyze recent bank messages and build your private financial picture.',
+                      'Find transaction signals. Keep structured proof local.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                        color: FlowColor.quiet(context),
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.arrow_forward_rounded),
+              const SizedBox(width: 10),
+              const Text(
+                'OPEN →',
+                style: TextStyle(
+                  color: FlowColor.proof,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: .8,
+                ),
+              ),
             ],
           ),
         ),

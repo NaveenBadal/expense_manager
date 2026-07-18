@@ -168,8 +168,8 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Ask Flow'), findsOneWidget);
-    expect(find.text('Connect intelligence to ask Flow'), findsOneWidget);
+    expect(find.text('FLOW'), findsOneWidget);
+    expect(find.text('Connect intelligence to begin'), findsOneWidget);
   });
 
   testWidgets('agent financial cards support narrow screens and 200% text', (
