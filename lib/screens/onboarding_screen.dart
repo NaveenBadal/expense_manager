@@ -5,6 +5,7 @@ import '../main.dart';
 import '../models/ai_provider.dart';
 import '../providers/expense_provider.dart';
 import '../services/ollama_cloud_service.dart';
+import '../theme/app_theme.dart';
 import '../theme/app_tokens.dart';
 import '../widgets/ui/flow_ui.dart';
 
@@ -291,6 +292,114 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 }
 
+class _OnboardingSignal extends StatelessWidget {
+  const _OnboardingSignal();
+
+  @override
+  Widget build(BuildContext context) {
+    final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final details = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'MESSAGE',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Colors.white60,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const _SignalLine(widthFactor: .82),
+        const SizedBox(height: 7),
+        const _SignalLine(widthFactor: .58),
+        const SizedBox(height: 18),
+        Text(
+          'UNDERSTOOD AS',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: FlowPalette.signalCyan,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 7),
+        Text(
+          '₹ 1,240  ·  FOOD',
+          style: AppTheme.money(
+            Theme.of(context).textTheme.titleLarge?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'PROOF ATTACHED',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Colors.white70,
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            letterSpacing: .8,
+          ),
+        ),
+      ],
+    );
+    return Container(
+      height: largeText ? 520 : 224,
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [FlowPalette.intelligence, Color(0xFF302491)],
+        ),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(22),
+          topRight: Radius.circular(58),
+          bottomLeft: Radius.circular(58),
+          bottomRight: Radius.circular(22),
+        ),
+      ),
+      child: largeText
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const FlowOrb(size: 64),
+                const SizedBox(height: 18),
+                Expanded(child: details),
+              ],
+            )
+          : Row(
+              children: [
+                const FlowOrb(size: 86),
+                const SizedBox(width: 20),
+                Expanded(child: details),
+              ],
+            ),
+    );
+  }
+}
+
+class _SignalLine extends StatelessWidget {
+  const _SignalLine({required this.widthFactor});
+
+  final double widthFactor;
+
+  @override
+  Widget build(BuildContext context) => FractionallySizedBox(
+    widthFactor: widthFactor,
+    child: Container(
+      height: 7,
+      decoration: BoxDecoration(
+        color: Colors.white24,
+        borderRadius: BorderRadius.circular(4),
+      ),
+    ),
+  );
+}
+
 class _PromiseStage extends StatelessWidget {
   const _PromiseStage();
 
@@ -307,38 +416,7 @@ class _PromiseStage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            height: 224,
-            width: double.infinity,
-            decoration: ShapeDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [scheme.primaryContainer, scheme.tertiaryContainer],
-              ),
-              shape: ExpressiveShape.hero(),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Icon(
-                  Icons.sms_outlined,
-                  size: 108,
-                  color: scheme.primary.withValues(alpha: .84),
-                ),
-                Positioned(
-                  right: 54,
-                  bottom: 44,
-                  child: CircleAvatar(
-                    radius: 30,
-                    backgroundColor: scheme.primary,
-                    foregroundColor: scheme.onPrimary,
-                    child: const FlowOrb(size: 56),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const _OnboardingSignal(),
           const SizedBox(height: AppSpacing.region),
           Text(
             'YOUR MONEY, UNDERSTOOD',
@@ -751,9 +829,30 @@ class _BottomAction extends StatelessWidget {
               Expanded(
                 child: FilledButton(
                   onPressed: primaryEnabled ? onPrimary : null,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                  ),
                   child: working
                       ? const Icon(Icons.hourglass_top_rounded)
-                      : Text(label),
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            if (page == 0) ...[
+                              const FlowOrb(size: 22),
+                              const SizedBox(width: 10),
+                            ],
+                            Flexible(
+                              child: Text(
+                                label,
+                                maxLines: 2,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ),
             ],

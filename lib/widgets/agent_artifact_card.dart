@@ -23,70 +23,94 @@ class AgentArtifactCard extends StatelessWidget {
     return Semantics(
       container: true,
       label: artifact.title,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        decoration: ShapeDecoration(
-          color: scheme.surfaceContainer,
-          shape: ExpressiveShape.card(
-            radius: AppRadius.xl,
-            color: scheme.outlineVariant.withValues(alpha: .45),
-          ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(16),
+          topRight: Radius.circular(34),
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(16),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: accent.withValues(alpha: .14),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(_icon, size: 20, color: accent),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          artifact.title,
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        if (artifact.subtitle.isNotEmpty)
-                          Text(
-                            artifact.subtitle,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(color: scheme.onSurfaceVariant),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Icon(Icons.verified_user_outlined, size: 18, color: accent),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _content(context),
-              if (artifact.actions.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: Color.alphaBlend(
+              accent.withValues(alpha: .075),
+              scheme.surfaceContainer,
+            ),
+            border: BorderDirectional(
+              start: BorderSide(color: accent, width: 4),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    for (final action in artifact.actions)
-                      ActionChip(
-                        label: Text(action),
-                        onPressed: () => onPrompt(action),
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: .14),
+                        borderRadius: BorderRadius.circular(14),
                       ),
+                      child: Icon(_icon, size: 20, color: accent),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'VERIFIED LOCAL RESULT',
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  color: accent,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: .8,
+                                ),
+                          ),
+                          Text(
+                            artifact.title,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          if (artifact.subtitle.isNotEmpty)
+                            Text(
+                              artifact.subtitle,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.verified_user_outlined, size: 18, color: accent),
                   ],
                 ),
+                const SizedBox(height: 16),
+                _content(context),
+                if (artifact.actions.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final action in artifact.actions)
+                        OutlinedButton.icon(
+                          onPressed: () => onPrompt(action),
+                          icon: Icon(
+                            Icons.arrow_outward_rounded,
+                            size: 16,
+                            color: accent,
+                          ),
+                          label: Text(action),
+                        ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

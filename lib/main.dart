@@ -420,9 +420,9 @@ class _FlowNavigationRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      (Icons.blur_on_outlined, 'Flow', 'Flow agent'),
-      (Icons.receipt_long_outlined, 'Activity', 'Activity and evidence'),
-      (Icons.person_outline_rounded, 'You', 'Your settings and privacy'),
+      (Icons.blur_on_outlined, 'Ask', 'Ask Flow'),
+      (Icons.receipt_long_outlined, 'Proof', 'Evidence timeline'),
+      (Icons.person_outline_rounded, 'Control', 'Control and privacy'),
     ];
     return FlowAtmosphere(
       alignment: const Alignment(-1, -1),
@@ -522,23 +522,29 @@ class _FlowRailDestination extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: extended ? 16 : 0),
             decoration: ShapeDecoration(
               color: selected
-                  ? scheme.primaryContainer.withValues(alpha: .72)
+                  ? scheme.primary.withValues(alpha: .1)
                   : Colors.transparent,
-              shape: const StadiumBorder(),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: selected
+                    ? BorderSide(color: scheme.primary.withValues(alpha: .24))
+                    : BorderSide.none,
+              ),
             ),
             child: Row(
               mainAxisAlignment: extended
                   ? MainAxisAlignment.start
                   : MainAxisAlignment.center,
               children: [
-                if (selected && label == 'Flow')
-                  const FlowOrb(size: 24)
+                if (label == 'Ask')
+                  FlowOrb(
+                    size: 24,
+                    state: selected ? FlowOrbState.ready : FlowOrbState.offline,
+                  )
                 else
                   Icon(
                     icon,
-                    color: selected
-                        ? scheme.onPrimaryContainer
-                        : scheme.onSurfaceVariant,
+                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
                   ),
                 if (extended) ...[
                   const SizedBox(width: 14),
@@ -546,7 +552,7 @@ class _FlowRailDestination extends StatelessWidget {
                     label,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: selected
-                          ? scheme.onPrimaryContainer
+                          ? scheme.primary
                           : scheme.onSurfaceVariant,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                     ),
@@ -616,18 +622,18 @@ class FlowNavigationBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     const destinations = [
-      (Icons.blur_on_outlined, Icons.blur_on_rounded, 'Flow', 'Flow agent'),
+      (Icons.blur_on_outlined, Icons.blur_on_rounded, 'Ask', 'Ask Flow'),
       (
         Icons.receipt_long_outlined,
         Icons.receipt_long_rounded,
-        'Activity',
-        'Activity and evidence',
+        'Proof',
+        'Evidence timeline',
       ),
       (
         Icons.person_outline_rounded,
         Icons.person_rounded,
-        'You',
-        'Your settings and privacy',
+        'Control',
+        'Control and privacy',
       ),
     ];
     return ColoredBox(
@@ -701,45 +707,67 @@ class _FlowDestination extends StatelessWidget {
               height: 46,
               duration: reduceMotion ? Duration.zero : AppMotion.medium,
               curve: AppMotion.emphasizedDecelerate,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              // Leave a small rounding buffer for the longest label
+              // ("Activity"). At some Android font metrics, 12px padding on
+              // both sides exceeded the compact capsule by a fraction of a
+              // logical pixel.
+              padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: ShapeDecoration(
                 color: selected
-                    ? scheme.primaryContainer.withValues(alpha: .72)
+                    ? scheme.primary.withValues(alpha: .1)
                     : Colors.transparent,
-                shape: const StadiumBorder(),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(17),
+                  side: selected
+                      ? BorderSide(color: scheme.primary.withValues(alpha: .24))
+                      : BorderSide.none,
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   AnimatedSwitcher(
                     duration: reduceMotion ? Duration.zero : AppMotion.fast,
-                    child: selected && label == 'Flow'
-                        ? const FlowOrb(key: ValueKey('orb'), size: 22)
+                    child: label == 'Ask'
+                        ? FlowOrb(
+                            key: const ValueKey('flow-field'),
+                            size: 22,
+                            state: selected
+                                ? FlowOrbState.ready
+                                : FlowOrbState.offline,
+                          )
                         : Icon(
                             selected ? selectedIcon : icon,
                             key: ValueKey(selected),
                             size: 22,
                             color: selected
-                                ? scheme.onPrimaryContainer
+                                ? scheme.primary
                                 : scheme.onSurfaceVariant,
                           ),
                   ),
-                  AnimatedSize(
-                    duration: reduceMotion ? Duration.zero : AppMotion.medium,
-                    curve: AppMotion.emphasizedDecelerate,
-                    child: showLabel
-                        ? Padding(
-                            padding: const EdgeInsetsDirectional.only(start: 8),
-                            child: Text(
-                              label,
-                              style: Theme.of(context).textTheme.labelLarge
-                                  ?.copyWith(
-                                    color: scheme.onPrimaryContainer,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                            ),
-                          )
-                        : const SizedBox.shrink(),
+                  Flexible(
+                    child: AnimatedSize(
+                      duration: reduceMotion ? Duration.zero : AppMotion.medium,
+                      curve: AppMotion.emphasizedDecelerate,
+                      child: showLabel
+                          ? Padding(
+                              padding: const EdgeInsetsDirectional.only(
+                                start: 8,
+                              ),
+                              child: Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.fade,
+                                softWrap: false,
+                                style: Theme.of(context).textTheme.labelLarge
+                                    ?.copyWith(
+                                      color: scheme.primary,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                              ),
+                            )
+                          : const SizedBox.shrink(),
+                    ),
                   ),
                 ],
               ),

@@ -4,8 +4,8 @@ import '../../theme/app_tokens.dart';
 
 enum FlowOrbState { ready, thinking, syncing, success, attention, offline }
 
-/// The single visual signature for Flow intelligence. It stays recognizable at
-/// every size and only animates while the agent is actively doing work.
+/// The single visual signature for Flow intelligence: a static field of
+/// signals, never a continuously animated decoration.
 class FlowOrb extends StatelessWidget {
   const FlowOrb({
     super.key,
@@ -17,9 +17,6 @@ class FlowOrb extends StatelessWidget {
   final double size;
   final FlowOrbState state;
   final double? progress;
-
-  bool get _active =>
-      state == FlowOrbState.thinking || state == FlowOrbState.syncing;
 
   @override
   Widget build(BuildContext context) {
@@ -38,9 +35,9 @@ class FlowOrb extends StatelessWidget {
           size: Size.square(size),
           painter: _FlowOrbPainter(
             color: color,
-            surface: scheme.surface,
-            phase: 0,
-            active: _active,
+            accent: state == FlowOrbState.attention
+                ? context.finance.warning
+                : FlowPalette.signalCyan,
             progress: progress,
           ),
         ),
@@ -52,72 +49,66 @@ class FlowOrb extends StatelessWidget {
 class _FlowOrbPainter extends CustomPainter {
   const _FlowOrbPainter({
     required this.color,
-    required this.surface,
-    required this.phase,
-    required this.active,
+    required this.accent,
     this.progress,
   });
 
   final Color color;
-  final Color surface;
-  final double phase;
-  final bool active;
+  final Color accent;
   final double? progress;
+
+  static const _signals = <(double, double, double)>[
+    (.50, .07, .72),
+    (.28, .15, .58),
+    (.50, .19, .82),
+    (.72, .15, .58),
+    (.14, .31, .52),
+    (.35, .34, .78),
+    (.50, .38, 1.00),
+    (.65, .34, .78),
+    (.86, .31, .52),
+    (.07, .52, .45),
+    (.27, .54, .72),
+    (.50, .50, 1.12),
+    (.73, .54, .72),
+    (.93, .52, .45),
+    (.14, .73, .52),
+    (.35, .68, .78),
+    (.50, .62, 1.00),
+    (.65, .68, .78),
+    (.86, .73, .52),
+    (.28, .87, .58),
+    (.50, .81, .82),
+    (.72, .87, .58),
+    (.50, .95, .72),
+  ];
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.shortestSide / 2;
-    final pulse = active ? .94 + .06 * ((phase * 2 - 1).abs()) : 1.0;
-    canvas.drawCircle(
-      center,
-      radius * pulse,
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(-.28, -.34),
-          colors: [
-            Color.lerp(color, Colors.white, .62)!,
-            color,
-            Color.lerp(color, Colors.black, .22)!,
-          ],
-          stops: const [0, .48, 1],
-        ).createShader(Offset.zero & size),
-    );
-    canvas.drawCircle(
-      center.translate(-radius * .23, -radius * .28),
-      radius * .17,
-      Paint()..color = Colors.white.withValues(alpha: .72),
-    );
-    canvas.drawCircle(
-      center,
-      radius * .43,
-      Paint()
-        ..color = surface.withValues(alpha: .94)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = radius * .13,
-    );
-    final value = progress;
-    if (value != null) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius * .82),
-        -1.5708,
-        6.2832 * value.clamp(0, 1),
-        false,
+    final baseRadius = size.shortestSide * .065;
+    final completed = progress == null
+        ? _signals.length
+        : (_signals.length * progress!.clamp(0, 1)).ceil();
+    for (var index = 0; index < _signals.length; index++) {
+      final signal = _signals[index];
+      final enabled = index < completed;
+      final highlight = index == 6 || index == 11 || index == 16;
+      canvas.drawCircle(
+        Offset(size.width * signal.$1, size.height * signal.$2),
+        baseRadius * signal.$3,
         Paint()
-          ..color = Colors.white
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = radius * .09,
+          ..color = enabled
+              ? (highlight ? accent : color).withValues(
+                  alpha: .56 + signal.$3.clamp(0, 1) * .4,
+                )
+              : color.withValues(alpha: .16),
       );
     }
   }
 
   @override
   bool shouldRepaint(covariant _FlowOrbPainter old) =>
-      old.color != color ||
-      old.phase != phase ||
-      old.active != active ||
-      old.progress != progress;
+      old.color != color || old.accent != accent || old.progress != progress;
 }
 
 /// A restrained ambient canvas. Color lives near the agent and fades before
@@ -272,36 +263,56 @@ class FlowScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     floatingActionButton: floatingActionButton,
-    body: CustomScrollView(
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      slivers: [
-        SliverAppBar.large(
-          pinned: true,
-          title: Text(title, style: Theme.of(context).textTheme.headlineMedium),
-          actions: actions,
-          backgroundColor: Colors.transparent,
-          surfaceTintColor: Colors.transparent,
-        ),
-        if (eyebrow != null)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.page,
-                AppSpacing.sm,
-                AppSpacing.page,
-                AppSpacing.section,
-              ),
-              child: Text(
-                eyebrow!,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+    body: FlowAtmosphere(
+      alignment: const Alignment(.8, -1.1),
+      child: CustomScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: [
+          SliverAppBar(
+            pinned: true,
+            toolbarHeight: 84,
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const FlowOrb(size: 30),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                ),
+              ],
+            ),
+            actions: actions,
+            backgroundColor: Colors.transparent,
+            surfaceTintColor: Colors.transparent,
+          ),
+          if (eyebrow != null)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.page,
+                  AppSpacing.sm,
+                  AppSpacing.page,
+                  AppSpacing.section,
+                ),
+                child: Text(
+                  eyebrow!,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ),
+          ...slivers,
+          const SliverToBoxAdapter(
+            child: SizedBox(height: AppSpacing.narrative),
           ),
-        ...slivers,
-        const SliverToBoxAdapter(child: SizedBox(height: AppSpacing.narrative)),
-      ],
+        ],
+      ),
     ),
   );
 }
@@ -332,17 +343,13 @@ class StatePanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 68,
-                height: 68,
-                decoration: ShapeDecoration(
-                  color: scheme.primaryContainer,
-                  shape: ExpressiveShape.card(
-                    radius: AppRadius.xl,
-                    color: scheme.primary.withValues(alpha: .12),
-                  ),
-                ),
-                child: Icon(icon, color: scheme.primary, size: 30),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const FlowOrb(size: 58, state: FlowOrbState.attention),
+                  const SizedBox(width: 12),
+                  Icon(icon, color: scheme.primary, size: 30),
+                ],
               ),
               const SizedBox(height: AppSpacing.lg),
               Text(

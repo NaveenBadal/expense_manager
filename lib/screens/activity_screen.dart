@@ -51,9 +51,9 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Activity', style: Theme.of(context).textTheme.headlineMedium),
+            Text('Evidence', style: Theme.of(context).textTheme.headlineMedium),
             Text(
-              'All transactions',
+              'AI-understood money events',
               style: TextStyle(
                 fontFamily: 'Inter',
                 fontSize: 12.5,
@@ -75,7 +75,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             ),
           ),
           PopupMenuButton<String>(
-            tooltip: 'More activity actions',
+            tooltip: 'More evidence actions',
             onSelected: (value) {
               if (value == 'add_cash') _add();
             },
@@ -166,6 +166,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _EvidencePulse(events: all),
+                const SizedBox(height: AppSpacing.lg),
                 _SearchField(
                   controller: _search,
                   query: _query,
@@ -215,8 +217,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
             hasScrollBody: false,
             child: _EmptyState(
               icon: Icons.search_off_rounded,
-              title: 'No matching transactions',
-              message: 'Adjust your search or filters to see more activity.',
+              title: 'No matching evidence',
+              message: 'Adjust your search or filters to inspect other events.',
               action: 'Clear filters',
               onAction: _clearFilters,
             ),
@@ -562,7 +564,7 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SearchBar(
     controller: controller,
-    hintText: 'Search transactions',
+    hintText: 'Search evidence',
     leading: const Icon(Icons.search_rounded),
     trailing: [
       if (query.isNotEmpty)
@@ -952,6 +954,123 @@ class _FilterSummary extends StatelessWidget {
   }
 }
 
+class _EvidencePulse extends StatelessWidget {
+  const _EvidencePulse({required this.events});
+
+  final List<Expense> events;
+
+  @override
+  Widget build(BuildContext context) {
+    final needsReview = events
+        .where((item) => item.status == 'needs_review')
+        .length;
+    final fromMessages = events
+        .where((item) => item.originalSms.isNotEmpty)
+        .length;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: AlignmentDirectional.topStart,
+          end: AlignmentDirectional.bottomEnd,
+          colors: [
+            FlowPalette.intelligence,
+            Color.lerp(FlowPalette.intelligence, FlowPalette.night, .36)!,
+          ],
+        ),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(42),
+          bottomLeft: Radius.circular(42),
+          bottomRight: Radius.circular(20),
+        ),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact =
+              constraints.maxWidth < 430 ||
+              MediaQuery.textScalerOf(context).scale(1) > 1.3;
+          final intro = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const FlowOrb(size: 38),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'EVIDENCE FIELD',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: FlowPalette.signalCyan,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
+                  Text(
+                    needsReview == 0
+                        ? 'Everything is resolved'
+                        : '$needsReview need review',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(color: Colors.white),
+                  ),
+                ],
+              ),
+            ],
+          );
+          final stats = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _EvidenceMetric(value: '${events.length}', label: 'UNDERSTOOD'),
+              const SizedBox(width: 22),
+              _EvidenceMetric(value: '$fromMessages', label: 'FROM SMS'),
+            ],
+          );
+          return compact
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [intro, const SizedBox(height: 20), stats],
+                )
+              : Row(children: [intro, const Spacer(), stats]);
+        },
+      ),
+    );
+  }
+}
+
+class _EvidenceMetric extends StatelessWidget {
+  const _EvidenceMetric({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        value,
+        style: AppTheme.money(
+          Theme.of(context).textTheme.headlineSmall?.copyWith(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
+      Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Colors.white70,
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          letterSpacing: .8,
+        ),
+      ),
+    ],
+  );
+}
+
 class _TransactionGroup extends StatelessWidget {
   const _TransactionGroup({
     required this.day,
@@ -1058,16 +1177,18 @@ class _TransactionRow extends StatelessWidget {
     final amount = hidden
         ? maskAmount(item.currency)
         : '${item.isIncome ? '+' : '−'}${formatAmount(item.amount, item.currency)}';
-    final avatarColor = needsReview
+    final glyphSurface = needsReview
         ? context.finance.warningSurface
         : item.isIncome
         ? context.finance.incomeSurface
         : Theme.of(context).colorScheme.surfaceContainerHigh;
-    final iconColor = needsReview
+    final signalColor = needsReview
         ? context.finance.warning
         : item.isIncome
         ? context.finance.income
         : categoryColor(item.category);
+    final scheme = Theme.of(context).colorScheme;
+    final source = item.originalSms.isEmpty ? 'MANUAL' : 'SMS EVIDENCE';
     return Semantics(
       button: true,
       label:
@@ -1076,78 +1197,114 @@ class _TransactionRow extends StatelessWidget {
         onTap: onTap,
         onLongPress: onEdit,
         borderRadius: ExpressiveShape.playful(index),
-        child: Container(
-          decoration: BoxDecoration(
-            color: needsReview
-                ? context.finance.warningSurface
-                : Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: ExpressiveShape.playful(index),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withValues(alpha: .34),
+        child: ClipRRect(
+          borderRadius: ExpressiveShape.playful(index),
+          child: Container(
+            decoration: BoxDecoration(
+              color: needsReview
+                  ? context.finance.warningSurface
+                  : Color.alphaBlend(
+                      signalColor.withValues(alpha: .055),
+                      scheme.surfaceContainer,
+                    ),
+              border: Border.all(
+                color: signalColor.withValues(alpha: needsReview ? .34 : .2),
+              ),
             ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
+            child: Stack(
               children: [
-                CircleAvatar(
-                  radius: 22,
-                  backgroundColor: avatarColor,
-                  child: Icon(
-                    needsReview
-                        ? Icons.priority_high_rounded
-                        : item.isIncome
-                        ? Icons.south_west_rounded
-                        : categoryIcon(item.category),
-                    color: iconColor,
-                    size: 21,
-                  ),
+                PositionedDirectional(
+                  start: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: 5,
+                  child: ColoredBox(color: signalColor),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(19, 14, 16, 14),
+                  child: Row(
                     children: [
-                      Text(
-                        needsReview ? 'Needs review' : item.displayMerchant,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium,
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: glyphSurface,
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: signalColor.withValues(alpha: .22),
+                          ),
+                        ),
+                        child: Icon(
+                          needsReview
+                              ? Icons.priority_high_rounded
+                              : item.isIncome
+                              ? Icons.south_west_rounded
+                              : categoryIcon(item.category),
+                          color: signalColor,
+                          size: 21,
+                        ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        needsReview
-                            ? 'Source or destination wasn’t detected'
-                            : '${item.category} • ${item.originalSms.isEmpty ? 'Manual' : 'SMS'} • ${DateFormat('h:mm a').format(item.date)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: needsReview
-                              ? context.finance.warning
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              needsReview
+                                  ? 'Needs review'
+                                  : item.displayMerchant,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 5),
+                            Wrap(
+                              spacing: 7,
+                              runSpacing: 3,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                _EvidenceTag(
+                                  label: needsReview ? 'CHECK SIGNAL' : source,
+                                  color: signalColor,
+                                ),
+                                Text(
+                                  needsReview
+                                      ? 'Missing details'
+                                      : '${item.category} · ${DateFormat('h:mm a').format(item.date)}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: MediaQuery.sizeOf(context).width * .34,
+                        ),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            amount,
+                            style: AppTheme.money(
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: item.isIncome
+                                    ? context.finance.income
+                                    : scheme.onSurface,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.sizeOf(context).width * .38,
-                  ),
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      amount,
-                      style: AppTheme.money(
-                        Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: item.isIncome ? context.finance.income : null,
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               ],
@@ -1157,6 +1314,31 @@ class _TransactionRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EvidenceTag extends StatelessWidget {
+  const _EvidenceTag({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .13),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Text(
+      label,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: color,
+        fontWeight: FontWeight.w800,
+        fontSize: 9,
+        letterSpacing: .55,
+      ),
+    ),
+  );
 }
 
 class _TransactionDetails extends StatelessWidget {
@@ -1191,41 +1373,77 @@ class _TransactionDetails extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Material(
-            color: item.isIncome
-                ? Theme.of(context).colorScheme.secondaryContainer
-                : Theme.of(context).colorScheme.primaryContainer,
-            shape: ExpressiveShape.hero(),
-            child: SizedBox(
-              width: double.infinity,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 28,
-                ),
-                child: Column(
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: AlignmentDirectional.topStart,
+                end: AlignmentDirectional.bottomEnd,
+                colors: item.isIncome
+                    ? const [Color(0xFF087C6B), Color(0xFF174D49)]
+                    : const [FlowPalette.intelligence, Color(0xFF302491)],
+              ),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(46),
+                bottomLeft: Radius.circular(38),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Icon(
-                      item.isIncome
-                          ? Icons.south_west_rounded
-                          : Icons.north_east_rounded,
-                      size: 30,
+                    FlowOrb(
+                      size: 38,
+                      state: needsReview
+                          ? FlowOrbState.attention
+                          : FlowOrbState.success,
                     ),
-                    const SizedBox(height: 12),
-                    Text(
-                      item.isIncome ? 'Money received' : 'Money sent',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${item.isIncome ? '+' : '−'}${formatAmount(item.amount, item.currency)}',
-                      style: AppTheme.money(
-                        Theme.of(context).textTheme.headlineMedium,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item.originalSms.isEmpty
+                            ? 'MANUAL EVIDENCE'
+                            : needsReview
+                            ? 'UNDERSTANDING NEEDS REVIEW'
+                            : 'AI-UNDERSTOOD EVENT',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: FlowPalette.signalCyan,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1,
+                        ),
                       ),
                     ),
+                    if (item.originalSms.isNotEmpty)
+                      _EvidenceTag(
+                        label: '${(item.confidence * 100).round()}% SIGNAL',
+                        color: Colors.white,
+                      ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 22),
+                Text(
+                  item.isIncome ? 'MONEY RECEIVED' : 'MONEY SENT',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Colors.white70,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: .8,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${item.isIncome ? '+' : '−'}${formatAmount(item.amount, item.currency)}',
+                  style: AppTheme.money(
+                    Theme.of(context).textTheme.headlineLarge?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 28),

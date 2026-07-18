@@ -32,10 +32,10 @@ class AppTheme {
         : generated.copyWith(
             surface: FlowPalette.paper,
             surfaceContainerLowest: const Color(0xFFFFFFFF),
-            surfaceContainerLow: const Color(0xFFFFFFFF),
-            surfaceContainer: const Color(0xFFF3F1F7),
-            surfaceContainerHigh: const Color(0xFFEDEAF2),
-            surfaceContainerHighest: const Color(0xFFE5E1EB),
+            surfaceContainerLow: const Color(0xFFFCFAFF),
+            surfaceContainer: const Color(0xFFF0EDFA),
+            surfaceContainerHigh: const Color(0xFFE8E3F5),
+            surfaceContainerHighest: const Color(0xFFDED8EC),
           );
     final base = ThemeData(
       useMaterial3: true,

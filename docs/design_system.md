@@ -1,7 +1,7 @@
 # Fund Flow — AI-First Product and Design System
 
 Status: **LOCKED canonical specification**
-Version: 3.0
+Version: 4.0 — zero-base rebuild
 Locked: 2026-07-18
 
 This document is the source of truth for every product, interaction, content,
@@ -12,7 +12,98 @@ wins unless the product owner explicitly changes the product direction.
 Flutter primitives live in `lib/theme/app_tokens.dart` and
 `lib/theme/app_theme.dart`. Product behavior belongs here, not only in code.
 
-## 0. Visual constitution — Quiet Intelligence 3.0
+## −1. Zero-base product model
+
+Version 4 supersedes every screen-level composition below when the two
+disagree. Existing code and familiar finance-app patterns have no protected
+status. Preserve capabilities and trustworthy data; redesign their expression.
+
+### One sentence
+
+Fund Flow is an AI financial agent that turns transaction messages into
+verified personal evidence, answers questions against that evidence, and takes
+safe actions only with explicit approval.
+
+### The intelligence loop
+
+Every primary experience belongs to this loop:
+
+1. **Capture** — read only transaction-message candidates after clear consent.
+2. **Understand** — AI extracts event, amount, party, account, time, type, and
+   category.
+3. **Verify** — duplicates, malformed values, source availability, confidence,
+   and local-record consistency are checked.
+4. **Explain** — Flow presents a conclusion plus the evidence and filters that
+   support it.
+5. **Act** — read-only work happens directly; mutations require a focused,
+   human-readable approval.
+6. **Learn** — corrections may update local preferences or merchant mapping
+   only when the user understands and approves that consequence.
+
+If a feature does not strengthen this loop, it is secondary or removed.
+Manual transaction creation and editing are recovery tools, never the product
+hero and never a primary empty-state call to action.
+
+### Information architecture
+
+- **Ask** is the default and dominant workspace. It contains the current
+  intelligence state, brief, query composer, composed answers, artifacts,
+  evidence, and approvals.
+- **Evidence** is the provenance timeline: understood messages, confidence,
+  review needs, ignored candidates, and corrections. It is not a generic
+  transaction ledger.
+- **Control** contains AI connection, SMS scope, privacy, appearance, and
+  advanced diagnostics. It remains reachable but visually subordinate.
+
+### Answer anatomy
+
+An answer is not a chat bubble. It is an answer canvas with this order:
+
+1. compact `YOU ASKED` query marker;
+2. Flow Field plus conclusion;
+3. validated local artifact when available;
+4. verification line: records checked, filters applied, freshness;
+5. evidence disclosure;
+6. safe next action or approval.
+
+Model prose may explain but never visually outrank validated local values.
+Streaming text must not displace or repeatedly animate previously rendered
+content.
+
+### Accuracy and uncertainty language
+
+- **Verified** means the displayed value was produced from successful local
+  tool output, not merely asserted by the model.
+- **Understood** means an SMS was parsed into an event; show confidence when it
+  is not high.
+- **Needs review** names the uncertain field and offers the smallest correction
+  flow.
+- **Estimated** is mandatory for forecasted values.
+- Never use a generic AI sparkle or confident tone to disguise missing proof.
+
+### Original interaction grammar
+
+- The Flow Field is the sole intelligence mark and state carrier.
+- A thin signal spine connects query, conclusion, proof, and action within an
+  answer. Evidence events use the same spine grammar in chronological form.
+- Dense information is clustered into editorial blocks, not nested cards.
+- Color is concentrated at intelligence, proof, confidence, and action edges;
+  large reading surfaces remain calm.
+- Navigation is a compact instrument panel, not a stock Material navigation
+  component. Selection is expressed through signal color and field density,
+  not an oversized generic pill.
+
+### Non-negotiable energy contract
+
+- zero continuous decorative animation, shimmer, blur, or ambient ticker;
+- zero scroll-entry delay and zero remount fade for history or evidence;
+- no intrinsic measurement in scrolling rows;
+- custom painters are static and isolated in repaint boundaries;
+- progress repaints only from real numeric work updates;
+- dark theme uses near-black canvas and restrained luminous area;
+- reduced motion disables every nonessential transition.
+
+## 0. Visual constitution — Quiet Intelligence 3.1 / Flow Field
 
 This is a product-specific system, not a Material or Apple skin. It combines
 Material 3 Expressive's emotional clarity (confident type, meaningful shape,
@@ -33,17 +124,34 @@ settings, and supporting metadata remain quiet.
 1. **Canvas** — a near-neutral tonal field with a restrained radial atmosphere
    around the active agent region. Never use decorative gradients behind long
    text or ledger content.
-2. **Intelligence signal** — the Flow Orb is the only brand hero: a layered,
-   softly luminous mark that changes state for ready, thinking, syncing,
-   success, attention, and offline. Do not substitute random AI sparkle icons.
+2. **Intelligence signal** — the Flow Field is the only brand hero: a static
+   constellation of signal dots that changes color and completion for ready,
+   thinking, syncing, success, attention, and offline. It is the same mark in
+   navigation, agent surfaces, onboarding, and status UI. Never swap it for a
+   circle, generic Material icon, or random AI sparkle. The field does not
+   continuously animate; intelligence is communicated through state, not
+   battery-consuming decoration.
 3. **Content layer** — opaque or standard tonal surfaces. Evidence never uses
    transparent glass because legibility and trust outrank spectacle.
 4. **Functional layer** — navigation, composer, and transient controls may use
    an adaptive translucent material with a strong legibility fallback. Never
    stack glass on glass.
 5. **Semantic layer** — teal means money in, rose means money out, amber means
-   attention, and violet means Flow intelligence. Semantic colors never swap
-   meaning between themes.
+   attention, saturated signal violet means Flow intelligence, cyan is a
+   secondary intelligence highlight, and coral is reserved for decisive
+   emphasis. Semantic colors never swap meaning between themes.
+
+### Recognizable product grammar
+
+- Flow is a field of signals organizing evidence, not a collection of generic
+  Material cards. Dots, signal rails, clustered data, and asymmetric evidence
+  surfaces are native Flow forms.
+- A transaction is an evidence event: show a colored signal rail, merchant,
+  semantic amount, category glyph, source, and time as a composed record. Do
+  not fall back to `ListTile` or avatar-plus-two-lines banking-app patterns.
+- Neutral space keeps information calm, but key intelligence surfaces must use
+  saturated violet, cyan glints, and semantic finance color deliberately. A
+  screen made entirely of gray containers fails the identity review.
 
 ### Geometry
 

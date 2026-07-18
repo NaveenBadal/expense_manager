@@ -62,19 +62,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 76,
-        title: Text('You', style: Theme.of(context).textTheme.headlineMedium),
+        title: Text(
+          'Control',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
       ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(contentInset, 0, contentInset, 40),
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-            child: Text(
-              'Control Flow intelligence, data sources, privacy, and preferences.',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
+          _ControlStatus(
+            aiConfigured: _connected || aiConfigured,
+            locked: locked,
+            private: private,
           ),
           const _SectionTitle('Flow intelligence'),
           _SettingsCard(
@@ -579,6 +578,134 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       Navigator.push(context, MaterialPageRoute(builder: (_) => page));
 }
 
+class _ControlStatus extends StatelessWidget {
+  const _ControlStatus({
+    required this.aiConfigured,
+    required this.locked,
+    required this.private,
+  });
+
+  final bool aiConfigured;
+  final bool locked;
+  final bool private;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: .1),
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(44),
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(20),
+        ),
+        border: Border.all(color: scheme.primary.withValues(alpha: .2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              FlowOrb(
+                size: 44,
+                state: aiConfigured ? FlowOrbState.ready : FlowOrbState.offline,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'SYSTEM SIGNAL',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: FlowPalette.signalCyan,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    Text(
+                      aiConfigured ? 'Flow can understand' : 'Flow needs AI',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ControlSignal(
+                label: aiConfigured ? 'AI CONNECTED' : 'AI OFFLINE',
+                active: aiConfigured,
+              ),
+              const _ControlSignal(label: 'SMS ON REQUEST', active: true),
+              _ControlSignal(
+                label: locked ? 'APP LOCKED' : 'APP UNLOCKED',
+                active: locked,
+              ),
+              _ControlSignal(
+                label: private ? 'AMOUNTS HIDDEN' : 'AMOUNTS VISIBLE',
+                active: private,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ControlSignal extends StatelessWidget {
+  const _ControlSignal({required this.label, required this.active});
+
+  final String label;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = active ? scheme.primary : scheme.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.fade,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w800,
+                fontSize: 9,
+                letterSpacing: .55,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.text);
   final String text;
@@ -586,11 +713,39 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.fromLTRB(8, 24, 8, 8),
-    child: Text(
-      text,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-        color: Theme.of(context).colorScheme.primary,
-      ),
+    child: Row(
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: const BoxDecoration(
+            color: FlowPalette.signalCyan,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            text.toUpperCase(),
+            maxLines: 2,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w900,
+              letterSpacing: .9,
+            ),
+          ),
+        ),
+        if (MediaQuery.textScalerOf(context).scale(1) <= 1.3) ...[
+          const SizedBox(width: 10),
+          Expanded(
+            child: Divider(
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .16),
+            ),
+          ),
+        ],
+      ],
     ),
   );
 }
@@ -648,14 +803,35 @@ class _SettingsCard extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Card(
-      shape: ExpressiveShape.card(),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topLeft: Radius.circular(18),
+          topRight: Radius.circular(32),
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(18),
+        ),
+        child: Material(
+          color: scheme.surfaceContainer,
+          child: Stack(
+            children: [
+              PositionedDirectional(
+                start: 0,
+                top: 0,
+                bottom: 0,
+                width: 3,
+                child: ColoredBox(color: scheme.primary.withValues(alpha: .48)),
+              ),
+              Column(children: children),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _PrivacyFact extends StatelessWidget {

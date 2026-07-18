@@ -70,13 +70,13 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Activity'), findsOneWidget);
-    expect(find.byTooltip('More activity actions'), findsOneWidget);
+    expect(find.text('Evidence'), findsOneWidget);
+    expect(find.byTooltip('More evidence actions'), findsOneWidget);
     expect(find.byTooltip('Hide amounts'), findsOneWidget);
     semantics.dispose();
   });
 
-  testWidgets('You remains usable on a narrow screen at 200% text', (
+  testWidgets('Control remains usable on a narrow screen at 200% text', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(320, 720);
@@ -101,19 +101,15 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('You'), findsOneWidget);
-    expect(
-      find.text(
-        'Control Flow intelligence, data sources, privacy, and preferences.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Control'), findsOneWidget);
+    expect(find.text('SYSTEM SIGNAL'), findsOneWidget);
 
-    await tester.dragUntilVisible(
-      find.text('Personalization'),
-      find.byType(ListView),
-      const Offset(0, -240),
+    final scrollable = tester.state<ScrollableState>(
+      find.byType(Scrollable).first,
     );
+    scrollable.position.jumpTo(scrollable.position.maxScrollExtent * .72);
+    await tester.pump();
+    expect(find.text('PERSONALIZATION'), findsOneWidget);
     await tester.pump();
     expect(tester.takeException(), isNull);
     expect(find.byType(ChoiceChip), findsNWidgets(3));
@@ -172,7 +168,7 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Flow'), findsOneWidget);
+    expect(find.text('Ask Flow'), findsOneWidget);
     expect(find.text('Connect intelligence to ask Flow'), findsOneWidget);
   });
 
@@ -290,7 +286,7 @@ void main() {
     expect(find.text('Confirm'), findsOneWidget);
     expect(find.text('Correct'), findsOneWidget);
     expect(find.text('Not a transaction'), findsOneWidget);
-    expect(find.textContaining('55%'), findsOneWidget);
+    expect(find.text('55% · Check this'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -311,11 +307,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Activity'), findsOneWidget);
+    expect(find.text('Evidence'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Activity supports right-to-left layout', (tester) async {
+  testWidgets('Evidence supports right-to-left layout', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -330,7 +326,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('Activity'), findsOneWidget);
+    expect(find.text('Evidence'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

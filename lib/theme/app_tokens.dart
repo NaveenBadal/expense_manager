@@ -39,13 +39,15 @@ class AppSpacing {
 class FlowPalette {
   const FlowPalette._();
 
-  static const intelligence = Color(0xFF6558E8);
-  static const intelligenceBright = Color(0xFF8B7CFF);
-  static const electric = Color(0xFFB8AEFF);
-  static const night = Color(0xFF111018);
-  static const paper = Color(0xFFF8F7FC);
-  static const lightAtmosphere = Color(0xFFEAE6FF);
-  static const darkAtmosphere = Color(0xFF292348);
+  static const intelligence = Color(0xFF5948F5);
+  static const intelligenceBright = Color(0xFF8D7CFF);
+  static const electric = Color(0xFFB9AEFF);
+  static const signalCyan = Color(0xFF35D5FF);
+  static const signalCoral = Color(0xFFFF6B8B);
+  static const night = Color(0xFF0B0B12);
+  static const paper = Color(0xFFF7F5FF);
+  static const lightAtmosphere = Color(0xFFDED7FF);
+  static const darkAtmosphere = Color(0xFF251C57);
 }
 
 /// Shared adaptive layout thresholds. Feature screens must use these rather

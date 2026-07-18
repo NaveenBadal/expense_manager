@@ -81,6 +81,7 @@ class OllamaCloudService {
       'Read the entire SMS semantically, including narrative text and transaction descriptors, and return the most specific supported endpoint. Prefer a named person/business over a VPA, and a VPA over a generic bank/account label when both refer to the same counterparty. '
       'Never use the user own debited/credited bank, wallet, card, or account as merchant unless the SMS clearly identifies it as the opposite endpoint. Never use UPI/IMPS/NEFT/card as the endpoint by itself. Never use reference numbers, masked account/card numbers, dates, balances, or generic words such as transaction, transfer, debit, or credit. '
       'Do not guess or infer a real-world identity not present in the SMS. Use null only after checking the complete SMS and finding no source, destination, recipient, sender, or counterparty clue. Never return the literal string Unknown. '
+      'The amount must be the exact new money-movement amount explicitly present in the SMS. Never use available balance, credit limit, account digits, reference digits, reward points, or a remembered/derived value as amount. '
       'Categories: Food, Transport, Utilities, Entertainment, Shopping, Health, Others. '
       'Amount must be a JSON number in INR or null. No markdown or explanation.';
 

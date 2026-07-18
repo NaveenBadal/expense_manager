@@ -66,6 +66,31 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.bySemanticsLabel('Activity and evidence'), findsOneWidget);
+    expect(find.bySemanticsLabel('Evidence timeline'), findsOneWidget);
+  });
+
+  testWidgets('selected Proof label fits the compact navigation control', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(null),
+        home: Scaffold(
+          bottomNavigationBar: FlowNavigationBar(
+            selectedIndex: 1,
+            onDestinationSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Proof'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

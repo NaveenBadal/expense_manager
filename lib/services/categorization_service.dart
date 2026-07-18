@@ -83,6 +83,11 @@ class CategorizationService {
           skipCount++;
           return;
         }
+        if (!smsContainsAmount(body, amount)) {
+          skipReasons[body] = 'unverified_amount';
+          skipCount++;
+          return;
+        }
 
         final extractedCounterparty = result.merchant?.trim();
         final merchant =
@@ -95,11 +100,14 @@ class CategorizationService {
         if (learned != null && learned.isNotEmpty) category = learned;
         final merchantKnown = merchant.toLowerCase() != 'unknown';
         final categoryKnown = category != 'Others';
-        final confidence = !merchantKnown
+        var confidence = !merchantKnown
             ? 0.55
             : categoryKnown
             ? 0.90
             : 0.75;
+        if (!smsSupportsDirection(body, result.type)) {
+          confidence = confidence.clamp(0, 0.58);
+        }
 
         expenses.add(
           Expense(
@@ -210,4 +218,37 @@ class CategorizationService {
       );
     } catch (_) {}
   }
+}
+
+/// Deterministic guard against model-invented amounts. Formatting differences
+/// such as commas and currency symbols are ignored, but the numeric value must
+/// exist in the source message.
+bool smsContainsAmount(String body, double amount) {
+  final tokens = RegExp(
+    r'(?<![A-Za-z0-9])(?:\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d{1,2})?(?![A-Za-z0-9])',
+  ).allMatches(body);
+  for (final token in tokens) {
+    final parsed = double.tryParse(token.group(0)!.replaceAll(',', ''));
+    if (parsed != null && (parsed - amount).abs() < .005) return true;
+  }
+  return false;
+}
+
+/// Direction is accepted when the source contains supporting debit/credit
+/// language or is genuinely ambiguous. A direct contradiction lowers the
+/// event to review instead of silently presenting it as settled.
+bool smsSupportsDirection(String body, String type) {
+  final text = body.toLowerCase();
+  final outgoing = RegExp(
+    r'\b(debit(?:ed)?|spent|paid|sent|withdrawn|purchase|dr)\b',
+  ).hasMatch(text);
+  final incoming = RegExp(
+    r'\b(credit(?:ed)?|received|deposited|refund(?:ed)?|salary|cr)\b',
+  ).hasMatch(text);
+  return switch (type) {
+    'expense' => outgoing || !incoming,
+    'income' => incoming || !outgoing,
+    'transfer' => outgoing || incoming,
+    _ => true,
+  };
 }

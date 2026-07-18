@@ -432,6 +432,7 @@ class SyncState {
     this.total = 0,
     this.imported = 0,
     this.skipped = 0,
+    this.failed = 0,
   });
   final SyncPhase phase;
   final String? errorMessage;
@@ -444,6 +445,7 @@ class SyncState {
   final int total;
   final int imported;
   final int skipped;
+  final int failed;
 
   bool get isAnalyzing => phase == SyncPhase.analyzing && total > 0;
 
@@ -455,6 +457,7 @@ class SyncState {
     int? total,
     int? imported,
     int? skipped,
+    int? failed,
   }) => SyncState(
     phase: phase ?? this.phase,
     errorMessage: errorMessage ?? this.errorMessage,
@@ -463,6 +466,7 @@ class SyncState {
     total: total ?? this.total,
     imported: imported ?? this.imported,
     skipped: skipped ?? this.skipped,
+    failed: failed ?? this.failed,
   );
 
   static const idle = SyncState();
@@ -589,6 +593,7 @@ class SyncNotifier extends Notifier<SyncState> {
 
     var importedCount = 0;
     var skippedCount = 0;
+    var failedCount = 0;
     if (total > 0) {
       // Run two 12-message AI batches per wave. Each batch is published as soon
       // as it finishes, so the ledger visibly fills while the second request
@@ -618,15 +623,18 @@ class SyncNotifier extends Notifier<SyncState> {
           }
         } catch (error) {
           debugPrint('AI batch failed: $error');
+          failedCount += batch.length;
         } finally {
           processed += batch.length;
           state = SyncState(
             phase: SyncPhase.analyzing,
-            detail: '$processed of $total analyzed · $importedCount imported',
+            detail:
+                '$processed of $total checked · $importedCount understood${failedCount > 0 ? ' · $failedCount retryable' : ''}',
             current: processed,
             total: total,
             imported: importedCount,
             skipped: skippedCount,
+            failed: failedCount,
           );
         }
       }
@@ -655,6 +663,7 @@ class SyncNotifier extends Notifier<SyncState> {
           total: total,
           imported: importedCount,
           skipped: skippedCount,
+          failed: failedCount,
         );
         return;
       }
@@ -673,7 +682,9 @@ class SyncNotifier extends Notifier<SyncState> {
 
     final completeDetail = total == 0
         ? 'No new messages (${alreadyParsedCount > 0 ? '$alreadyParsedCount already parsed' : 'none matched'})'
-        : '$total analyzed · $importedCount imported';
+        : failedCount > 0
+        ? '$importedCount understood · $failedCount need retry'
+        : '$total checked · $importedCount understood';
     state = SyncState(
       phase: SyncPhase.complete,
       detail: completeDetail,
@@ -681,6 +692,7 @@ class SyncNotifier extends Notifier<SyncState> {
       total: total,
       imported: importedCount,
       skipped: skippedCount,
+      failed: failedCount,
     );
   }
 }
