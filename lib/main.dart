@@ -363,14 +363,12 @@ class _AppShellState extends ConsumerState<AppShell>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final pages = Stack(
       fit: StackFit.expand,
       children: [
         for (var index = 0; index < _pages.length; index++)
           _DestinationLayer(
             active: index == _destination,
-            reduceMotion: reduceMotion,
             child: _pages[index],
           ),
       ],
@@ -573,35 +571,22 @@ class _FlowRailDestination extends StatelessWidget {
 /// Keeps every primary destination mounted so expensive history, Markdown, and
 /// settings trees are never constructed during a navigation animation.
 class _DestinationLayer extends StatelessWidget {
-  const _DestinationLayer({
-    required this.active,
-    required this.reduceMotion,
-    required this.child,
-  });
+  const _DestinationLayer({required this.active, required this.child});
 
   final bool active;
-  final bool reduceMotion;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final duration = reduceMotion ? Duration.zero : AppMotion.fast;
-    return AnimatedOpacity(
-      opacity: active ? 1 : 0,
-      duration: duration,
-      curve: AppMotion.emphasizedDecelerate,
-      child: AnimatedScale(
-        scale: active ? 1 : .992,
-        duration: duration,
-        curve: AppMotion.emphasizedDecelerate,
-        child: TickerMode(
-          enabled: active,
-          child: ExcludeSemantics(
-            excluding: !active,
-            child: IgnorePointer(
-              ignoring: !active,
-              child: FocusScope(canRequestFocus: active, child: child),
-            ),
+    return Offstage(
+      offstage: !active,
+      child: TickerMode(
+        enabled: active,
+        child: ExcludeSemantics(
+          excluding: !active,
+          child: IgnorePointer(
+            ignoring: !active,
+            child: FocusScope(canRequestFocus: active, child: child),
           ),
         ),
       ),

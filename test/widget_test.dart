@@ -1,6 +1,5 @@
 import 'package:expense_manager/theme/app_theme.dart';
 import 'package:expense_manager/widgets/ui/flow_ui.dart';
-import 'package:expense_manager/main.dart';
 import 'package:expense_manager/flow_os/primitives/loom_mark.dart';
 import 'package:expense_manager/flow_os/shell/command_rail.dart';
 import 'package:expense_manager/flow_os/shell/command_column.dart';
@@ -147,7 +146,7 @@ void main() {
     }
   });
 
-  testWidgets('Flow navigation remains bounded at 200% text', (tester) async {
+  testWidgets('Flow command rail remains bounded at 200% text', (tester) async {
     tester.view.physicalSize = const Size(320, 720);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -162,9 +161,9 @@ void main() {
             textScaler: TextScaler.linear(2),
           ),
           child: Scaffold(
-            bottomNavigationBar: FlowNavigationBar(
+            bottomNavigationBar: CommandRail(
               selectedIndex: 1,
-              onDestinationSelected: (_) {},
+              onSelected: (_) {},
             ),
           ),
         ),
@@ -173,7 +172,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.bySemanticsLabel('Evidence timeline'), findsOneWidget);
+    expect(find.bySemanticsLabel('Proof and evidence'), findsOneWidget);
   });
 
   testWidgets('selected Proof label fits the compact navigation control', (
@@ -188,16 +187,16 @@ void main() {
       MaterialApp(
         theme: AppTheme.dark(null),
         home: Scaffold(
-          bottomNavigationBar: FlowNavigationBar(
+          bottomNavigationBar: CommandRail(
             selectedIndex: 1,
-            onDestinationSelected: (_) {},
+            onSelected: (_) {},
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Proof'), findsOneWidget);
+    expect(find.text('PROOF'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
