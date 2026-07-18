@@ -26,7 +26,6 @@ import '../theme/app_tokens.dart';
 import '../screens/settings_screen.dart';
 import '../utils/currency_utils.dart';
 import 'agent_artifact_card.dart';
-import 'ui/flow_ui.dart';
 
 class MoneyChatSheet extends ConsumerStatefulWidget {
   const MoneyChatSheet({
@@ -430,7 +429,8 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
             onClear: messages.isEmpty ? null : _clearConversation,
           ),
           Expanded(
-            child: FlowAtmosphere(
+            child: ColoredBox(
+              color: FlowColor.canvas(context),
               child: SafeArea(
                 top: false,
                 child: Padding(
@@ -459,11 +459,11 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          FlowOrb(
+                                          LoomMark(
                                             size: 64,
                                             state: connected
-                                                ? FlowOrbState.ready
-                                                : FlowOrbState.offline,
+                                                ? LoomState.ready
+                                                : LoomState.offline,
                                           ),
                                           const SizedBox(height: 20),
                                           Text(

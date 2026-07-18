@@ -337,7 +337,7 @@ class _OnboardingSignal extends StatelessWidget {
         Text(
           'UNDERSTOOD AS',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: FlowPalette.signalCyan,
+            color: FlowColor.proof,
             fontWeight: FontWeight.w900,
             letterSpacing: 1,
           ),
