@@ -210,8 +210,8 @@ void main() {
       final request = jsonDecode(sent!) as Map<String, Object?>;
       expect(request['think'], 'low');
       expect(request['keep_alive'], '10m');
-      expect(request['format'], isA<Map>());
-      expect(request['options'], {'temperature': 0, 'num_predict': 1600});
+      expect(request.containsKey('format'), isFalse);
+      expect(request['options'], {'temperature': 0, 'num_predict': 1200});
       final messages = request['messages'] as List;
       final userPayload =
           jsonDecode((messages.last as Map)['content'].toString()) as Map;

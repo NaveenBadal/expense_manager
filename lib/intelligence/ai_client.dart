@@ -77,8 +77,7 @@ class AiClient {
         'stream': false,
         'think': 'low',
         'keep_alive': '10m',
-        'format': IngestionPrompt.responseSchema,
-        'options': {'temperature': 0, 'num_predict': 1600},
+        'options': {'temperature': 0, 'num_predict': 1200},
         'messages': messages,
       });
       http.Response? response;
