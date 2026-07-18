@@ -4,6 +4,7 @@ import 'package:expense_manager/flow_os/primitives/loom_mark.dart';
 import 'package:expense_manager/flow_os/shell/command_rail.dart';
 import 'package:expense_manager/flow_os/shell/command_column.dart';
 import 'package:expense_manager/flow_os/ingestion/evidence_consent_sheet.dart';
+import 'package:expense_manager/flow_os/agent/decision_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -144,6 +145,40 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.bySemanticsLabel('PROOF, Inspect evidence'), findsOneWidget);
     }
+  });
+
+  testWidgets('Agent decision report remains bounded at 200% text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark(null),
+        home: const MediaQuery(
+          data: MediaQueryData(
+            size: Size(320, 720),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: Scaffold(
+            body: AgentDecisionSheet(
+              title: 'Review Flow action',
+              description: 'Flow will update matching transaction evidence.',
+              confirmLabel: 'Apply',
+              notice: 'The change remains undoable.',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.bySemanticsLabel('CANCEL'), findsOneWidget);
+    expect(find.bySemanticsLabel('APPLY'), findsOneWidget);
   });
 
   testWidgets('Flow command rail remains bounded at 200% text', (tester) async {

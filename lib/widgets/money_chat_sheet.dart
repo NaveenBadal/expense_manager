@@ -16,6 +16,7 @@ import '../models/assistant_message.dart';
 import '../models/transaction_query.dart';
 import '../flow_os/ask/flow_masthead.dart';
 import '../flow_os/ask/query_dock.dart';
+import '../flow_os/agent/decision_sheet.dart';
 import '../flow_os/foundation/flow_color.dart';
 import '../flow_os/ingestion/evidence_consent_sheet.dart';
 import '../flow_os/primitives/coordinate_label.dart';
@@ -303,56 +304,16 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
     };
     return await showModalBottomSheet<bool>(
           context: context,
-          showDragHandle: true,
-          builder: (sheetContext) => SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  FlowSheetHeader(
-                    leading: name.contains('delete')
-                        ? Icon(
-                            Icons.delete_outline_rounded,
-                            color: Theme.of(context).colorScheme.error,
-                          )
-                        : const FlowOrb(size: 44),
-                    title: 'Review Flow’s action',
-                    description: 'Flow will $action.',
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    name.contains('delete')
-                        ? 'You can undo this until another change is made.'
-                        : 'Only the fields shown in this request will change. You can undo it afterward.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(sheetContext, false),
-                          child: const Text('Cancel'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          onPressed: () => Navigator.pop(sheetContext, true),
-                          child: Text(
-                            name.contains('delete') ? 'Delete' : 'Apply',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          isScrollControlled: true,
+          backgroundColor: FlowColor.canvas(context),
+          builder: (_) => AgentDecisionSheet(
+            title: 'Review Flow’s action',
+            description: 'Flow will $action.',
+            confirmLabel: name.contains('delete') ? 'Delete' : 'Apply',
+            destructive: name.contains('delete'),
+            notice: name.contains('delete')
+                ? 'You can undo this until another change is made.'
+                : 'Only the requested fields will change. You can undo it afterward.',
           ),
         ) ??
         false;
@@ -388,24 +349,17 @@ class _MoneyChatSheetState extends ConsumerState<MoneyChatSheet> {
 
   Future<void> _clearConversation() async {
     final confirmed =
-        await showDialog<bool>(
+        await showModalBottomSheet<bool>(
           context: context,
-          builder: (context) => AlertDialog(
-            icon: const Icon(Icons.delete_sweep_outlined),
-            title: const Text('Clear conversation?'),
-            content: const Text(
-              'This removes your Flow conversation history from this device.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Clear'),
-              ),
-            ],
+          isScrollControlled: true,
+          backgroundColor: FlowColor.canvas(context),
+          builder: (_) => const AgentDecisionSheet(
+            title: 'Clear conversation?',
+            description:
+                'Remove the Flow conversation history stored on this device.',
+            confirmLabel: 'Clear history',
+            destructive: true,
+            notice: 'Financial records and evidence are not removed.',
           ),
         ) ??
         false;
@@ -1363,10 +1317,7 @@ class _SyncStateCard extends StatelessWidget {
             LayoutBuilder(
               builder: (context, constraints) => Stack(
                 children: [
-                  Container(
-                    height: 5,
-                    color: FlowColor.raised(context),
-                  ),
+                  Container(height: 5, color: FlowColor.raised(context)),
                   Container(
                     width: constraints.maxWidth * progress.clamp(0, 1),
                     height: 5,
@@ -1401,12 +1352,12 @@ class _SyncStateCard extends StatelessWidget {
               onTap: running ? onStop : onRetry,
               child: Text(
                 '${running
-                    ? 'Stop safely'
-                    : error
-                    ? 'Try again'
-                    : incomplete
-                    ? 'Retry unfinished'
-                    : 'Sync again'} →'
+                        ? 'Stop safely'
+                        : error
+                        ? 'Try again'
+                        : incomplete
+                        ? 'Retry unfinished'
+                        : 'Sync again'} →'
                     .toUpperCase(),
                 style: TextStyle(
                   color: signal,
@@ -1454,39 +1405,48 @@ class _FinancialBriefCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final spending = <String>[];
     for (final entry in brief.totals.entries) {
       final values = (entry.value as Map).cast<String, dynamic>();
       final amount = (values['expense'] as num?)?.toDouble() ?? 0;
       if (amount > 0) spending.add(formatAmount(amount, entry.key));
     }
-    return Material(
-      color: scheme.primaryContainer,
-      shape: ExpressiveShape.card(radius: AppRadius.xl),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
+    return Semantics(
+      button: true,
+      label: 'Open monthly financial briefing',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () => onPrompt('Give me my financial briefing for this month'),
-        child: Padding(
-          padding: const EdgeInsets.all(18),
+        child: CutSurface(
+          cut: 14,
+          color: FlowColor.plane(context),
+          accent: FlowColor.proof,
+          padding: const EdgeInsets.all(17),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const FlowOrb(size: 30),
+                  const LoomMark(size: 32, state: LoomState.proven),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Your financial briefing',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: scheme.onPrimaryContainer,
+                        color: FlowColor.content(context),
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    color: scheme.onPrimaryContainer,
+                  const Text(
+                    'ASK →',
+                    style: TextStyle(
+                      color: FlowColor.proof,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: .7,
+                    ),
                   ),
                 ],
               ),
@@ -1496,7 +1456,8 @@ class _FinancialBriefCard extends StatelessWidget {
                     ? '${brief.transactions} transactions this month'
                     : '${spending.join(' + ')} spent this month',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: scheme.onPrimaryContainer,
+                  color: FlowColor.content(context),
+                  fontWeight: FontWeight.w900,
                 ),
               ),
               const SizedBox(height: 10),
@@ -1519,7 +1480,7 @@ class _FinancialBriefCard extends StatelessWidget {
                     ? 'Based on local transaction records'
                     : 'SMS updated ${_relativeTime(brief.lastSyncAt!)} · records stay local',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.onPrimaryContainer.withValues(alpha: .78),
+                  color: FlowColor.quiet(context),
                 ),
               ),
             ],
@@ -1542,14 +1503,8 @@ class _BriefPill extends StatelessWidget {
   const _BriefPill({required this.label});
   final String label;
   @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.48),
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(label, style: Theme.of(context).textTheme.labelSmall),
-  );
+  Widget build(BuildContext context) =>
+      CoordinateLabel(label, color: FlowColor.quiet(context));
 }
 
 class _RetryMessage extends StatelessWidget {
@@ -1560,40 +1515,54 @@ class _RetryMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
-      child: Material(
-        color: scheme.errorContainer,
-        shape: ExpressiveShape.card(radius: AppRadius.xl),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-          child: Row(
-            children: [
-              Icon(Icons.wifi_off_rounded, color: scheme.onErrorContainer),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Flow couldn’t answer',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: scheme.onErrorContainer,
-                      ),
+      child: CutSurface(
+        cut: 10,
+        color: FlowColor.plane(context),
+        accent: FlowColor.coral,
+        padding: const EdgeInsets.fromLTRB(14, 13, 9, 13),
+        child: Row(
+          children: [
+            const LoomMark(size: 34, state: LoomState.review),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Flow couldn’t answer',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: FlowColor.content(context),
+                      fontWeight: FontWeight.w800,
                     ),
-                    Text(
-                      'Nothing was changed. $detail',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onErrorContainer,
-                      ),
+                  ),
+                  Text(
+                    'Nothing was changed. $detail',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: FlowColor.quiet(context),
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onRetry,
+              child: const Padding(
+                padding: EdgeInsets.all(10),
+                child: Text(
+                  'RETRY →',
+                  style: TextStyle(
+                    color: FlowColor.coral,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .7,
+                  ),
                 ),
               ),
-              TextButton(onPressed: onRetry, child: const Text('Retry')),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
