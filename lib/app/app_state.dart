@@ -1,4 +1,5 @@
 import '../domain/conversation.dart';
+import '../domain/change_proposal.dart';
 import '../domain/preferences.dart';
 import '../domain/transaction.dart';
 import '../ingestion/sms_source.dart';
@@ -46,6 +47,8 @@ class AppState {
     this.askStage,
     this.error,
     this.locked = false,
+    this.pendingChange,
+    this.lastAppliedChange,
   });
   final AppPreferences preferences;
   final List<MoneyTransaction> transactions;
@@ -56,6 +59,8 @@ class AppState {
   final String? askStage;
   final String? error;
   final bool locked;
+  final ChangeProposal? pendingChange;
+  final ChangeProposal? lastAppliedChange;
 
   AppState copyWith({
     AppPreferences? preferences,
@@ -68,6 +73,10 @@ class AppState {
     String? error,
     bool clearError = false,
     bool? locked,
+    ChangeProposal? pendingChange,
+    bool clearPendingChange = false,
+    ChangeProposal? lastAppliedChange,
+    bool clearLastAppliedChange = false,
   }) => AppState(
     preferences: preferences ?? this.preferences,
     transactions: transactions ?? this.transactions,
@@ -78,5 +87,11 @@ class AppState {
     askStage: askStage ?? this.askStage,
     error: clearError ? null : error ?? this.error,
     locked: locked ?? this.locked,
+    pendingChange: clearPendingChange
+        ? null
+        : pendingChange ?? this.pendingChange,
+    lastAppliedChange: clearLastAppliedChange
+        ? null
+        : lastAppliedChange ?? this.lastAppliedChange,
   );
 }

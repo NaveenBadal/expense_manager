@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_controller.dart';
 import '../../app/app_state.dart';
 import '../../domain/conversation.dart';
+import '../../domain/change_proposal.dart';
 import '../../domain/finance_summary.dart';
 import '../../ui/components/current_button.dart';
 import '../../ui/components/current_field.dart';
 import '../../ui/components/current_header.dart';
+import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
 import '../../ui/format/money_format.dart';
 import '../you/connect_intelligence_sheet.dart';
@@ -30,6 +32,15 @@ class _State extends ConsumerState<AskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(appControllerProvider, (previous, next) {
+      final before = previous?.value?.pendingChange;
+      final after = next.value?.pendingChange;
+      if (before == null && after != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showChangeApproval(after);
+        });
+      }
+    });
     final app = ref.watch(appControllerProvider).requireValue;
     final connected = app.aiConnection == AiConnection.connected;
     return Column(
@@ -100,6 +111,27 @@ class _State extends ConsumerState<AskScreen> {
                       ),
                     ),
                   ),
+                  if (app.lastAppliedChange != null) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${app.lastAppliedChange!.merchant} moved to ${app.lastAppliedChange!.toCategory}.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                        CurrentButton(
+                          label: 'Undo',
+                          compact: true,
+                          style: CurrentButtonStyle.text,
+                          onPressed: () => ref
+                              .read(appControllerProvider.notifier)
+                              .undoLastChange(),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -119,6 +151,51 @@ class _State extends ConsumerState<AskScreen> {
     _question.clear();
     ref.read(appControllerProvider.notifier).ask(value);
   }
+
+  Future<void> _showChangeApproval(ChangeProposal proposal) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheet) => CurrentSheet(
+          title: 'Change ${proposal.merchant}?',
+          explanation:
+              'Category will change from ${proposal.fromCategory} to ${proposal.toCategory}. This affects one local transaction and can be undone.',
+          actions: Row(
+            children: [
+              Expanded(
+                child: CurrentButton(
+                  label: 'Not now',
+                  style: CurrentButtonStyle.outline,
+                  onPressed: () {
+                    ref
+                        .read(appControllerProvider.notifier)
+                        .rejectPendingChange();
+                    Navigator.pop(sheet);
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: CurrentButton(
+                  label: 'Change category',
+                  onPressed: () async {
+                    await ref
+                        .read(appControllerProvider.notifier)
+                        .applyPendingChange();
+                    if (sheet.mounted) Navigator.pop(sheet);
+                  },
+                ),
+              ),
+            ],
+          ),
+          child: const SizedBox.shrink(),
+        ),
+      ).whenComplete(() {
+        if (mounted &&
+            ref.read(appControllerProvider).value?.pendingChange != null) {
+          ref.read(appControllerProvider.notifier).rejectPendingChange();
+        }
+      });
 }
 
 class _EmptyAsk extends StatelessWidget {

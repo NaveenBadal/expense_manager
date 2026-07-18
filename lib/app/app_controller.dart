@@ -6,6 +6,7 @@ import 'package:local_auth/local_auth.dart';
 import '../data/fund_flow_store.dart';
 import '../data/secure_preferences.dart';
 import '../domain/conversation.dart';
+import '../domain/change_proposal.dart';
 import '../domain/finance_summary.dart';
 import '../domain/preferences.dart';
 import '../domain/transaction.dart';
@@ -350,7 +351,7 @@ class AppController extends AsyncNotifier<AppState> {
       final key = await ref.read(securePreferencesProvider).apiKey();
       if (key.isEmpty) throw const AiRequestFailure(401);
       final context = _contextFor(trimmed);
-      final answer = await ref
+      final reply = await ref
           .read(aiClientProvider)
           .answer(
             endpoint: _value.preferences.aiEndpoint,
@@ -361,17 +362,37 @@ class AppController extends AsyncNotifier<AppState> {
           );
       final assistant = ConversationMessage(
         author: MessageAuthor.assistant,
-        text: answer,
+        text: reply.answer,
         createdAt: DateTime.now(),
         verified: true,
         supportingTransactionIds: context.$2,
       );
       await ref.read(storeProvider).addMessage(assistant);
+      ChangeProposal? proposal;
+      final requested = reply.categoryChange;
+      if (requested != null) {
+        final matches = _value.transactions.where(
+          (value) => value.id == requested.transactionId,
+        );
+        if (matches.length == 1 &&
+            requested.category.length <= 40 &&
+            requested.category != matches.single.category) {
+          final transaction = matches.single;
+          proposal = ChangeProposal(
+            transactionId: requested.transactionId,
+            merchant: transaction.merchant,
+            fromCategory: transaction.category,
+            toCategory: requested.category,
+          );
+        }
+      }
       state = AsyncData(
         _value.copyWith(
           conversation: await ref.read(storeProvider).conversation(),
           asking: false,
           askStage: null,
+          pendingChange: proposal,
+          clearPendingChange: proposal == null,
         ),
       );
     } catch (error) {
@@ -387,6 +408,55 @@ class AppController extends AsyncNotifier<AppState> {
         _value.copyWith(asking: false, askStage: null, error: message),
       );
     }
+  }
+
+  Future<void> applyPendingChange() async {
+    final proposal = _value.pendingChange;
+    if (proposal == null) return;
+    final matches = _value.transactions.where(
+      (value) => value.id == proposal.transactionId,
+    );
+    if (matches.length != 1) {
+      state = AsyncData(_value.copyWith(clearPendingChange: true));
+      return;
+    }
+    await ref
+        .read(storeProvider)
+        .saveTransaction(
+          matches.single.copyWith(category: proposal.toCategory),
+        );
+    state = AsyncData(
+      _value.copyWith(
+        transactions: await ref.read(storeProvider).transactions(),
+        clearPendingChange: true,
+        lastAppliedChange: proposal,
+      ),
+    );
+  }
+
+  void rejectPendingChange() {
+    state = AsyncData(_value.copyWith(clearPendingChange: true));
+  }
+
+  Future<void> undoLastChange() async {
+    final change = _value.lastAppliedChange;
+    if (change == null) return;
+    final matches = _value.transactions.where(
+      (value) => value.id == change.transactionId,
+    );
+    if (matches.length == 1) {
+      await ref
+          .read(storeProvider)
+          .saveTransaction(
+            matches.single.copyWith(category: change.fromCategory),
+          );
+    }
+    state = AsyncData(
+      _value.copyWith(
+        transactions: await ref.read(storeProvider).transactions(),
+        clearLastAppliedChange: true,
+      ),
+    );
   }
 
   (String, List<int>) _contextFor(String question) {

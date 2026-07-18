@@ -40,7 +40,7 @@ class AiClient {
     }
   }
 
-  Future<String> answer({
+  Future<AiReply> answer({
     required String endpoint,
     required String apiKey,
     required String model,
@@ -61,7 +61,7 @@ class AiClient {
               {
                 'role': 'system',
                 'content':
-                    'You are Fund Flow. Answer briefly using only the supplied locally computed context. Never combine currencies. If context is insufficient, say so. Context:\n$context',
+                    'You are Fund Flow. Use only the supplied locally computed context and never combine currencies. Return only JSON shaped as {"answer":"brief answer","change":null}. If the person explicitly asks to recategorize exactly one listed transaction, change may instead be {"transactionId":123,"category":"New category"}. Never propose any other mutation. Context:\n$context',
               },
               {'role': 'user', 'content': question},
             ],
@@ -76,10 +76,42 @@ class AiClient {
     if (text == null || text.isEmpty) {
       throw const FormatException('Empty AI answer');
     }
-    return text;
+    return AiReply.parse(text);
   }
 
   void close() => _client.close();
+}
+
+class AiReply {
+  const AiReply({required this.answer, this.categoryChange});
+  final String answer;
+  final AiCategoryChange? categoryChange;
+
+  factory AiReply.parse(String text) {
+    try {
+      final payload = jsonDecode(text) as Map<String, dynamic>;
+      final answer = payload['answer']?.toString().trim();
+      if (answer == null || answer.isEmpty) throw const FormatException();
+      final rawChange = payload['change'];
+      AiCategoryChange? change;
+      if (rawChange is Map) {
+        final id = rawChange['transactionId'];
+        final category = rawChange['category']?.toString().trim();
+        if (id is num && category != null && category.isNotEmpty) {
+          change = AiCategoryChange(id.toInt(), category);
+        }
+      }
+      return AiReply(answer: answer, categoryChange: change);
+    } catch (_) {
+      return AiReply(answer: text);
+    }
+  }
+}
+
+class AiCategoryChange {
+  const AiCategoryChange(this.transactionId, this.category);
+  final int transactionId;
+  final String category;
 }
 
 class AiRequestFailure implements Exception {
