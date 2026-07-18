@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../foundation/flow_color.dart';
-import '../primitives/coordinate_label.dart';
-import '../primitives/loom_mark.dart';
 
 class FlowMasthead extends StatelessWidget {
   const FlowMasthead({
@@ -12,121 +10,83 @@ class FlowMasthead extends StatelessWidget {
     required this.onStatePressed,
     this.onClear,
   });
-
   final bool connected;
   final bool thinking;
   final VoidCallback onStatePressed;
   final VoidCallback? onClear;
 
   @override
-  Widget build(BuildContext context) {
-    final state = thinking
-        ? LoomState.checking
-        : connected
-        ? LoomState.ready
-        : LoomState.offline;
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 14, 16, 8),
-        child: Column(
-          children: [
-            Row(
+  Widget build(BuildContext context) => SafeArea(
+    bottom: false,
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 20, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                LoomMark(size: 34, state: state),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CoordinateLabel('FIELD / 00'),
-                      SizedBox(height: 2),
-                      Text(
-                        'FLOW',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
-                    ],
+                Text(
+                  thinking
+                      ? 'Looking through your activity'
+                      : 'Your money, made clearer',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: FlowColor.quiet(context),
                   ),
                 ),
-                if (onClear != null)
-                  _MastheadAction(
-                    semantics: 'Clear conversation',
-                    label: 'CLEAR',
-                    onTap: onClear!,
+                const SizedBox(height: 3),
+                Text(
+                  'Ask',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontFamily: 'Space Grotesk',
+                    fontWeight: FontWeight.w700,
                   ),
-                const SizedBox(width: 6),
-                _MastheadAction(
-                  semantics: connected
-                      ? 'Analyze transaction messages'
-                      : 'Connect AI',
-                  label: connected ? 'INGEST' : 'CONNECT',
-                  active: connected,
-                  onTap: onStatePressed,
                 ),
               ],
             ),
-            const SizedBox(height: 11),
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: FractionallySizedBox(
-                widthFactor: connected ? 1 : .22,
-                child: Container(
-                  height: 2,
-                  color: connected ? FlowColor.proof : FlowColor.rule(context),
-                ),
-              ),
+          ),
+          if (onClear != null)
+            _Action(
+              icon: Icons.delete_sweep_outlined,
+              label: 'Clear conversation',
+              onTap: onClear!,
             ),
-          ],
-        ),
+          const SizedBox(width: 4),
+          _Action(
+            icon: connected ? Icons.sync_rounded : Icons.link_rounded,
+            label: connected ? 'Check messages' : 'Connect intelligence',
+            onTap: onStatePressed,
+            emphasized: !connected,
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
 }
 
-class _MastheadAction extends StatelessWidget {
-  const _MastheadAction({
-    required this.semantics,
+class _Action extends StatelessWidget {
+  const _Action({
+    required this.icon,
     required this.label,
     required this.onTap,
-    this.active = false,
+    this.emphasized = false,
   });
-
-  final String semantics;
+  final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool active;
-
+  final bool emphasized;
   @override
   Widget build(BuildContext context) => Semantics(
     button: true,
-    label: semantics,
-    excludeSemantics: true,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 52, minHeight: 44),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: active ? FlowColor.proof : FlowColor.rule(context),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? FlowColor.proof : FlowColor.content(context),
-            fontSize: 9,
-            fontWeight: FontWeight.w900,
-            letterSpacing: .8,
-          ),
-        ),
-      ),
+    label: label,
+    child: IconButton(
+      tooltip: label,
+      onPressed: onTap,
+      icon: Icon(icon, size: 21),
+      color: emphasized
+          ? FlowColor.intelligence(context)
+          : FlowColor.quiet(context),
     ),
   );
 }

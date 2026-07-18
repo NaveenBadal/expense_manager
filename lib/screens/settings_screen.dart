@@ -66,8 +66,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         : AppSpacing.lg;
     final effectiveAi = _connected || aiConfigured;
     final themeLabel = switch (themeMode) {
-      ThemeMode.light => 'Light field',
-      ThemeMode.dark => 'Dark field',
+      ThemeMode.light => 'Light',
+      ThemeMode.dark => 'Dark',
       ThemeMode.system => 'Follow device',
     };
     return Scaffold(
@@ -78,10 +78,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: ListView(
               padding: EdgeInsets.fromLTRB(contentInset, 0, contentInset, 40),
               children: [
-                const SystemSectionLabel('NODE GROUP / INTELLIGENCE'),
+                const SystemSectionLabel('Intelligence'),
                 SystemNode(
                   code: 'AI-01',
-                  title: 'Flow intelligence',
+                  title: 'AI connection',
                   detail: _testing
                       ? 'Testing encrypted connection…'
                       : effectiveAi
@@ -94,11 +94,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       : NodeSignal.attention,
                   onTap: _showAiConnection,
                 ),
-                const SystemSectionLabel('NODE GROUP / EVIDENCE CHANNELS'),
+                const SystemSectionLabel('Money sources'),
                 const SystemNode(
                   code: 'EV-01',
                   title: 'Transaction messages',
-                  detail: 'Primary evidence · analyzed only after consent',
+                  detail: 'Checked only after you give permission',
                   signal: NodeSignal.private,
                 ),
                 const SizedBox(height: 8),
@@ -134,7 +134,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                 ),
-                const SystemSectionLabel('NODE GROUP / PRIVACY'),
+                const SystemSectionLabel('Privacy'),
                 SystemNode(
                   code: 'PR-01',
                   title: 'Device authentication',
@@ -171,7 +171,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ref.read(privateModeProvider.notifier).set(!value),
                   ),
                 ),
-                const SystemSectionLabel('NODE GROUP / PERSONAL FIELD'),
+                const SystemSectionLabel('Personalization'),
                 SystemNode(
                   code: 'UI-01',
                   title: 'Appearance',
@@ -189,7 +189,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   detail: '$_currency · fallback when evidence has no currency',
                   onTap: _showMoneyPreferences,
                 ),
-                const SystemSectionLabel('NODE GROUP / DIAGNOSTICS'),
+                const SystemSectionLabel('Advanced'),
                 SystemNode(
                   code: 'DX-01',
                   title: 'Import history',

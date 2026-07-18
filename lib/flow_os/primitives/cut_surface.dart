@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../foundation/flow_color.dart';
 
+/// Compatibility surface for the new soft ledger plane.
 class CutSurface extends StatelessWidget {
   const CutSurface({
     super.key,
@@ -12,7 +13,6 @@ class CutSurface extends StatelessWidget {
     this.cut = 12,
     this.border = true,
   });
-
   final Widget child;
   final Color? color;
   final Color? accent;
@@ -21,54 +21,19 @@ class CutSurface extends StatelessWidget {
   final bool border;
 
   @override
-  Widget build(BuildContext context) {
-    final fill = color ?? FlowColor.plane(context);
-    return ClipPath(
-      clipper: _CutClipper(cut),
-      child: CustomPaint(
-        foregroundPainter: border
-            ? _CutBorderPainter(cut, accent ?? FlowColor.rule(context))
-            : null,
-        child: ColoredBox(
-          color: fill,
-          child: Padding(padding: padding, child: child),
-        ),
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: color ?? FlowColor.plane(context),
+      borderRadius: BorderRadius.only(
+        topLeft: Radius.circular(cut + 4),
+        topRight: Radius.circular(cut + 4),
+        bottomLeft: Radius.circular(cut + 4),
+        bottomRight: Radius.circular(cut + 1),
       ),
-    );
-  }
-}
-
-Path _cutPath(Size size, double cut) => Path()
-  ..moveTo(0, 0)
-  ..lineTo(size.width - cut, 0)
-  ..lineTo(size.width, cut)
-  ..lineTo(size.width, size.height)
-  ..lineTo(cut, size.height)
-  ..lineTo(0, size.height - cut)
-  ..close();
-
-class _CutClipper extends CustomClipper<Path> {
-  const _CutClipper(this.cut);
-  final double cut;
-  @override
-  Path getClip(Size size) => _cutPath(size, cut);
-  @override
-  bool shouldReclip(covariant _CutClipper oldClipper) => oldClipper.cut != cut;
-}
-
-class _CutBorderPainter extends CustomPainter {
-  const _CutBorderPainter(this.cut, this.color);
-  final double cut;
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) => canvas.drawPath(
-    _cutPath(size, cut),
-    Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1,
+      border: border
+          ? Border.all(color: accent ?? FlowColor.rule(context))
+          : null,
+    ),
+    child: Padding(padding: padding, child: child),
   );
-  @override
-  bool shouldRepaint(covariant _CutBorderPainter oldDelegate) =>
-      oldDelegate.cut != cut || oldDelegate.color != color;
 }

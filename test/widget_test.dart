@@ -21,8 +21,8 @@ void main() {
     );
 
     expect(find.text('Balance'), findsOneWidget);
-    expect(AppTheme.light(null).colorScheme.primary, const Color(0xFF5B4BFF));
-    expect(AppTheme.dark(null).colorScheme.secondary, const Color(0xFF22D3EE));
+    expect(AppTheme.light(null).colorScheme.primary, const Color(0xFF476F86));
+    expect(AppTheme.dark(null).colorScheme.secondary, const Color(0xFF476F86));
   });
 
   testWidgets('idle Loom Mark does not schedule continuous frames', (
@@ -68,9 +68,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.bySemanticsLabel('Ask Flow'), findsOneWidget);
-    expect(find.bySemanticsLabel('Proof and evidence'), findsOneWidget);
-    expect(find.bySemanticsLabel('System controls'), findsOneWidget);
+    expect(find.bySemanticsLabel('Ask'), findsOneWidget);
+    expect(find.bySemanticsLabel('Activity'), findsOneWidget);
+    expect(find.bySemanticsLabel('You'), findsOneWidget);
   });
 
   testWidgets('Evidence consent ledger is bounded and exposes both decisions', (
@@ -124,7 +124,7 @@ void main() {
       );
       await tester.pump();
       expect(tester.takeException(), isNull);
-      expect(find.bySemanticsLabel('PROOF, Inspect evidence'), findsOneWidget);
+      expect(find.text('Activity'), extended ? findsOneWidget : findsNothing);
     }
   });
 
@@ -188,7 +188,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.bySemanticsLabel('Proof and evidence'), findsOneWidget);
+    expect(find.bySemanticsLabel('Activity'), findsOneWidget);
   });
 
   testWidgets('selected Proof label fits the compact navigation control', (
@@ -212,7 +212,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('PROOF'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -325,8 +325,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(theme.colorScheme.primary, const Color(0xFF5B4BFF));
-    expect(theme.colorScheme.secondary, const Color(0xFF22D3EE));
+    expect(theme.colorScheme.primary, const Color(0xFF476F86));
+    expect(theme.colorScheme.secondary, const Color(0xFF476F86));
     expect(theme.colorScheme.outline, theme.colorScheme.onSurface);
     expect(tester.takeException(), isNull);
   });
@@ -351,7 +351,7 @@ void main() {
         ),
       ),
     );
-    await tester.tap(find.bySemanticsLabel('Proof and evidence'));
+    await tester.tap(find.bySemanticsLabel('Activity'));
     await tester.pump();
 
     expect(selected, 1);

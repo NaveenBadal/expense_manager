@@ -4,9 +4,7 @@ import 'package:flutter/services.dart';
 import '../flow_os/foundation/flow_color.dart';
 import 'app_tokens.dart';
 
-/// Platform integration for Flow Loom. Product surfaces use `flow_os`
-/// primitives directly; this theme only governs unavoidable Flutter/platform
-/// controls and deliberately avoids Material component styling as identity.
+/// Platform-control fallback for Quiet Current.
 class AppTheme {
   const AppTheme._();
   static const _tabular = [FontFeature.tabularFigures()];
@@ -23,9 +21,9 @@ class AppTheme {
     final canvas = dark ? FlowColor.ink : FlowColor.paper;
     final raised = dark ? FlowColor.inkRaised : FlowColor.paperRaised;
     final plane = dark ? FlowColor.inkPlane : FlowColor.paperPlane;
-    final content = dark ? const Color(0xFFF0EEF8) : const Color(0xFF171821);
-    final quiet = dark ? const Color(0xFFAAA8B8) : const Color(0xFF5D5D69);
-    final rule = dark ? const Color(0xFF303340) : const Color(0xFFD3D2DC);
+    final content = dark ? const Color(0xFFEEF1EC) : const Color(0xFF202522);
+    final quiet = dark ? const Color(0xFFA8B0AA) : const Color(0xFF68706B);
+    final rule = dark ? const Color(0xFF343B36) : const Color(0xFFDCDDD7);
     final scheme = ColorScheme(
       brightness: brightness,
       primary: FlowColor.loom,
@@ -68,11 +66,11 @@ class AppTheme {
           letterSpacing: tracking,
           height: 1.04,
         );
-    const cut8 = BeveledRectangleBorder(
-      borderRadius: BorderRadius.all(Radius.circular(8)),
-    );
-    const cut12 = BeveledRectangleBorder(
+    const soft12 = RoundedRectangleBorder(
       borderRadius: BorderRadius.all(Radius.circular(12)),
+    );
+    const soft18 = RoundedRectangleBorder(
+      borderRadius: BorderRadius.all(Radius.circular(18)),
     );
     return base.copyWith(
       pageTransitionsTheme: const PageTransitionsTheme(
@@ -116,26 +114,26 @@ class AppTheme {
           vertical: 15,
         ),
         border: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(14)),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(14)),
           borderSide: BorderSide(color: rule),
         ),
         focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(14)),
           borderSide: BorderSide(color: FlowColor.proof, width: 2),
         ),
         errorBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
+          borderRadius: BorderRadius.all(Radius.circular(14)),
           borderSide: BorderSide(color: FlowColor.coral),
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
         style: IconButton.styleFrom(
           minimumSize: const Size(48, 48),
-          shape: cut8,
+          shape: soft12,
         ),
       ),
       dividerTheme: DividerThemeData(color: rule, thickness: 1),
@@ -144,18 +142,18 @@ class AppTheme {
         linearTrackColor: Colors.transparent,
         circularTrackColor: Colors.transparent,
         linearMinHeight: 3,
-        borderRadius: BorderRadius.zero,
+        borderRadius: BorderRadius.all(Radius.circular(2)),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: raised,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: cut8,
+        shape: soft12,
       ),
       tooltipTheme: TooltipThemeData(
         decoration: const ShapeDecoration(
           color: FlowColor.inkPlane,
-          shape: cut8,
+          shape: soft12,
         ),
         textStyle: const TextStyle(color: Colors.white),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -164,36 +162,36 @@ class AppTheme {
       datePickerTheme: DatePickerThemeData(
         backgroundColor: raised,
         surfaceTintColor: Colors.transparent,
-        shape: cut12,
+        shape: soft18,
         headerBackgroundColor: FlowColor.loom,
         headerForegroundColor: Colors.white,
       ),
       timePickerTheme: TimePickerThemeData(
         backgroundColor: raised,
-        shape: cut12,
-        hourMinuteShape: cut8,
-        dayPeriodShape: cut8,
+        shape: soft18,
+        hourMinuteShape: soft12,
+        dayPeriodShape: soft12,
       ),
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: content,
         contentTextStyle: TextStyle(color: canvas, fontWeight: FontWeight.w700),
-        shape: cut8,
+        shape: soft12,
         insetPadding: const EdgeInsets.all(16),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: canvas,
         surfaceTintColor: Colors.transparent,
         showDragHandle: false,
-        shape: const BeveledRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: raised,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: cut12,
+        shape: soft18,
       ),
       extensions: [dark ? FinanceColors.dark : FinanceColors.light],
     );

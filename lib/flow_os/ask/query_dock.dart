@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../foundation/flow_color.dart';
-import '../primitives/cut_surface.dart';
-import '../primitives/loom_mark.dart';
 
 class QueryDock extends StatelessWidget {
   const QueryDock({
@@ -12,87 +10,92 @@ class QueryDock extends StatelessWidget {
     required this.connected,
     required this.onAsk,
   });
-
   final TextEditingController controller;
   final bool enabled;
   final bool connected;
   final VoidCallback onAsk;
 
   @override
-  Widget build(BuildContext context) => CutSurface(
-    cut: 14,
-    color: FlowColor.raised(context),
-    accent: enabled ? FlowColor.proof : FlowColor.rule(context),
-    padding: const EdgeInsets.fromLTRB(15, 9, 8, 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                enabled ? 'QUERY / EVIDENCE-BOUND' : 'QUERY / LOCKED',
-                style: TextStyle(
-                  color: enabled ? FlowColor.proof : FlowColor.quiet(context),
-                  fontSize: 8,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                ),
-              ),
-              TextField(
-                controller: controller,
-                enabled: enabled,
-                onSubmitted: (_) => onAsk(),
-                minLines: 1,
-                maxLines: 4,
-                style: TextStyle(
-                  color: FlowColor.content(context),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-                decoration: InputDecoration(
-                  isDense: true,
-                  filled: false,
-                  contentPadding: const EdgeInsets.only(top: 5, right: 10),
-                  hintText: connected
-                      ? 'Ask what your money means…'
-                      : 'Connect intelligence to begin',
-                  hintStyle: TextStyle(color: FlowColor.quiet(context)),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Semantics(
-          button: true,
-          enabled: enabled,
-          label: 'Ask Flow',
-          excludeSemantics: true,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: enabled ? onAsk : null,
-            child: Container(
-              width: 54,
-              height: 54,
-              color: enabled ? FlowColor.loom : FlowColor.plane(context),
-              alignment: Alignment.center,
-              child: enabled
-                  ? const LoomMark(size: 26)
-                  : Icon(
-                      Icons.lock_outline_rounded,
-                      size: 20,
-                      color: FlowColor.quiet(context),
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: FlowColor.raised(context),
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(18),
+        topRight: Radius.circular(18),
+        bottomLeft: Radius.circular(18),
+        bottomRight: Radius.circular(15),
+      ),
+      border: Border.all(
+        color: enabled
+            ? FlowColor.intelligence(context).withValues(alpha: .42)
+            : FlowColor.rule(context),
+      ),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: controller,
+                  enabled: enabled,
+                  minLines: 1,
+                  maxLines: 4,
+                  textCapitalization: TextCapitalization.sentences,
+                  onSubmitted: (_) => onAsk(),
+                  style: Theme.of(context).textTheme.bodyLarge,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: connected
+                        ? 'Ask about your money'
+                        : 'Connect intelligence to ask',
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.only(
+                      top: 4,
+                      bottom: 5,
+                      right: 8,
                     ),
+                  ),
+                ),
+                Text(
+                  connected
+                      ? 'Answers use only the activity you allow'
+                      : 'Your activity stays private',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: FlowColor.quiet(context),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Semantics(
+            button: true,
+            enabled: enabled,
+            label: 'Send question',
+            child: IconButton.filled(
+              onPressed: enabled ? onAsk : null,
+              tooltip: 'Send',
+              style: IconButton.styleFrom(
+                minimumSize: const Size(48, 48),
+                backgroundColor: FlowColor.intelligence(context),
+                disabledBackgroundColor: FlowColor.plane(context),
+                foregroundColor: Colors.white,
+              ),
+              icon: const Icon(Icons.arrow_upward_rounded, size: 21),
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }

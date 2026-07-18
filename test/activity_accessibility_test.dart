@@ -70,12 +70,9 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('EVIDENCE'), findsOneWidget);
-    expect(
-      find.bySemanticsLabel('Add cash transaction manually'),
-      findsOneWidget,
-    );
-    expect(find.bySemanticsLabel('Hide amounts'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
+    expect(find.byTooltip('Add transaction'), findsOneWidget);
+    expect(find.byTooltip('Hide amounts'), findsOneWidget);
     semantics.dispose();
   });
 
@@ -104,15 +101,15 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('CONTROL MAP'), findsOneWidget);
-    expect(find.text('NODE GROUP / INTELLIGENCE'), findsOneWidget);
+    expect(find.text('You'), findsOneWidget);
+    expect(find.text('Intelligence'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.text('NODE GROUP / PERSONAL FIELD'),
+      find.text('Personalization'),
       280,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('NODE GROUP / PERSONAL FIELD'), findsOneWidget);
+    expect(find.text('Personalization'), findsOneWidget);
     await tester.pump();
     expect(tester.takeException(), isNull);
     expect(find.byType(ChoiceChip), findsNothing);
@@ -171,8 +168,8 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('FLOW'), findsOneWidget);
-    expect(find.text('Connect intelligence to begin'), findsOneWidget);
+    expect(find.text('Ask'), findsOneWidget);
+    expect(find.text('Connect intelligence to ask'), findsOneWidget);
   });
 
   testWidgets('agent financial cards support narrow screens and 200% text', (
@@ -310,7 +307,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('EVIDENCE'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -329,7 +326,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.text('EVIDENCE'), findsOneWidget);
+    expect(find.text('Activity'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

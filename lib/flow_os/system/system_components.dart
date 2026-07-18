@@ -27,7 +27,7 @@ class SystemMasthead extends StatelessWidget {
                     CoordinateLabel('SYSTEM / LOCAL CONTROL'),
                     SizedBox(height: 3),
                     Text(
-                      'CONTROL MAP',
+                      'You',
                       style: TextStyle(
                         fontSize: 25,
                         fontWeight: FontWeight.w900,
