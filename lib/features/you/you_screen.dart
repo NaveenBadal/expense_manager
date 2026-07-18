@@ -199,6 +199,7 @@ class YouScreen extends ConsumerWidget {
     ImportPhase.reading => 'Reading recent messages…',
     ImportPhase.understanding =>
       'Understanding ${app.importStatus.checked} messages…',
+    ImportPhase.paused => app.importStatus.message ?? 'Analysis paused safely',
     ImportPhase.stopped => app.importStatus.message ?? 'Import stopped',
     ImportPhase.rateLimited =>
       app.importStatus.message ?? 'Provider is rate limited · tap to retry',

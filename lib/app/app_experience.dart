@@ -35,9 +35,17 @@ class _State extends ConsumerState<AppExperience> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
+    final controller = ref.read(appControllerProvider.notifier);
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      ref.read(appControllerProvider.notifier).lock();
+      controller.pauseMessageImportForLifecycle();
+      if (state == AppLifecycleState.paused ||
+          state == AppLifecycleState.hidden) {
+        controller.lock();
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      controller.resumeMessageImportForLifecycle();
     }
   }
 

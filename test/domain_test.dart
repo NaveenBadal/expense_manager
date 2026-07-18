@@ -1,11 +1,24 @@
 import 'package:fund_flow/domain/finance_summary.dart';
 import 'package:fund_flow/domain/preferences.dart';
+import 'package:fund_flow/app/app_state.dart';
 import 'package:fund_flow/domain/transaction.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('AI-first default uses the intended Ollama cloud model', () {
     expect(const AppPreferences().aiModel, 'gpt-oss:20b-cloud');
+  });
+  test('a lifecycle-paused import remains active and stoppable', () {
+    const status = ImportStatus(
+      phase: ImportPhase.paused,
+      checked: 12,
+      imported: 3,
+      skipped: 9,
+      message: 'Paused safely',
+    );
+    expect(status.working, isTrue);
+    expect(status.retryable, isFalse);
+    expect(status.checked, 12);
   });
   test('finance engine never combines currencies', () {
     final now = DateTime(2026, 7, 18);

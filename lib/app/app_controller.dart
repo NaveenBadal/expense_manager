@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -76,6 +77,8 @@ final appControllerProvider = AsyncNotifierProvider<AppController, AppState>(
 
 class AppController extends AsyncNotifier<AppState> {
   bool _stopImportRequested = false;
+  bool _lifecycleImportPaused = false;
+  Completer<void>? _importResumeSignal;
   AgentCancellationToken? _activeRun;
   @override
   Future<AppState> build() async {
@@ -304,7 +307,10 @@ class AppController extends AsyncNotifier<AppState> {
   Future<bool> unlock() async {
     if (!_value.locked) return true;
     final ok = await _authenticate('Unlock Fund Flow');
-    if (ok) state = AsyncData(_value.copyWith(locked: false, clearError: true));
+    if (ok) {
+      state = AsyncData(_value.copyWith(locked: false, clearError: true));
+      resumeMessageImportForLifecycle();
+    }
     return ok;
   }
 
@@ -400,6 +406,7 @@ class AppController extends AsyncNotifier<AppState> {
 
   Future<void> importMessages() async {
     _stopImportRequested = false;
+    _clearLifecycleImportPause();
     int? auditRunId;
     var current = _value;
     final apiKey = await ref.read(securePreferencesProvider).apiKey();
@@ -442,6 +449,16 @@ class AppController extends AsyncNotifier<AppState> {
       );
       return;
     }
+    await _waitWhileLifecyclePaused(
+      permission: permission,
+      checked: 0,
+      imported: 0,
+      skipped: 0,
+    );
+    if (_stopImportRequested) {
+      _setImportStopped(permission: permission);
+      return;
+    }
     state = AsyncData(
       _value.copyWith(
         importStatus: ImportStatus(
@@ -453,6 +470,12 @@ class AppController extends AsyncNotifier<AppState> {
     try {
       final candidates = await source.recent(
         _value.preferences.messageLookbackDays,
+      );
+      await _waitWhileLifecyclePaused(
+        permission: permission,
+        checked: 0,
+        imported: 0,
+        skipped: 0,
       );
       if (_stopImportRequested) {
         _setImportStopped(permission: permission);
@@ -479,6 +502,12 @@ class AppController extends AsyncNotifier<AppState> {
       var skipped = seen.length;
       final batches = _ingestionBatches(unseen, (item) => item);
       for (var wave = 0; wave < batches.length; wave += 2) {
+        await _waitWhileLifecyclePaused(
+          permission: permission,
+          checked: checked,
+          imported: imported,
+          skipped: skipped,
+        );
         if (_stopImportRequested) {
           await ref
               .read(storeProvider)
@@ -607,6 +636,7 @@ class AppController extends AsyncNotifier<AppState> {
       await ref
           .read(storeProvider)
           .finishImportRun(auditRunId, state: ImportRunState.completed);
+      _clearLifecycleImportPause();
       current = _value.copyWith(
         transactions: await ref.read(storeProvider).transactions(),
         importStatus: ImportStatus(
@@ -619,6 +649,7 @@ class AppController extends AsyncNotifier<AppState> {
       );
       state = AsyncData(current);
     } on AiRequestFailure catch (error) {
+      _clearLifecycleImportPause();
       final message = switch (error.statusCode) {
         401 || 403 => 'Reconnect intelligence before analyzing messages.',
         429 =>
@@ -649,6 +680,7 @@ class AppController extends AsyncNotifier<AppState> {
             );
       }
     } catch (error) {
+      _clearLifecycleImportPause();
       final detail = _importFailureDetail(error);
       state = AsyncData(
         _value.copyWith(
@@ -697,6 +729,7 @@ class AppController extends AsyncNotifier<AppState> {
   void stopMessageImport() {
     if (!_value.importStatus.working) return;
     _stopImportRequested = true;
+    _clearLifecycleImportPause();
     state = AsyncData(
       _value.copyWith(
         importStatus: ImportStatus(
@@ -709,6 +742,77 @@ class AppController extends AsyncNotifier<AppState> {
         ),
       ),
     );
+  }
+
+  void pauseMessageImportForLifecycle() {
+    if (!_value.importStatus.working || _lifecycleImportPaused) return;
+    _lifecycleImportPaused = true;
+    state = AsyncData(
+      _value.copyWith(
+        importStatus: ImportStatus(
+          phase: ImportPhase.paused,
+          permission: _value.importStatus.permission,
+          checked: _value.importStatus.checked,
+          imported: _value.importStatus.imported,
+          skipped: _value.importStatus.skipped,
+          message: 'Pausing safely after the current AI batch…',
+        ),
+      ),
+    );
+  }
+
+  void resumeMessageImportForLifecycle() {
+    if (!_lifecycleImportPaused || _value.locked) return;
+    _lifecycleImportPaused = false;
+    final signal = _importResumeSignal;
+    _importResumeSignal = null;
+    if (signal != null && !signal.isCompleted) signal.complete();
+    if (_value.importStatus.phase == ImportPhase.paused) {
+      state = AsyncData(
+        _value.copyWith(
+          importStatus: ImportStatus(
+            phase: ImportPhase.understanding,
+            permission: _value.importStatus.permission,
+            checked: _value.importStatus.checked,
+            imported: _value.importStatus.imported,
+            skipped: _value.importStatus.skipped,
+            message: 'Resuming message analysis…',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _waitWhileLifecyclePaused({
+    required MessagePermission permission,
+    required int checked,
+    required int imported,
+    required int skipped,
+  }) async {
+    if (!_lifecycleImportPaused) return;
+    state = AsyncData(
+      _value.copyWith(
+        importStatus: ImportStatus(
+          phase: ImportPhase.paused,
+          permission: permission,
+          checked: checked,
+          imported: imported,
+          skipped: skipped,
+          message: _value.locked
+              ? 'Paused · unlock Fund Flow to continue safely'
+              : 'Paused · return to Fund Flow to continue safely',
+        ),
+      ),
+    );
+    _importResumeSignal ??= Completer<void>();
+    await _importResumeSignal!.future;
+  }
+
+  void _clearLifecycleImportPause() {
+    _lifecycleImportPaused = false;
+    final signal = _importResumeSignal;
+    _importResumeSignal = null;
+    if (signal != null && !signal.isCompleted) signal.complete();
   }
 
   void _setImportStopped({MessagePermission? permission}) {

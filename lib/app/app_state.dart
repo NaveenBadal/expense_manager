@@ -11,6 +11,7 @@ enum ImportPhase {
   requestingPermission,
   reading,
   understanding,
+  paused,
   stopped,
   rateLimited,
   providerDisconnected,
@@ -37,7 +38,8 @@ class ImportStatus {
   bool get working =>
       phase == ImportPhase.requestingPermission ||
       phase == ImportPhase.reading ||
-      phase == ImportPhase.understanding;
+      phase == ImportPhase.understanding ||
+      phase == ImportPhase.paused;
   bool get retryable =>
       phase == ImportPhase.stopped ||
       phase == ImportPhase.rateLimited ||
