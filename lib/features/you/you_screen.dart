@@ -10,6 +10,7 @@ import '../../ui/components/current_header.dart';
 import '../../ui/components/current_switch.dart';
 import '../../ui/foundation/current_colors.dart';
 import 'connect_intelligence_sheet.dart';
+import 'update_sheet.dart';
 
 class YouScreen extends ConsumerWidget {
   const YouScreen({super.key});
@@ -29,6 +30,12 @@ class YouScreen extends ConsumerWidget {
                 const CurrentSectionTitle('Intelligence'),
                 CurrentGroup(
                   children: [
+                    CurrentRow(
+                      title: 'App updates',
+                      detail: 'Verified development releases from GitHub',
+                      leading: Icons.system_update_alt_rounded,
+                      onTap: () => _updates(context),
+                    ),
                     CurrentRow(
                       title: 'AI connection',
                       detail: switch (app.aiConnection) {
@@ -192,6 +199,11 @@ class YouScreen extends ConsumerWidget {
     context: context,
     isScrollControlled: true,
     builder: (_) => const ConnectIntelligenceSheet(),
+  );
+  Future<void> _updates(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => const UpdateSheet(),
   );
   Future<void> _privacy(BuildContext context) => showModalBottomSheet<void>(
     context: context,
