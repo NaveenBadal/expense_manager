@@ -5,7 +5,7 @@ import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
 import '../../ui/components/current_button.dart';
 import '../../ui/components/current_field.dart';
-import '../../ui/foundation/current_colors.dart';
+import '../../ui/components/current_sheet.dart';
 
 class TransactionEditorSheet extends ConsumerStatefulWidget {
   const TransactionEditorSheet({super.key, this.transaction});
@@ -40,92 +40,66 @@ class _State extends ConsumerState<TransactionEditorSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-    child: SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        24,
-        12,
-        24,
-        24 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: context.current.rule,
-                borderRadius: BorderRadius.circular(2),
+  Widget build(BuildContext context) => CurrentSheet(
+    title: widget.transaction == null ? 'Add transaction' : 'Edit transaction',
+    actions: CurrentButton(
+      label: 'Save transaction',
+      expand: true,
+      onPressed: _save,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: CurrentButton(
+                label: 'Money out',
+                style: _direction == TransactionDirection.outgoing
+                    ? CurrentButtonStyle.tonal
+                    : CurrentButtonStyle.outline,
+                onPressed: () =>
+                    setState(() => _direction = TransactionDirection.outgoing),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            widget.transaction == null ? 'Add transaction' : 'Edit transaction',
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: CurrentButton(
-                  label: 'Money out',
-                  style: _direction == TransactionDirection.outgoing
-                      ? CurrentButtonStyle.tonal
-                      : CurrentButtonStyle.outline,
-                  onPressed: () => setState(
-                    () => _direction = TransactionDirection.outgoing,
-                  ),
-                ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: CurrentButton(
+                label: 'Money in',
+                style: _direction == TransactionDirection.incoming
+                    ? CurrentButtonStyle.tonal
+                    : CurrentButtonStyle.outline,
+                onPressed: () =>
+                    setState(() => _direction = TransactionDirection.incoming),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: CurrentButton(
-                  label: 'Money in',
-                  style: _direction == TransactionDirection.incoming
-                      ? CurrentButtonStyle.tonal
-                      : CurrentButtonStyle.outline,
-                  onPressed: () => setState(
-                    () => _direction = TransactionDirection.incoming,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          CurrentField(
-            controller: _amount,
-            label: 'Amount',
-            hint: '0.00',
-            error: _error,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            prefixIcon: Icons.currency_rupee_rounded,
-          ),
-          const SizedBox(height: 12),
-          CurrentField(
-            controller: _merchant,
-            label: 'Merchant or person',
-            hint: 'Who was this with?',
-          ),
-          const SizedBox(height: 12),
-          CurrentField(controller: _category, label: 'Category', hint: 'Other'),
-          const SizedBox(height: 12),
-          CurrentField(
-            controller: _note,
-            label: 'Note',
-            hint: 'Optional',
-            maxLines: 3,
-          ),
-          const SizedBox(height: 22),
-          CurrentButton(
-            label: 'Save transaction',
-            expand: true,
-            onPressed: _save,
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        CurrentField(
+          controller: _amount,
+          label: 'Amount',
+          hint: '0.00',
+          error: _error,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          prefixIcon: Icons.currency_rupee_rounded,
+        ),
+        const SizedBox(height: 12),
+        CurrentField(
+          controller: _merchant,
+          label: 'Merchant or person',
+          hint: 'Who was this with?',
+        ),
+        const SizedBox(height: 12),
+        CurrentField(controller: _category, label: 'Category', hint: 'Other'),
+        const SizedBox(height: 12),
+        CurrentField(
+          controller: _note,
+          label: 'Note',
+          hint: 'Optional',
+          maxLines: 3,
+        ),
+      ],
     ),
   );
 

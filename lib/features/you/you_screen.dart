@@ -7,6 +7,7 @@ import '../../app/app_state.dart';
 import '../../domain/preferences.dart';
 import '../../ui/components/current_group.dart';
 import '../../ui/components/current_header.dart';
+import '../../ui/components/current_switch.dart';
 import '../../ui/foundation/current_colors.dart';
 import 'connect_intelligence_sheet.dart';
 
@@ -75,8 +76,9 @@ class YouScreen extends ConsumerWidget {
                           ? 'On'
                           : 'Off',
                       leading: Icons.notifications_none_rounded,
-                      trailing: Switch(
+                      trailing: CurrentSwitch(
                         value: app.preferences.captureNotifications,
+                        label: 'Automatic notification capture',
                         onChanged: (v) => controller.updatePreferences(
                           app.preferences.copyWith(captureNotifications: v),
                         ),
@@ -93,8 +95,9 @@ class YouScreen extends ConsumerWidget {
                           ? 'Amounts are hidden'
                           : 'Amounts are visible',
                       leading: Icons.visibility_off_outlined,
-                      trailing: Switch(
+                      trailing: CurrentSwitch(
                         value: app.preferences.hideAmounts,
+                        label: 'Hide amounts',
                         onChanged: (v) => controller.updatePreferences(
                           app.preferences.copyWith(hideAmounts: v),
                         ),
@@ -106,8 +109,9 @@ class YouScreen extends ConsumerWidget {
                           ? 'Authentication required'
                           : 'Off',
                       leading: Icons.lock_outline_rounded,
-                      trailing: Switch(
+                      trailing: CurrentSwitch(
                         value: app.preferences.lockApp,
+                        label: 'App lock',
                         onChanged: (v) => controller.updatePreferences(
                           app.preferences.copyWith(lockApp: v),
                         ),

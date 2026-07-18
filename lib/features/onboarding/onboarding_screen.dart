@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_controller.dart';
-import '../../domain/preferences.dart';
+import '../../app/app_state.dart';
 import '../../ui/components/current_button.dart';
 import '../../ui/components/current_mark.dart';
 import '../../ui/foundation/current_colors.dart';
@@ -103,19 +103,19 @@ class _State extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  String _primaryLabel(dynamic app) => switch (_step) {
+  String _primaryLabel(AppState app) => switch (_step) {
     0 => 'Get started',
     1 =>
-      app.aiConnection.name == 'connected'
+      app.aiConnection == AiConnection.connected
           ? 'Continue'
           : 'Connect or continue later',
     2 => 'Check messages or skip',
     _ => 'Open Fund Flow',
   };
 
-  Widget _content(dynamic app) => switch (_step) {
+  Widget _content(AppState app) => switch (_step) {
     0 => _Narrative(
-      icon: Icons.auto_awesome_mosaic_outlined,
+      icon: Icons.waves_rounded,
       eyebrow: 'A quieter way to understand money',
       title: 'Your activity can answer back.',
       body:
@@ -133,10 +133,10 @@ class _State extends ConsumerState<OnboardingScreen> {
         ),
         const SizedBox(height: 22),
         CurrentButton(
-          label: app.aiConnection.name == 'connected'
+          label: app.aiConnection == AiConnection.connected
               ? 'Intelligence connected'
               : 'Connect intelligence',
-          icon: app.aiConnection.name == 'connected'
+          icon: app.aiConnection == AiConnection.connected
               ? Icons.check_rounded
               : Icons.link_rounded,
           style: CurrentButtonStyle.outline,
@@ -191,14 +191,12 @@ class _State extends ConsumerState<OnboardingScreen> {
     isScrollControlled: true,
     builder: (_) => const ConnectIntelligenceSheet(),
   );
-  Future<void> _next(dynamic app) async {
+  Future<void> _next(AppState app) async {
     if (_step < 3) {
       setState(() => _step++);
       return;
     }
-    final prefs = (app.preferences as AppPreferences).copyWith(
-      onboardingComplete: true,
-    );
+    final prefs = app.preferences.copyWith(onboardingComplete: true);
     await ref.read(appControllerProvider.notifier).updatePreferences(prefs);
   }
 }

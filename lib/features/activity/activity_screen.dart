@@ -8,6 +8,7 @@ import '../../domain/transaction.dart';
 import '../../ui/components/current_button.dart';
 import '../../ui/components/current_field.dart';
 import '../../ui/components/current_header.dart';
+import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
 import '../../ui/format/money_format.dart';
 import 'transaction_editor_sheet.dart';
@@ -86,7 +87,8 @@ class _State extends ConsumerState<ActivityScreen> {
                         controller: _search,
                         hint: 'Search activity',
                         prefixIcon: Icons.search_rounded,
-                        onSubmitted: (_) {},
+                        onChanged: (value) =>
+                            setState(() => _query = value.trim().toLowerCase()),
                         suffix: IconButton(
                           tooltip: 'Clear search',
                           onPressed: _query.isEmpty
@@ -98,21 +100,7 @@ class _State extends ConsumerState<ActivityScreen> {
                           icon: const Icon(Icons.close_rounded),
                         ),
                       ),
-                      ValueListenableBuilder(
-                        valueListenable: _search,
-                        builder: (_, value, child) {
-                          if (value.text.toLowerCase() != _query) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (mounted) {
-                                setState(
-                                  () => _query = value.text.toLowerCase(),
-                                );
-                              }
-                            });
-                          }
-                          return const SizedBox(height: 20);
-                        },
-                      ),
+                      const SizedBox(height: 20),
                       if (values.isEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 48),
@@ -447,15 +435,49 @@ class _TransactionInspector extends ConsumerWidget {
           CurrentButton(
             label: 'Delete transaction',
             style: CurrentButtonStyle.text,
-            onPressed: () => ref
-                .read(appControllerProvider.notifier)
-                .deleteTransaction(item.id!)
-                .then((_) {
-                  if (context.mounted) Navigator.pop(context);
-                }),
+            onPressed: () => _confirmDelete(context, ref),
           ),
         ],
       ),
     ),
   );
+
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final inspector = context;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (confirmation) => CurrentSheet(
+        title: 'Delete ${item.merchant}?',
+        explanation:
+            'This removes this transaction from Activity and future answers. This action cannot be undone.',
+        actions: Row(
+          children: [
+            Expanded(
+              child: CurrentButton(
+                label: 'Keep transaction',
+                style: CurrentButtonStyle.outline,
+                onPressed: () => Navigator.pop(confirmation),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: CurrentButton(
+                label: 'Delete transaction',
+                style: CurrentButtonStyle.destructive,
+                onPressed: () async {
+                  await ref
+                      .read(appControllerProvider.notifier)
+                      .deleteTransaction(item.id!);
+                  if (confirmation.mounted) Navigator.pop(confirmation);
+                  if (inspector.mounted) Navigator.pop(inspector);
+                },
+              ),
+            ),
+          ],
+        ),
+        child: const SizedBox.shrink(),
+      ),
+    );
+  }
 }

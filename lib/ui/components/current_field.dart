@@ -17,6 +17,7 @@ class CurrentField extends StatefulWidget {
     this.minLines = 1,
     this.maxLines = 1,
     this.onSubmitted,
+    this.onChanged,
     this.keyboardType,
   });
   final TextEditingController controller;
@@ -31,6 +32,7 @@ class CurrentField extends StatefulWidget {
   final int minLines;
   final int maxLines;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
   final TextInputType? keyboardType;
   @override
   State<CurrentField> createState() => _CurrentFieldState();
@@ -102,6 +104,7 @@ class _CurrentFieldState extends State<CurrentField> {
                     maxLines: widget.maxLines,
                     keyboardType: widget.keyboardType,
                     onSubmitted: widget.onSubmitted,
+                    onChanged: widget.onChanged,
                     textCapitalization: TextCapitalization.sentences,
                     decoration: InputDecoration.collapsed(
                       hintText: widget.hint,
