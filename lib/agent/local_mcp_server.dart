@@ -505,6 +505,7 @@ class LocalMcpServer {
       'conversation history',
       'settings',
       'tool audit',
+      'message intelligence request and response audit',
     ],
     'provider': [
       'questions',

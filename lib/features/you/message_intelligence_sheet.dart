@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_controller.dart';
 import '../../domain/import_audit.dart';
 import '../../ui/components/current_button.dart';
+import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
 
 class MessageIntelligenceSheet extends ConsumerStatefulWidget {
@@ -91,29 +92,27 @@ class _State extends ConsumerState<MessageIntelligenceSheet> {
                 ),
               ),
               const SizedBox(height: 18),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Message intelligence',
-                          style: Theme.of(context).textTheme.headlineMedium,
+              LayoutBuilder(
+                builder: (context, box) {
+                  final information = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Message intelligence',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        app.importStatus.working
+                            ? '${app.importStatus.checked} analyzed · ${app.importStatus.imported} added'
+                            : 'Every local message decision and Ollama exchange',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: context.current.muted,
                         ),
-                        const SizedBox(height: 5),
-                        Text(
-                          app.importStatus.working
-                              ? '${app.importStatus.checked} analyzed · ${app.importStatus.imported} added'
-                              : 'Every local message decision and Ollama exchange',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: context.current.muted),
-                        ),
-                      ],
-                    ),
-                  ),
-                  CurrentButton(
+                      ),
+                    ],
+                  );
+                  final action = CurrentButton(
                     label: app.importStatus.working ? 'Stop' : 'Check',
                     icon: app.importStatus.working
                         ? Icons.stop_rounded
@@ -123,8 +122,29 @@ class _State extends ConsumerState<MessageIntelligenceSheet> {
                     onPressed: app.importStatus.working
                         ? controller.stopMessageImport
                         : controller.importMessages,
-                  ),
-                ],
+                  );
+                  final stacked =
+                      box.maxWidth < 390 ||
+                      MediaQuery.textScalerOf(context).scale(1) > 1.3;
+                  if (stacked) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        information,
+                        const SizedBox(height: 12),
+                        action,
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: information),
+                      const SizedBox(width: 12),
+                      action,
+                    ],
+                  );
+                },
               ),
               if (app.importStatus.working) ...[
                 const SizedBox(height: 14),
@@ -189,7 +209,7 @@ class _State extends ConsumerState<MessageIntelligenceSheet> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${run.imported} added · ${run.state.name}',
+                        '${run.source} · ${run.imported} added · ${run.state.name}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -230,8 +250,51 @@ class _State extends ConsumerState<MessageIntelligenceSheet> {
           const SizedBox(height: 10),
           for (final batch in _batches) _BatchCard(batch: batch),
         ],
+        const SizedBox(height: 18),
+        CurrentButton(
+          label: 'Clear message intelligence history',
+          icon: Icons.delete_outline_rounded,
+          style: CurrentButtonStyle.text,
+          expand: true,
+          onPressed: _clearHistory,
+        ),
       ],
     );
+  }
+
+  Future<void> _clearHistory() async {
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (sheet) => CurrentSheet(
+        title: 'Clear intelligence history?',
+        explanation:
+            'This removes stored message bodies and Ollama request/response logs. Transactions and deduplication fingerprints remain.',
+        actions: Row(
+          children: [
+            Expanded(
+              child: CurrentButton(
+                label: 'Keep history',
+                style: CurrentButtonStyle.tonal,
+                onPressed: () => Navigator.pop(sheet, false),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: CurrentButton(
+                label: 'Clear',
+                style: CurrentButtonStyle.destructive,
+                onPressed: () => Navigator.pop(sheet, true),
+              ),
+            ),
+          ],
+        ),
+        child: const SizedBox.shrink(),
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(storeProvider).clearImportAudit();
+    _selectedRun = null;
+    await _load();
   }
 
   String _when(DateTime value) =>
@@ -267,7 +330,7 @@ class _RunSummary extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          '${run.model} · ${run.endpoint}',
+          '${run.source == 'notification' ? 'Notification capture' : 'SMS inbox'} · ${run.model} · ${run.endpoint}',
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: context.current.muted),

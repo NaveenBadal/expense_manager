@@ -315,6 +315,19 @@ class FundFlowStore {
     required Set<String> alreadySeen,
   }) async {
     final db = await database;
+    final previous = <String, Map<String, Object?>>{};
+    if (alreadySeen.isNotEmpty) {
+      final placeholders = List.filled(alreadySeen.length, '?').join(',');
+      final rows = await db.query(
+        'import_attempts',
+        columns: ['fingerprint', 'outcome', 'detail'],
+        where: 'fingerprint IN ($placeholders)',
+        whereArgs: alreadySeen.toList(),
+      );
+      for (final row in rows) {
+        previous[row['fingerprint'] as String] = row;
+      }
+    }
     return db.transaction((transaction) async {
       final runId = await transaction.insert('import_runs', {
         'source': source,
@@ -328,6 +341,14 @@ class FundFlowStore {
       });
       for (final candidate in candidates) {
         final seen = alreadySeen.contains(candidate.fingerprint);
+        final old = previous[candidate.fingerprint];
+        final oldOutcome = old?['outcome']?.toString();
+        final oldLabel = switch (oldOutcome) {
+          'transaction' => 'Previously added as a transaction',
+          'notTransaction' => 'Previously classified as not a transaction',
+          'uncertain' => 'Previously classified as uncertain',
+          _ => 'Previously analyzed',
+        };
         await transaction.insert('import_items', {
           'run_id': runId,
           'fingerprint': candidate.fingerprint,
@@ -337,7 +358,10 @@ class FundFlowStore {
           'state': seen
               ? ImportItemState.alreadySeen.name
               : ImportItemState.queued.name,
-          'reason': seen ? 'Previously analyzed; not sent again.' : null,
+          'reason': seen
+              ? '$oldLabel; not sent again. ${old?['detail']?.toString() ?? ''}'
+                    .trim()
+              : null,
         });
       }
       return runId;
@@ -457,6 +481,56 @@ class FundFlowStore {
       orderBy: 'received_at DESC',
     );
     return rows.map(ImportItemRecord.fromMap).toList();
+  }
+
+  Future<void> clearImportAudit() async {
+    final db = await database;
+    await db.transaction((transaction) async {
+      await transaction.delete('import_items');
+      await transaction.delete('import_batches');
+      await transaction.delete('import_runs');
+      await transaction.update('transactions', {'source_text': null});
+    });
+  }
+
+  Future<void> recoverInterruptedImports() async {
+    final db = await database;
+    final now = DateTime.now().toUtc().toIso8601String();
+    await db.transaction((transaction) async {
+      final running = await transaction.query(
+        'import_runs',
+        columns: ['id'],
+        where: 'state = ?',
+        whereArgs: [ImportRunState.running.name],
+      );
+      for (final row in running) {
+        final runId = row['id'] as int;
+        const reason =
+            'The app process ended before this AI request completed. Tap Check to retry safely.';
+        await transaction.update(
+          'import_runs',
+          {
+            'state': ImportRunState.failed.name,
+            'completed_at': now,
+            'error': reason,
+          },
+          where: 'id = ?',
+          whereArgs: [runId],
+        );
+        await transaction.update(
+          'import_batches',
+          {'state': 'failed', 'completed_at': now, 'error': reason},
+          where: 'run_id = ? AND state = ?',
+          whereArgs: [runId, 'sending'],
+        );
+        await transaction.update(
+          'import_items',
+          {'state': ImportItemState.failed.name, 'reason': reason},
+          where: 'run_id = ? AND state = ?',
+          whereArgs: [runId, ImportItemState.queued.name],
+        );
+      }
+    });
   }
 
   Future<int> commitIngestionBatch(

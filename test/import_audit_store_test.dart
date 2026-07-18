@@ -70,6 +70,40 @@ void main() {
       expect((await store.transactions()), hasLength(1));
     },
   );
+
+  test(
+    'interrupted app process becomes an explicit retryable failure',
+    () async {
+      final db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
+      addTearDown(db.close);
+      await _schema(db);
+      final store = FundFlowStore(database: db);
+      final candidate = MessageCandidate(
+        sender: 'Bank',
+        body: 'Message awaiting AI',
+        receivedAt: DateTime(2026, 7, 18, 11),
+      );
+      final runId = await store.beginImportRun(
+        source: 'message',
+        model: 'test-model',
+        endpoint: 'http://localhost:11434',
+        candidates: [candidate],
+        alreadySeen: {},
+      );
+      final batchId = await store.beginImportBatch(runId: runId, position: 0);
+      await store.assignImportBatch(runId, batchId, [candidate.fingerprint]);
+
+      await store.recoverInterruptedImports();
+
+      final run = (await store.importRuns()).single;
+      final item = (await store.importItems(runId)).single;
+      final batch = (await store.importBatches(runId)).single;
+      expect(run.state, ImportRunState.failed);
+      expect(run.error, contains('process ended'));
+      expect(item.state, ImportItemState.failed);
+      expect(batch.state, 'failed');
+    },
+  );
 }
 
 Future<void> _schema(Database db) async {

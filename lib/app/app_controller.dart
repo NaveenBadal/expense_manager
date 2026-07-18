@@ -50,6 +50,7 @@ class AppController extends AsyncNotifier<AppState> {
     final prefs = await secure.read();
     final key = await secure.apiKey();
     final store = ref.read(storeProvider);
+    await store.recoverInterruptedImports();
     final values = await Future.wait([
       store.transactions(),
       store.conversation(),
@@ -125,9 +126,11 @@ class AppController extends AsyncNotifier<AppState> {
     AppPreferences preferences,
   ) async {
     if (apiKey.isEmpty) return existing;
+    int? auditRunId;
     try {
       final source = ref.read(notificationSourceProvider);
       final pending = await source.pending();
+      if (pending.isEmpty) return existing;
       final seen = await ref
           .read(storeProvider)
           .seenImportFingerprints(
@@ -136,20 +139,73 @@ class AppController extends AsyncNotifier<AppState> {
       final unseen = pending
           .where((item) => !seen.contains(item.candidate.fingerprint))
           .toList();
+      auditRunId = await ref
+          .read(storeProvider)
+          .beginImportRun(
+            source: TransactionSource.notification.name,
+            model: preferences.aiModel,
+            endpoint: preferences.aiEndpoint,
+            candidates: pending.map((item) => item.candidate).toList(),
+            alreadySeen: seen,
+          );
       final acknowledged = <String>[];
       for (var start = 0; start < unseen.length; start += 12) {
         final items = unseen.skip(start).take(12).toList();
-        final analysis = await ref
-            .read(aiClientProvider)
-            .analyzeMessages(
-              endpoint: preferences.aiEndpoint,
-              apiKey: apiKey,
-              model: preferences.aiModel,
-              candidates: items.map((item) => item.candidate).toList(),
-              source: TransactionSource.notification,
-              now: DateTime.now(),
+        final batchId = await ref
+            .read(storeProvider)
+            .beginImportBatch(runId: auditRunId, position: start ~/ 12);
+        await ref
+            .read(storeProvider)
+            .assignImportBatch(
+              auditRunId,
+              batchId,
+              items.map((item) => item.candidate.fingerprint),
             );
-        await ref.read(storeProvider).commitIngestionBatch(analysis);
+        var requestJson = '';
+        var responseJson = '';
+        late AiIngestionBatch analysis;
+        try {
+          analysis = await ref
+              .read(aiClientProvider)
+              .analyzeMessages(
+                endpoint: preferences.aiEndpoint,
+                apiKey: apiKey,
+                model: preferences.aiModel,
+                candidates: items.map((item) => item.candidate).toList(),
+                source: TransactionSource.notification,
+                now: DateTime.now(),
+                onRequest: (value) => requestJson = value,
+                onResponse: (value) => responseJson = value,
+              );
+          await ref
+              .read(storeProvider)
+              .recordImportBatchRequest(batchId, requestJson);
+          await ref
+              .read(storeProvider)
+              .recordImportBatchResponse(batchId, responseJson);
+          await ref
+              .read(storeProvider)
+              .commitIngestionBatch(
+                analysis,
+                runId: auditRunId,
+                batchId: batchId,
+              );
+        } catch (error) {
+          if (requestJson.isNotEmpty) {
+            await ref
+                .read(storeProvider)
+                .recordImportBatchRequest(batchId, requestJson);
+          }
+          if (responseJson.isNotEmpty) {
+            await ref
+                .read(storeProvider)
+                .recordImportBatchResponse(batchId, responseJson);
+          }
+          await ref
+              .read(storeProvider)
+              .failImportBatch(batchId, _importFailureDetail(error));
+          rethrow;
+        }
         final committed = analysis.results
             .map((item) => item.fingerprint)
             .toSet();
@@ -165,8 +221,20 @@ class AppController extends AsyncNotifier<AppState> {
         }
       }
       await source.acknowledge(acknowledged);
+      await ref
+          .read(storeProvider)
+          .finishImportRun(auditRunId, state: ImportRunState.completed);
       return ref.read(storeProvider).transactions();
-    } catch (_) {
+    } catch (error) {
+      if (auditRunId != null) {
+        await ref
+            .read(storeProvider)
+            .finishImportRun(
+              auditRunId,
+              state: ImportRunState.failed,
+              error: _importFailureDetail(error),
+            );
+      }
       return existing;
     }
   }
