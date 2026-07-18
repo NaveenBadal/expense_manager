@@ -69,6 +69,10 @@ class AiClient {
     final requestBody = jsonEncode({
       'model': model,
       'stream': false,
+      // Reasoning models (e.g. gpt-oss) otherwise spend tens of seconds and
+      // thousands of tokens thinking before a mechanical extraction, and the
+      // reasoning trace tempts them off the required schema.
+      'think': false,
       'format': IngestionPrompt.responseSchema,
       'messages': [
         {'role': 'system', 'content': IngestionPrompt.system(now)},

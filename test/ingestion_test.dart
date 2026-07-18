@@ -79,6 +79,37 @@ void main() {
     );
   });
 
+  test('markdown-fenced JSON with prose is still parsed', () {
+    final inner = jsonEncode({
+      'results': [
+        {
+          'id': candidate.fingerprint,
+          'decision': 'not_transaction',
+          'reason': 'Promotional message.',
+        },
+      ],
+    });
+    final batch = AiIngestionBatch.parse(
+      content: 'Sure, here is the result:\n```json\n$inner\n```\nLet me know!',
+      candidates: [candidate],
+      source: TransactionSource.message,
+      now: DateTime(2026, 7, 18, 12),
+    );
+    expect(batch.results.single.decision, IngestionDecision.notTransaction);
+  });
+
+  test('a bare top-level array (wrong envelope) fails cleanly', () {
+    expect(
+      () => AiIngestionBatch.parse(
+        content: '```json\n[{"id":"x","amount":100}]\n```',
+        candidates: [candidate],
+        source: TransactionSource.message,
+        now: DateTime(2026, 7, 18, 12),
+      ),
+      throwsA(isA<IngestionSchemaException>()),
+    );
+  });
+
   test('floating point money is rejected', () {
     expect(
       () => AiIngestionBatch.parse(
