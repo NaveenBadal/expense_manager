@@ -6,15 +6,10 @@ verified tools to answer questions and complete user-approved actions.
 
 ## Product and design source of truth
 
-Read [`docs/design_system.md`](docs/design_system.md) before changing any
-user-facing experience. It defines the product promise, information
-architecture, Quiet Intelligence visual system, AI/SMS trust contract,
-accessibility rules, components, and implementation roadmap. Flutter primitives live in
-`lib/theme/app_tokens.dart` and `lib/theme/app_theme.dart`.
-
-Development APKs can update through signed GitHub prereleases. See
-[`docs/development_updates.md`](docs/development_updates.md) for signing,
-publishing, installation, and production-boundary instructions.
+Read [`docs/greenfield_rebuild.md`](docs/greenfield_rebuild.md) before changing
+any user-facing experience. It is the sole product, architecture, privacy, and
+Current design-language contract. The previous implementation is not a design
+or code reference.
 
 ## Development
 

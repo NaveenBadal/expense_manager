@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item>
-        <bitmap
-            android:gravity="fill"
-            android:src="@drawable/fund_flow_icon" />
-    </item>
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#4D788E" android:pathData="M30,45 C30,42.8 31.8,41 34,41 L65,41 C67.2,41 69,42.8 69,45 C69,47.2 67.2,49 65,49 L34,49 C31.8,49 30,47.2 30,45 Z" />
+    <path android:fillColor="#4D788E" android:pathData="M39,61 C39,58.8 40.8,57 43,57 L74,57 C76.2,57 78,58.8 78,61 C78,63.2 76.2,65 74,65 L43,65 C40.8,65 39,63.2 39,61 Z" />
+</vector>
