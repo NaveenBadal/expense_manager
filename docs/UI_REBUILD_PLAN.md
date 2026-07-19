@@ -59,7 +59,7 @@ Rebuilt:
 | 4 | Activity — dense, groupable, filterable ledger | done |
 | 5 | Rich chat — charts, tables, interactive cards, deep links | done |
 | 6 | Transaction detail as a route | done |
-| 7 | Settings, reorganised by intent | todo |
+| 7 | Settings, reorganised by intent | done |
 | 8 | Motion | todo |
 | 9 | Verification sweep | todo |
 
@@ -119,6 +119,15 @@ frozen. Two things found by looking: the review callout claimed the model
 non-confidence triggers), and a category outside the standard vocabulary was
 invisible because no chip carried it (the record's own category now leads
 the chip row).
+
+### Phase 7 — Settings
+
+Landed as `ui2/screens/settings_screen.dart`, grouped by intent: reading
+your money, the intelligence behind it, who sees what, how it looks, this
+app. Destructive rows (clear conversations, disconnect) now confirm — the
+old screen cleared on a single tap. The three legacy sub-sheets (connect,
+message intelligence, updates) are reused as-is; restyling them rides with
+the `lib/ui` deletion.
 
 ### Phase 9 — Verification sweep
 

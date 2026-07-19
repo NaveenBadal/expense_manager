@@ -3,12 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
-import '../../features/you/you_screen.dart';
 import '../shell/flow_nav.dart';
 import '../shell/flow_shell.dart';
 import 'activity_screen.dart';
 import 'chat_screen.dart';
 import 'review_screen.dart';
+import 'settings_screen.dart';
 import 'today_screen.dart';
 
 /// Wires the destinations into the shell.
@@ -76,7 +76,7 @@ class _FlowHomeState extends ConsumerState<FlowHome> {
       maxChildSize: .96,
       builder: (context, controller) => PrimaryScrollController(
         controller: controller,
-        child: const YouScreen(),
+        child: const SettingsScreen(),
       ),
     ),
   );
