@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_controller.dart';
 import '../../domain/import_audit.dart';
 import '../../ui/components/current_button.dart';
+import '../../ui/components/current_field.dart';
 import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
 
@@ -25,6 +26,10 @@ class _State extends ConsumerState<MessageIntelligenceSheet> {
   int? _selectedRun;
   bool _loading = true;
 
+  /// Outcome being shown. Null means everything.
+  ImportItemState? _filter;
+  final _search = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -38,7 +43,32 @@ class _State extends ConsumerState<MessageIntelligenceSheet> {
   @override
   void dispose() {
     _timer?.cancel();
+    _search.dispose();
     super.dispose();
+  }
+
+  /// Items matching the active outcome filter and search text.
+  ///
+  /// A run covers hundreds of messages and almost all of them are ordinary
+  /// successes. Finding the one that went wrong by scrolling past the rest is
+  /// the problem this replaces.
+  List<ImportItemRecord> get _visibleItems {
+    final query = _search.text.trim().toLowerCase();
+    return _items.where((item) {
+      if (_filter != null && item.state != _filter) return false;
+      if (query.isEmpty) return true;
+      return item.body.toLowerCase().contains(query) ||
+          (item.sender?.toLowerCase().contains(query) ?? false) ||
+          (item.reason?.toLowerCase().contains(query) ?? false);
+    }).toList();
+  }
+
+  Map<ImportItemState, int> get _counts {
+    final counts = <ImportItemState, int>{};
+    for (final item in _items) {
+      counts[item.state] = (counts[item.state] ?? 0) + 1;
+    }
+    return counts;
   }
 
   Future<void> _load({bool quiet = false}) async {
@@ -172,7 +202,10 @@ class _State extends ConsumerState<MessageIntelligenceSheet> {
       );
     }
     final selected = _runs.where((run) => run.id == _selectedRun).firstOrNull;
-    return ListView(
+    final counts = _counts;
+    final visible = _visibleItems;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
           height: 66,
@@ -227,36 +260,53 @@ class _State extends ConsumerState<MessageIntelligenceSheet> {
           const SizedBox(height: 14),
           _RunSummary(run: selected),
         ],
-        const SizedBox(height: 22),
-        Text('Messages', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 10),
-        for (final item in _items) ...[
-          _MessageCard(item: item),
-          const SizedBox(height: 9),
-        ],
-        if (_batches.isNotEmpty) ...[
-          const SizedBox(height: 14),
-          Text(
-            'Ollama exchanges',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Stored only on this device. API credentials are never included.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: context.current.muted),
-          ),
-          const SizedBox(height: 10),
-          for (final batch in _batches) _BatchCard(batch: batch),
-        ],
-        const SizedBox(height: 18),
-        CurrentButton(
-          label: 'Clear message intelligence history',
-          icon: Icons.delete_outline_rounded,
-          style: CurrentButtonStyle.text,
-          expand: true,
-          onPressed: _clearHistory,
+        const SizedBox(height: 16),
+        // Outcomes first. What someone comes here for is almost always the
+        // handful that did not become a transaction, so those are reachable
+        // in one tap rather than by scrolling past every success.
+        _OutcomeFilters(
+          counts: counts,
+          total: _items.length,
+          selected: _filter,
+          onChanged: (value) => setState(() => _filter = value),
+        ),
+        const SizedBox(height: 12),
+        CurrentField(
+          controller: _search,
+          hint: 'Search message text or sender',
+          prefixIcon: Icons.search_rounded,
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 14),
+        Expanded(
+          child: visible.isEmpty
+              ? Center(
+                  child: Text(
+                    _items.isEmpty
+                        ? 'No messages in this run.'
+                        : 'No messages match this view.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: context.current.muted,
+                    ),
+                  ),
+                )
+              // Built lazily. A run holds hundreds of messages, and building
+              // every card up front made opening this screen the slow part.
+              : ListView.builder(
+                  itemCount: visible.length + 1,
+                  itemBuilder: (context, index) {
+                    if (index == visible.length) {
+                      return _TechnicalSection(
+                        batches: _batches,
+                        onClear: _clearHistory,
+                      );
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: _MessageCard(item: visible[index]),
+                    );
+                  },
+                ),
         ),
       ],
     );
@@ -505,5 +555,193 @@ class _Empty extends StatelessWidget {
         CurrentButton(label: 'Check messages', onPressed: onCheck),
       ],
     ),
+  );
+}
+
+/// One-tap outcome filters carrying live counts.
+class _OutcomeFilters extends StatelessWidget {
+  const _OutcomeFilters({
+    required this.counts,
+    required this.total,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final Map<ImportItemState, int> counts;
+  final int total;
+  final ImportItemState? selected;
+  final ValueChanged<ImportItemState?> onChanged;
+
+  /// Ordered by how often someone needs them rather than by enum order:
+  /// problems first, routine successes last.
+  static const _order = [
+    ImportItemState.failed,
+    ImportItemState.uncertain,
+    ImportItemState.transaction,
+    ImportItemState.notTransaction,
+    ImportItemState.alreadySeen,
+    ImportItemState.queued,
+  ];
+
+  static String labelFor(ImportItemState state) => switch (state) {
+    ImportItemState.failed => 'Failed',
+    ImportItemState.uncertain => 'Held',
+    ImportItemState.transaction => 'Added',
+    ImportItemState.notTransaction => 'Not money',
+    ImportItemState.alreadySeen => 'Seen before',
+    ImportItemState.queued => 'Queued',
+  };
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 34,
+    child: ListView(
+      scrollDirection: Axis.horizontal,
+      children: [
+        _Chip(
+          label: 'All',
+          count: total,
+          active: selected == null,
+          onTap: () => onChanged(null),
+        ),
+        for (final state in _order)
+          if ((counts[state] ?? 0) > 0) ...[
+            const SizedBox(width: 8),
+            _Chip(
+              label: labelFor(state),
+              count: counts[state]!,
+              active: selected == state,
+              // Tapping an active chip clears it, so a filter is never a dead
+              // end that needs "All" to be found again.
+              onTap: () => onChanged(selected == state ? null : state),
+              accent: switch (state) {
+                ImportItemState.failed => context.current.expense,
+                ImportItemState.uncertain => context.current.review,
+                _ => null,
+              },
+            ),
+          ],
+      ],
+    ),
+  );
+}
+
+class _Chip extends StatelessWidget {
+  const _Chip({
+    required this.label,
+    required this.count,
+    required this.active,
+    required this.onTap,
+    this.accent,
+  });
+
+  final String label;
+  final int count;
+  final bool active;
+  final VoidCallback onTap;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = accent ?? context.current.intelligence;
+    return Semantics(
+      button: true,
+      selected: active,
+      label: '$label, $count messages',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? color : context.current.surface,
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: active ? color : context.current.rule),
+          ),
+          child: Text(
+            '$label $count',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: active ? Colors.white : context.current.ink,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Raw provider exchanges, collapsed by default.
+///
+/// Useful when something is genuinely wrong and noise the rest of the time,
+/// so it sits behind a disclosure instead of beneath every message.
+class _TechnicalSection extends StatefulWidget {
+  const _TechnicalSection({required this.batches, required this.onClear});
+  final List<ImportBatchRecord> batches;
+  final VoidCallback onClear;
+
+  @override
+  State<_TechnicalSection> createState() => _TechnicalSectionState();
+}
+
+class _TechnicalSectionState extends State<_TechnicalSection> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const SizedBox(height: 10),
+      if (widget.batches.isNotEmpty) ...[
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.code_rounded,
+                  size: 17,
+                  color: context.current.muted,
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    'Provider exchanges (${widget.batches.length})',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+                Icon(
+                  _open ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                  color: context.current.muted,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_open) ...[
+          Text(
+            'Stored only on this device. API credentials are never included.',
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: context.current.muted),
+          ),
+          const SizedBox(height: 10),
+          for (final batch in widget.batches) _BatchCard(batch: batch),
+        ],
+      ],
+      const SizedBox(height: 8),
+      CurrentButton(
+        label: 'Clear message intelligence history',
+        icon: Icons.delete_outline_rounded,
+        style: CurrentButtonStyle.text,
+        expand: true,
+        onPressed: widget.onClear,
+      ),
+      const SizedBox(height: 18),
+    ],
   );
 }

@@ -242,18 +242,12 @@ class AppController extends AsyncNotifier<AppState> {
                       onRequest: requests.add,
                       onResponse: responses.add,
                     );
-                await ref
-                    .read(storeProvider)
-                    .recordImportBatchRequest(
-                      batchId,
-                      _auditExchanges(requests),
-                    );
-                await ref
-                    .read(storeProvider)
-                    .recordImportBatchResponse(
-                      batchId,
-                      _auditExchanges(responses),
-                    );
+                // Notifications arrive one at a time while someone is using
+                // the app, so this path is the most latency sensitive of the
+                // two. Audit payloads are written after the fact.
+                unawaited(
+                  _recordBatchExchanges(batchId, requests, responses),
+                );
                 await ref
                     .read(storeProvider)
                     .commitIngestionBatch(
@@ -585,6 +579,9 @@ class AppController extends AsyncNotifier<AppState> {
       var imported = 0;
       var checked = 0;
       var skipped = seen.length;
+      // Held across the run and extended per batch, so each finished batch
+      // reaches the ledger immediately without re-reading the table.
+      var ledger = _value.transactions;
       final batches = _ingestionBatches(unseen);
       for (var wave = 0;
           wave < batches.length;
@@ -601,7 +598,7 @@ class AppController extends AsyncNotifier<AppState> {
               .finishImportRun(auditRunId, state: ImportRunState.stopped);
           state = AsyncData(
             _value.copyWith(
-              transactions: await ref.read(storeProvider).transactions(),
+              transactions: ledger,
               importStatus: ImportStatus(
                 phase: ImportPhase.stopped,
                 permission: permission,
@@ -659,25 +656,28 @@ class AppController extends AsyncNotifier<AppState> {
                       onRequest: requests.add,
                       onResponse: responses.add,
                     );
-                await ref
-                    .read(storeProvider)
-                    .recordImportBatchRequest(
-                      batchId,
-                      _auditExchanges(requests),
-                    );
-                await ref
-                    .read(storeProvider)
-                    .recordImportBatchResponse(
-                      batchId,
-                      _auditExchanges(responses),
-                    );
-                imported += await ref
+                // Audit payloads carry the whole request and response, several
+                // kilobytes per batch. They are for later inspection, so they
+                // are written off the critical path rather than delaying the
+                // transactions this batch just produced.
+                unawaited(
+                  _recordBatchExchanges(batchId, requests, responses),
+                );
+                final created = await ref
                     .read(storeProvider)
                     .commitIngestionBatch(
                       analysis,
                       runId: activeRunId,
                       batchId: batchId,
                     );
+                imported += created.length;
+                // Extend the list already held instead of re-reading every
+                // transaction. Re-querying cost grew with each batch, so a
+                // late batch paid for everything the earlier ones inserted.
+                if (created.isNotEmpty) {
+                  ledger = [...created, ...ledger]
+                    ..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
+                }
               } catch (error) {
                 if (requests.isNotEmpty) {
                   await ref
@@ -706,7 +706,7 @@ class AppController extends AsyncNotifier<AppState> {
                   .length;
               state = AsyncData(
                 _value.copyWith(
-                  transactions: await ref.read(storeProvider).transactions(),
+                  transactions: ledger,
                   importStatus: ImportStatus(
                     phase: ImportPhase.understanding,
                     permission: permission,
@@ -725,7 +725,7 @@ class AppController extends AsyncNotifier<AppState> {
           .finishImportRun(auditRunId, state: ImportRunState.completed);
       _clearLifecycleImportPause();
       current = _value.copyWith(
-        transactions: await ref.read(storeProvider).transactions(),
+        transactions: ledger,
         importStatus: ImportStatus(
           phase: ImportPhase.complete,
           permission: permission,
@@ -796,6 +796,32 @@ class AppController extends AsyncNotifier<AppState> {
     IngestionSchemaException(:final message) => message,
     _ => error.toString(),
   };
+
+  /// Writes the request and response payloads for later inspection.
+  ///
+  /// Failures are swallowed: an audit record is diagnostic, and losing one
+  /// must never surface as an import error over transactions that were
+  /// committed successfully.
+  Future<void> _recordBatchExchanges(
+    int batchId,
+    List<String> requests,
+    List<String> responses,
+  ) async {
+    try {
+      final store = ref.read(storeProvider);
+      if (requests.isNotEmpty) {
+        await store.recordImportBatchRequest(batchId, _auditExchanges(requests));
+      }
+      if (responses.isNotEmpty) {
+        await store.recordImportBatchResponse(
+          batchId,
+          _auditExchanges(responses),
+        );
+      }
+    } catch (_) {
+      // Diagnostic only.
+    }
+  }
 
   String _auditExchanges(List<String> values) {
     if (values.length == 1) return values.single;

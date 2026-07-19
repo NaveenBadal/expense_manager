@@ -748,14 +748,19 @@ class FundFlowStore {
     });
   }
 
-  Future<int> commitIngestionBatch(
+  /// Commits a batch and returns the transactions it created.
+  ///
+  /// Returning the rows lets a caller extend the list it already holds
+  /// instead of re-reading the whole table after every batch, which grows
+  /// more expensive with each batch as the ledger fills.
+  Future<List<MoneyTransaction>> commitIngestionBatch(
     AiIngestionBatch batch, {
     int? runId,
     int? batchId,
   }) async {
     final db = await database;
     return db.transaction((transaction) async {
-      var imported = 0;
+      final inserted = <MoneyTransaction>[];
       for (final result in batch.results) {
         final accepted = await transaction.insert('import_attempts', {
           'fingerprint': result.fingerprint,
@@ -767,7 +772,7 @@ class FundFlowStore {
         if (accepted != 0 && result.transaction != null) {
           final value = result.transaction!.toMap()..remove('id');
           transactionId = await transaction.insert('transactions', value);
-          imported++;
+          inserted.add(result.transaction!.copyWith(id: transactionId));
         }
         if (runId != null) {
           await transaction.update(
@@ -815,7 +820,7 @@ class FundFlowStore {
           ],
         );
       }
-      return imported;
+      return inserted;
     });
   }
 
