@@ -445,7 +445,11 @@ class _ProvenanceRow extends StatelessWidget {
         Icon(icon, size: 17, color: flow.inkFaint),
         const SizedBox(width: FlowSpace.md),
         SizedBox(
-          width: 92,
+          // Scales with the text setting: at 200% a fixed column would break
+          // "Confidence" mid-word. The multiplier is taken at the label's own
+          // font size because nonlinear scaling flattens for large values, so
+          // scale(92) itself would barely grow.
+          width: 92 * MediaQuery.textScalerOf(context).scale(12) / 12,
           child: Text(
             label,
             style: Theme.of(

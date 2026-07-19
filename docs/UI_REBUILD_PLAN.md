@@ -62,7 +62,7 @@ Rebuilt:
 | 7 | Settings, reorganised by intent | done |
 | 8 | Motion | done |
 | 8b | Legacy surfaces rebuilt in ui2, `lib/ui` + `lib/features` deleted | done |
-| 9 | Verification sweep | todo |
+| 9 | Verification sweep | done |
 
 ### Phase 4 — Activity
 
@@ -178,6 +178,17 @@ Every screen × {light, dark} × {100%, 200% text} × {phone, tablet}.
 
 Never verified visually to date: tablet side rail, 200% text on populated
 screens, the connected state of the composer.
+
+Swept on the emulator: phone light/dark at 100%, phone light at 200%
+(Today, Activity, Review, detail, settings), tablet 2560×1600 light/dark
+(side rail, Today, Activity, Review, chat sheet). One defect found and
+fixed: the provenance label column on the detail screen was a fixed 92px,
+which broke "Confidence" mid-word at 200% — it now scales by the
+multiplier taken at the label's own font size, because Android's
+nonlinear text scaling flattens for large values and `scale(92)` itself
+barely grows. Still unverified: the composer's connected/busy visual —
+it requires a live provider connection, whose key lives in secure
+storage and cannot be seeded from the db.
 
 ## How to verify — this matters more than it sounds
 
