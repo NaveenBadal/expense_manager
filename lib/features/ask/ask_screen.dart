@@ -189,7 +189,6 @@ class _State extends ConsumerState<AskScreen> {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: context.current.canvas,
     builder: (_) => DraggableScrollableSheet(
       expand: false,
       initialChildSize: .92,

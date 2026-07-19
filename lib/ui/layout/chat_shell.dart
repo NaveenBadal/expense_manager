@@ -72,7 +72,6 @@ class ChatShell extends StatelessWidget {
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: context.current.canvas,
     builder: (sheet) => DraggableScrollableSheet(
       expand: false,
       initialChildSize: .92,
