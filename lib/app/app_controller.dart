@@ -1031,9 +1031,17 @@ class AppController extends AsyncNotifier<AppState> {
       _activeRun = null;
       final message = switch (error) {
         AiRequestFailure(statusCode: 401 || 403) =>
-          'Reconnect intelligence in You.',
+          'Reconnect intelligence in settings.',
         AiRequestFailure(statusCode: 429) =>
           'The provider is busy. Try again shortly.',
+        // A retired or unknown model answers 404 or 410 and names itself in
+        // the body. Repeating that is the difference between someone
+        // changing one setting and having no idea what went wrong.
+        AiRequestFailure(statusCode: 404 || 410, :final detail?) =>
+          'The chat model is unavailable: $detail Choose another in '
+              'settings under Advanced options.',
+        AiRequestFailure(:final detail?) => detail,
+        AgentRunException(:final message) => message,
         _ =>
           'The answer could not be completed. Your activity was not changed.',
       };

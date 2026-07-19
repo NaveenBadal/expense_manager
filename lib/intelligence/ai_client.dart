@@ -235,9 +235,11 @@ class _ConfiguredAiProvider implements AgentProvider {
         .send(request)
         .timeout(const Duration(seconds: 45));
     if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
-      // Drain so the connection can be released before surfacing the error.
-      await streamed.stream.drain<void>();
-      throw AiRequestFailure(streamed.statusCode);
+      // Read rather than drain: the body carries the reason. A retired model
+      // answers 410 with the name and retirement date, which is the whole
+      // explanation, and discarding it left only a status code to report.
+      final body = await streamed.stream.bytesToString();
+      throw AiRequestFailure(streamed.statusCode, _providerError(body));
     }
 
     final contentBuffer = StringBuffer();
@@ -351,6 +353,29 @@ class _ConfiguredAiProvider implements AgentProvider {
 }
 
 class AiRequestFailure implements Exception {
-  const AiRequestFailure(this.statusCode);
+  const AiRequestFailure(this.statusCode, [this.detail]);
   final int statusCode;
+
+  /// What the provider said went wrong, when it said anything.
+  final String? detail;
+
+  @override
+  String toString() =>
+      detail == null ? 'Provider error $statusCode.' : detail!;
+}
+
+/// Extracts the human-readable reason from a provider error body.
+String? _providerError(String body) {
+  final text = body.trim();
+  if (text.isEmpty) return null;
+  try {
+    final decoded = jsonDecode(text);
+    if (decoded is Map && decoded['error'] != null) {
+      final message = decoded['error'].toString().trim();
+      if (message.isNotEmpty) return message;
+    }
+  } on FormatException {
+    // Not JSON; fall through and use a bounded slice of the raw body.
+  }
+  return text.length > 300 ? '${text.substring(0, 300)}…' : text;
 }

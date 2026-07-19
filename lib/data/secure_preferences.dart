@@ -39,7 +39,13 @@ class SecurePreferences {
         null || 'gpt-oss:20b' => defaultParsingModel,
         final value => value,
       },
-      aiChatModel: values[_chatModel] ?? defaultChatModel,
+      // An install that saved a since-retired default would otherwise keep
+      // sending every question to a model that only returns errors.
+      aiChatModel: switch (values[_chatModel]) {
+        null => defaultChatModel,
+        final value when retiredChatModels.contains(value) => defaultChatModel,
+        final value => value,
+      },
     );
   }
 

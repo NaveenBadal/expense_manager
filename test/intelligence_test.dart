@@ -12,6 +12,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  _retiredModelSurfacesProviderReason();
   test('provider adapter sends tools and decodes native tool calls', () async {
     late Map<String, dynamic> requestBody;
     final client = AiClient(
@@ -334,5 +335,37 @@ void main() {
 
     expect(calls, 2);
     expect(result.results.single.decision, IngestionDecision.notTransaction);
+  });
+}
+
+void _retiredModelSurfacesProviderReason() {
+  test('a retired model reports what the provider said', () async {
+    // Ollama answers 410 and names the model and its retirement date. The
+    // body used to be drained, leaving only a status code to report.
+    final client = AiClient(
+      client: MockClient((request) async => http.Response(
+            jsonEncode({
+              'error':
+                  'qwen3-coder:480b was retired at 2026-07-15 00:00:00 PDT',
+            }),
+            410,
+          )),
+    );
+    addTearDown(client.close);
+
+    final provider = client.configured(
+      endpoint: 'https://ollama.com',
+      apiKey: 'k',
+      model: 'qwen3-coder:480b-cloud',
+    );
+
+    await expectLater(
+      provider.nextTurn(messages: const [], tools: const []),
+      throwsA(
+        isA<AiRequestFailure>()
+            .having((e) => e.statusCode, 'statusCode', 410)
+            .having((e) => e.detail, 'detail', contains('was retired')),
+      ),
+    );
   });
 }

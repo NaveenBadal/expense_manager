@@ -11,8 +11,27 @@ const int minimumLookbackDays = 7;
 /// tools, so the small fast model is the right default. Chat drives a
 /// multi-tool agent loop where a stronger model reaches an answer in fewer
 /// turns, which is usually faster end to end despite the larger size.
+///
+/// Both defaults are verified against the live provider rather than chosen
+/// from familiarity. Hosted models are retired on a schedule, and naming a
+/// retired one makes every request fail with no way for someone to tell
+/// that the model, rather than their question, was the problem.
 const String defaultParsingModel = 'gpt-oss:20b-cloud';
-const String defaultChatModel = 'qwen3-coder:480b-cloud';
+const String defaultChatModel = 'gpt-oss:120b-cloud';
+
+/// Chat models that were shipped as defaults and have since been retired by
+/// the provider. Stored preferences are migrated off these on read, so an
+/// install that already saved one is not stranded on a model that can only
+/// return errors.
+const Set<String> retiredChatModels = {
+  'qwen3-coder:480b-cloud',
+  'qwen3-coder:480b',
+  'deepseek-v3.1:671b-cloud',
+  'glm-4.6:cloud',
+  'glm-4.6',
+  'kimi-k2:1t-cloud',
+  'minimax-m2:cloud',
+};
 
 class AppPreferences {
   const AppPreferences({
