@@ -6,6 +6,7 @@ import '../../app/app_state.dart';
 import '../../ui/components/current_button.dart';
 import '../../ui/components/current_field.dart';
 import '../../ui/components/current_sheet.dart';
+import '../../domain/preferences.dart';
 
 class ConnectIntelligenceSheet extends ConsumerStatefulWidget {
   const ConnectIntelligenceSheet({super.key});
@@ -21,6 +22,9 @@ class _State extends ConsumerState<ConnectIntelligenceSheet> {
   late final _model = TextEditingController(
     text: ref.read(appControllerProvider).value?.preferences.aiModel,
   );
+  late final _chatModel = TextEditingController(
+    text: ref.read(appControllerProvider).value?.preferences.aiChatModel,
+  );
   bool _showKey = false;
   bool _advanced = false;
   bool _keyMissing = false;
@@ -29,6 +33,7 @@ class _State extends ConsumerState<ConnectIntelligenceSheet> {
     _key.dispose();
     _endpoint.dispose();
     _model.dispose();
+    _chatModel.dispose();
     super.dispose();
   }
 
@@ -89,8 +94,20 @@ class _State extends ConsumerState<ConnectIntelligenceSheet> {
             const SizedBox(height: 12),
             CurrentField(
               controller: _model,
-              label: 'Model',
-              hint: 'gpt-oss:20b',
+              label: 'Parsing model',
+              helper:
+                  'Reads transaction messages. A small fast model is best: '
+                  'extraction is a single structured pass.',
+              hint: defaultParsingModel,
+            ),
+            const SizedBox(height: 12),
+            CurrentField(
+              controller: _chatModel,
+              label: 'Chat model',
+              helper:
+                  'Answers your questions. A stronger model reaches an answer '
+                  'in fewer turns, which is usually faster end to end.',
+              hint: defaultChatModel,
             ),
           ],
         ],
@@ -109,6 +126,9 @@ class _State extends ConsumerState<ConnectIntelligenceSheet> {
           key: _key.text.trim(),
           endpoint: _endpoint.text.trim(),
           model: _model.text.trim(),
+          chatModel: _chatModel.text.trim().isEmpty
+              ? null
+              : _chatModel.text.trim(),
         );
     if (ok && mounted) Navigator.pop(context);
   }

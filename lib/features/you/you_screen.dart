@@ -42,7 +42,7 @@ class YouScreen extends ConsumerWidget {
                       title: 'AI connection',
                       detail: switch (app.aiConnection) {
                         AiConnection.connected =>
-                          'Connected · ${app.preferences.aiModel}',
+                          'Connected · ${app.preferences.aiModel} · ${app.preferences.aiChatModel}',
                         AiConnection.checking => 'Checking connection…',
                         AiConnection.rejected => 'Connection needs attention',
                         _ => 'Not connected',
@@ -354,13 +354,17 @@ class _Stepper extends StatelessWidget {
     children: [
       IconButton(
         tooltip: 'Decrease days',
-        onPressed: () => onChanged((value - 7).clamp(7, 180)),
+        onPressed: () => onChanged(
+          (value - 7).clamp(minimumLookbackDays, maximumLookbackDays),
+        ),
         icon: const Icon(Icons.remove_rounded),
       ),
       Text('${value}d', style: Theme.of(context).textTheme.labelLarge),
       IconButton(
         tooltip: 'Increase days',
-        onPressed: () => onChanged((value + 7).clamp(7, 180)),
+        onPressed: () => onChanged(
+          (value + 7).clamp(minimumLookbackDays, maximumLookbackDays),
+        ),
         icon: const Icon(Icons.add_rounded),
       ),
     ],

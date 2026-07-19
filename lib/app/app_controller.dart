@@ -356,6 +356,7 @@ class AppController extends AsyncNotifier<AppState> {
     required String key,
     required String endpoint,
     required String model,
+    String? chatModel,
   }) async {
     state = AsyncData(
       _value.copyWith(aiConnection: AiConnection.checking, clearError: true),
@@ -377,6 +378,7 @@ class AppController extends AsyncNotifier<AppState> {
     final prefs = _value.preferences.copyWith(
       aiEndpoint: endpoint,
       aiModel: model,
+      aiChatModel: chatModel,
     );
     await ref.read(securePreferencesProvider).write(prefs);
     state = AsyncData(

@@ -248,7 +248,10 @@ class LocalMcpServer {
           'appearance': McpSchema.string(values: ['system', 'light', 'dark']),
           'currency': McpSchema.string(),
           'hideAmounts': McpSchema.boolean(),
-          'messageLookbackDays': McpSchema.integer(minimum: 7, maximum: 180),
+          'messageLookbackDays': McpSchema.integer(
+            minimum: minimumLookbackDays,
+            maximum: maximumLookbackDays,
+          ),
           'captureNotifications': McpSchema.boolean(),
         },
       ),
