@@ -8,6 +8,7 @@ import '../../features/ask/ask_screen.dart';
 import '../../features/you/you_screen.dart';
 import '../shell/flow_nav.dart';
 import '../shell/flow_shell.dart';
+import 'review_screen.dart';
 import 'today_screen.dart';
 
 /// Wires the destinations into the shell.
@@ -48,7 +49,7 @@ class _FlowHomeState extends ConsumerState<FlowHome> {
         onOpenSettings: _openSettings,
       ),
       activity: const ActivityScreen(),
-      review: const ActivityScreen(),
+      review: const ReviewScreen(),
     );
   }
 
