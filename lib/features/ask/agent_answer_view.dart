@@ -24,20 +24,44 @@ class AgentAnswerView extends StatelessWidget {
   final ValueChanged<MoneyTransaction> onTransaction;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      for (final part in parts) ...[
-        _PartView(
-          part: part,
-          transactions: transactions,
-          onFollowUp: onFollowUp,
-          onTransaction: onTransaction,
-        ),
-        const SizedBox(height: 18),
+  Widget build(BuildContext context) {
+    // A change stated in a metric row must not be restated by the comparison
+    // beneath it: one finding should not look like two.
+    final metricStatesChange = parts.any(
+      (part) =>
+          part.kind == AgentPartKind.metricRow &&
+          (part.data['metrics'] as List? ?? const []).whereType<Map>().any(
+            (metric) => metric['changeFraction'] is num,
+          ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var index = 0; index < parts.length; index++) ...[
+          _PartView(
+            part: parts[index],
+            transactions: transactions,
+            onFollowUp: onFollowUp,
+            onTransaction: onTransaction,
+            deltaAlreadyShown: metricStatesChange,
+          ),
+          if (index != parts.length - 1)
+            SizedBox(height: _gapAfter(parts[index].kind)),
+        ],
       ],
-    ],
-  );
+    );
+  }
+
+  /// Vertical rhythm follows meaning rather than a single constant. A
+  /// conclusion and the figures proving it belong to one block; a source note
+  /// or follow-up sits apart from the answer it annotates.
+  static double _gapAfter(AgentPartKind kind) => switch (kind) {
+    AgentPartKind.conclusion => 14,
+    AgentPartKind.metricRow => 22,
+    AgentPartKind.narrative || AgentPartKind.insight => 20,
+    AgentPartKind.sourceNote => 10,
+    _ => 26,
+  };
 }
 
 class _PartView extends StatelessWidget {
@@ -46,9 +70,13 @@ class _PartView extends StatelessWidget {
     required this.transactions,
     required this.onFollowUp,
     required this.onTransaction,
+    this.deltaAlreadyShown = false,
   });
 
   final AgentPart part;
+
+  /// True when a metric row above already carried the same change figure.
+  final bool deltaAlreadyShown;
   final List<MoneyTransaction> transactions;
   final ValueChanged<String> onFollowUp;
   final ValueChanged<MoneyTransaction> onTransaction;
@@ -64,7 +92,10 @@ class _PartView extends StatelessWidget {
       style: Theme.of(context).textTheme.bodyLarge,
     ),
     AgentPartKind.metricRow => _MetricRow(data: part.data),
-    AgentPartKind.comparison => _Comparison(data: part.data),
+    AgentPartKind.comparison => _Comparison(
+      data: part.data,
+      deltaAlreadyShown: deltaAlreadyShown,
+    ),
     AgentPartKind.breakdown => _Breakdown(data: part.data),
     AgentPartKind.transactionList => _TransactionEvidence(
       ids: _ids,
@@ -220,8 +251,9 @@ bool _isSpending(String? label) {
 }
 
 class _Comparison extends StatelessWidget {
-  const _Comparison({required this.data});
+  const _Comparison({required this.data, this.deltaAlreadyShown = false});
   final Map<String, Object?> data;
+  final bool deltaAlreadyShown;
   @override
   Widget build(BuildContext context) {
     final title = data['title']?.toString() ?? 'Compared with before';
@@ -248,6 +280,7 @@ class _Comparison extends StatelessWidget {
               currency != null) ...[
             const SizedBox(height: 14),
             ComparisonBars(
+              showDelta: !deltaAlreadyShown,
               currentLabel: data['currentLabel']?.toString() ?? 'This period',
               currentMinor: currentMinor,
               previousLabel:

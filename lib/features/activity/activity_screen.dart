@@ -76,7 +76,12 @@ class _State extends ConsumerState<ActivityScreen> {
                     importing: app.importStatus.working,
                   )
                 : ListView(
-                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 40),
+                    padding: EdgeInsets.fromLTRB(
+                      24,
+                      4,
+                      24,
+                      40 + MediaQuery.paddingOf(context).bottom,
+                    ),
                     children: [
                       _MonthSummary(
                         values: app.transactions,

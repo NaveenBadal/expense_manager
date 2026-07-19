@@ -84,9 +84,13 @@ class ChatShell extends StatelessWidget {
             // The record supplies its own scrollable, so the drag controller
             // is handed down through a PrimaryScrollController rather than
             // nesting a second scroll view inside this one.
-            child: PrimaryScrollController(
-              controller: controller,
-              child: Builder(builder: builder),
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: PrimaryScrollController(
+                controller: controller,
+                child: Builder(builder: builder),
+              ),
             ),
           ),
         ],

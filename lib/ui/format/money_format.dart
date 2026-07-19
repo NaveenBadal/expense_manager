@@ -38,7 +38,9 @@ String formatMoney(int minor, String currency, {bool hidden = false}) {
   final divisor = digits == 0 ? 1 : _pow10(digits);
   final value = minor / divisor;
   final whole = digits == 0 || minor % divisor == 0;
-  return NumberFormat.currency(
+  // simpleCurrency resolves the code to its symbol (INR -> the rupee sign).
+  // NumberFormat.currency would print the code itself as the symbol.
+  return NumberFormat.simpleCurrency(
     locale: _localeForCurrency[code],
     name: code,
     decimalDigits: whole ? 0 : digits,

@@ -8,6 +8,7 @@ import '../../domain/finance_summary.dart';
 import '../../domain/transaction.dart';
 import '../../ui/components/current_button.dart';
 import '../../ui/components/current_field.dart';
+import '../../ui/components/current_edge_fade.dart';
 import '../../ui/components/current_header.dart';
 import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
@@ -73,7 +74,8 @@ class _State extends ConsumerState<AskScreen> {
                             onConnect: _connect,
                             onAsk: _ask,
                           )
-                        : Builder(
+                        : CurrentEdgeFade(
+                            child: Builder(
                             builder: (context) {
                               final proposal = app.pendingAgentProposal;
                               final showStatus =
@@ -122,6 +124,7 @@ class _State extends ConsumerState<AskScreen> {
                                 },
                               );
                             },
+                          ),
                           ),
                   ),
                   CurrentField(
@@ -398,7 +401,14 @@ class _MessageView extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  'Calculated from ${message.supportingTransactionIds.length} local transactions',
+                  // Counts the records cited as evidence, not everything the
+                  // answer examined. The source note states the full scope,
+                  // and the two must not appear to disagree.
+                  message.supportingTransactionIds.length == 1
+                      ? 'Checked against 1 local transaction'
+                      : 'Checked against '
+                            '${message.supportingTransactionIds.length} '
+                            'local transactions',
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: context.current.muted),

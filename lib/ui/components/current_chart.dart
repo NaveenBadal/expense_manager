@@ -197,6 +197,7 @@ class ComparisonBars extends StatelessWidget {
     required this.previousMinor,
     required this.currency,
     this.spendingContext = true,
+    this.showDelta = true,
   });
 
   final String currentLabel;
@@ -205,6 +206,10 @@ class ComparisonBars extends StatelessWidget {
   final int previousMinor;
   final String currency;
   final bool spendingContext;
+
+  /// Set false when the same change is already stated nearby. Repeating one
+  /// figure twice on a screen reads as two findings rather than one.
+  final bool showDelta;
 
   @override
   Widget build(BuildContext context) {
@@ -215,7 +220,7 @@ class ComparisonBars extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (fraction != null) ...[
+        if (fraction != null && showDelta) ...[
           DeltaChip(fraction: fraction, spendingContext: spendingContext),
           const SizedBox(height: 14),
         ],
