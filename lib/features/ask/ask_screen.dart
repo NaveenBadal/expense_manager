@@ -272,37 +272,41 @@ class _EmptyAsk extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!connected) {
-      return ListView(
-        children: [
-          const SizedBox(height: 58),
-          Icon(
-            Icons.lock_outline_rounded,
-            size: 32,
-            color: context.current.intelligence,
+      // Centred rather than top-aligned: a short message pinned to the top
+      // of a tall screen leaves a void that reads as content failing to load.
+      return Center(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.auto_awesome_outlined,
+                size: 30,
+                color: context.current.intelligence,
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Ask anything about your money.',
+                style: Theme.of(context).textTheme.headlineLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Connect a provider to read transaction messages and answer '
+                'questions. Your activity stays on this device.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: context.current.muted),
+              ),
+              const SizedBox(height: 22),
+              CurrentButton(
+                label: 'Connect intelligence',
+                icon: Icons.link_rounded,
+                onPressed: onConnect,
+              ),
+            ],
           ),
-          const SizedBox(height: 20),
-          Text(
-            'Connect intelligence to start asking.',
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
-          const SizedBox(height: 14),
-          Text(
-            'Your provider helps understand transaction messages and answer questions. '
-            'Normalized activity and conversation history stay on this device.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyLarge?.copyWith(color: context.current.muted),
-          ),
-          const SizedBox(height: 24),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: CurrentButton(
-              label: 'Connect intelligence',
-              icon: Icons.link_rounded,
-              onPressed: onConnect,
-            ),
-          ),
-        ],
+        ),
       );
     }
     final now = DateTime.now();
@@ -338,12 +342,7 @@ class _EmptyAsk extends StatelessWidget {
               ),
             ),
         const SizedBox(height: 28),
-        for (final prompt in [
-          'Give me my complete financial briefing',
-          'What changed from last month?',
-          'Are there any unusual transactions?',
-          'Could any transactions be duplicates?',
-        ])
+        for (final prompt in _suggestions(app))
           InkWell(
             onTap: () => onAsk(prompt),
             borderRadius: BorderRadius.circular(14),
@@ -364,6 +363,40 @@ class _EmptyAsk extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Openers drawn from the records actually present.
+///
+/// A fixed list asks the same four questions of an empty ledger and a busy
+/// one. Naming the category someone actually spends in shows the app has
+/// already read their data, which is the claim the screen is making.
+List<String> _suggestions(AppState app) {
+  final now = DateTime.now();
+  final month = app.transactions.where(
+    (e) =>
+        e.direction == TransactionDirection.outgoing &&
+        e.occurredAt.year == now.year &&
+        e.occurredAt.month == now.month,
+  );
+  final byCategory = <String, int>{};
+  for (final item in month) {
+    byCategory[item.category] =
+        (byCategory[item.category] ?? 0) + item.amountMinor;
+  }
+  final leading = byCategory.entries.isEmpty
+      ? null
+      : byCategory.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
+  final review = app.transactions
+      .where((e) => e.reviewState == ReviewState.needsReview)
+      .length;
+
+  return [
+    'Give me my complete financial briefing',
+    if (leading != null) 'Why is $leading my biggest category?',
+    if (review > 0) 'Show the $review transactions needing review',
+    'What changed from last month?',
+    'Are there any unusual transactions?',
+  ].take(4).toList();
 }
 
 class _MessageView extends StatelessWidget {
