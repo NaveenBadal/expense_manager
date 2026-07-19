@@ -10,6 +10,7 @@ import '../../domain/transaction.dart';
 import '../../features/activity/transaction_editor_sheet.dart';
 import '../../ui/format/money_format.dart';
 import '../flow_categories.dart';
+import '../motion/flow_motion_widgets.dart';
 import '../sheets/confirm_delete_sheet.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
@@ -31,7 +32,7 @@ class TransactionDetailScreen extends ConsumerWidget {
   /// whatever is on screen — including the chat sheet — and pops back to it.
   static Future<void> open(BuildContext context, int id) =>
       Navigator.of(context, rootNavigator: true).push(
-        MaterialPageRoute<void>(
+        FlowPageRoute<void>(
           builder: (route) => TransactionDetailScreen(transactionId: id),
         ),
       );

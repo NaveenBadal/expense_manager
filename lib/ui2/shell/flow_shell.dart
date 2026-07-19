@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../motion/flow_motion_widgets.dart';
 import '../tokens/flow_palette.dart';
 import 'flow_composer.dart';
 import 'flow_nav.dart';
@@ -52,9 +53,11 @@ class FlowShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stack = IndexedStack(
+    // The fade wraps the stack rather than replacing it: destinations stay
+    // alive and keep their scroll position, and the switch reads as arrival.
+    final stack = FlowIndexFade(
       index: _index,
-      children: [today, activity, review],
+      child: IndexedStack(index: _index, children: [today, activity, review]),
     );
     final composer = FlowComposer(
       onOpen: onOpenChat,
@@ -188,10 +191,8 @@ class _SideItem extends StatelessWidget {
                 color: selected ? flow.accent : flow.inkFaint,
               ),
               const SizedBox(height: 4),
-              Text(
-                badge > 0 ? '$label ($badge)' : label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              FlowAnimatedCount(
+                text: badge > 0 ? '$label ($badge)' : label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: selected ? flow.ink : flow.inkFaint,
                 ),

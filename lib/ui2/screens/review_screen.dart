@@ -8,6 +8,7 @@ import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
 import '../../ui/format/money_format.dart';
 import '../flow_categories.dart';
+import '../motion/flow_motion_widgets.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
 import '../tokens/flow_type.dart';
@@ -84,8 +85,8 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                       style: Theme.of(context).textTheme.headlineMedium,
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      total == 1 ? '1 left' : '$total left',
+                    FlowAnimatedCount(
+                      text: total == 1 ? '1 left' : '$total left',
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: flow.inkSoft),
@@ -94,8 +95,8 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                 ),
               ),
               if (_clearedThisSession > 0)
-                Text(
-                  '$_clearedThisSession done',
+                FlowAnimatedCount(
+                  text: '$_clearedThisSession done',
                   style: Theme.of(
                     context,
                   ).textTheme.labelMedium?.copyWith(color: flow.income),
@@ -106,10 +107,12 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: FlowSpace.xl),
-            child: _ReviewCard(
-              key: ValueKey(current.id),
-              item: current,
-              onCategory: (value) => _recategorise(current, value),
+            child: FlowCardAdvance(
+              child: _ReviewCard(
+                key: ValueKey(current.id),
+                item: current,
+                onCategory: (value) => _recategorise(current, value),
+              ),
             ),
           ),
         ),

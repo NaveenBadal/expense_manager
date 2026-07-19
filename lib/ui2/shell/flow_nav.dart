@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../motion/flow_motion_widgets.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
 
@@ -129,11 +130,11 @@ class _Item extends StatelessWidget {
                             color: flow.attention,
                             borderRadius: FlowRadius.pill,
                           ),
-                          child: Text(
+                          child: FlowAnimatedCount(
                             // Not capped at 99: a review backlog is a job to
                             // be sized, and "99+" hides whether that means an
                             // evening or a minute.
-                            badge > 999 ? '999+' : '$badge',
+                            text: badge > 999 ? '999+' : '$badge',
                             style: Theme.of(context).textTheme.labelSmall
                                 ?.copyWith(
                                   color: Colors.white,

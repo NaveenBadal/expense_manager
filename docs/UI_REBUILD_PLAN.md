@@ -60,7 +60,8 @@ Rebuilt:
 | 5 | Rich chat — charts, tables, interactive cards, deep links | done |
 | 6 | Transaction detail as a route | done |
 | 7 | Settings, reorganised by intent | done |
-| 8 | Motion | todo |
+| 8 | Motion | done |
+| 8b | Legacy surfaces rebuilt in ui2, `lib/ui` + `lib/features` deleted | todo |
 | 9 | Verification sweep | todo |
 
 ### Phase 4 — Activity
@@ -128,6 +129,38 @@ app. Destructive rows (clear conversations, disconnect) now confirm — the
 old screen cleared on a single tap. The three legacy sub-sheets (connect,
 message intelligence, updates) are reused as-is; restyling them rides with
 the `lib/ui` deletion.
+
+### Phase 8 — Motion
+
+Landed as `ui2/motion/flow_motion_widgets.dart`, four named moments built on
+the `FlowMotion` tokens, all collapsing under reduced motion:
+
+- `FlowIndexFade` wraps the shell's `IndexedStack` — destinations fade in on
+  switch without losing scroll position.
+- `FlowCardAdvance` on the review card — a confirm visibly consumes the card
+  rather than rewriting it in place.
+- `FlowPageRoute` for the transaction detail entrance — fade with a slight
+  rise instead of the stock side slide.
+- `FlowAnimatedCount` ticks counts over (review "N left", "N done", nav
+  badge, side-rail label).
+
+Verified on the emulator: confirm advanced Zomato → Amazon with 14→13
+everywhere the count appears.
+
+### Phase 8b — No legacy anywhere
+
+Decision: **every** legacy surface is redesigned in ui2 — nothing from
+`lib/ui` or `lib/features` survives, not even restyled. Order:
+
+1. Move `ui/format/money_format.dart` → `ui2/format/money_format.dart`.
+2. Rebuild `transaction_editor_sheet` as a ui2 sheet.
+3. Rebuild the three settings sub-sheets (connect intelligence, message
+   intelligence, updates) in ui2 style.
+4. Rebuild onboarding (`app_experience.dart` also leans on current_mark /
+   current_button / current_colors).
+5. Delete `lib/ui` and `lib/features`; `flutter analyze` after each slice.
+
+Runs before the verification sweep so the sweep covers the new surfaces.
 
 ### Phase 9 — Verification sweep
 
