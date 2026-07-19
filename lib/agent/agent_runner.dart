@@ -392,9 +392,10 @@ For every question about an updater, app updates, the latest version, or whether
 Finish every read-only answer by calling answer_compose. Its parts use these exact shapes:
 - {"type":"conclusion","text":"direct answer"}
 - {"type":"narrative","text":"short explanation"}
-- {"type":"metricRow","metrics":[{"label":"Spent","amountMinor":1234,"currency":"INR"}]}
-- {"type":"comparison","title":"This month vs last month","detail":"grounded explanation"}
+- {"type":"metricRow","metrics":[{"label":"Spent","amountMinor":1234,"currency":"INR","changeFraction":0.12}]}
+- {"type":"comparison","title":"This month vs last month","currentLabel":"July","currentMinor":1234,"previousLabel":"June","previousMinor":1100,"currency":"INR","detail":"grounded explanation"}
 - {"type":"breakdown","title":"By category","rows":[{"label":"Food","amountMinor":1234,"currency":"INR"}]}
+Optional numeric fields are drawn as charts, so supply them whenever a capability returned the values. changeFraction is the signed change against the previous period as a fraction, so 0.12 means twelve percent higher; include it only when a capability actually returned both periods. Order breakdown rows largest first. Never estimate any of these numbers.
 - {"type":"transactionList","transactionIds":[1,2]}
 - {"type":"insight","text":"useful observation"}
 - {"type":"sourceNote","text":"period, filters, tools and transaction count"}

@@ -5,6 +5,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../../agent/agent_presentation.dart';
 import '../../domain/transaction.dart';
+import '../../ui/components/current_chart.dart';
 import '../../ui/foundation/current_colors.dart';
 import '../../ui/format/money_format.dart';
 
@@ -139,6 +140,22 @@ class _MetricRow extends StatelessWidget {
             .take(4)
             .toList();
     if (values.isEmpty) return const SizedBox.shrink();
+
+    // A lone metric is the answer itself, so it gets hero treatment rather
+    // than being shrunk into a row of equals.
+    if (values.length == 1) {
+      final value = Map<Object?, Object?>.from(values.single);
+      final amount = value['amountMinor'];
+      if (amount is num && value['currency'] != null) {
+        return HeroAmount(
+          label: value['label']?.toString() ?? 'Total',
+          amountMinor: amount.toInt(),
+          currency: value['currency'].toString(),
+          deltaFraction: _fraction(value['changeFraction']),
+          spendingContext: _isSpending(value['label']?.toString()),
+        );
+      }
+    }
     return Wrap(
       spacing: 24,
       runSpacing: 16,
@@ -151,6 +168,7 @@ class _MetricRow extends StatelessWidget {
               final display = amount is num && value['currency'] != null
                   ? formatMoney(amount.toInt(), value['currency'].toString())
                   : value['value']?.toString() ?? '—';
+              final change = _fraction(value['changeFraction']);
               return ConstrainedBox(
                 constraints: const BoxConstraints(minWidth: 120, maxWidth: 210),
                 child: Column(
@@ -169,8 +187,18 @@ class _MetricRow extends StatelessWidget {
                           ?.copyWith(
                             fontFamily: 'Space Grotesk',
                             fontWeight: FontWeight.w700,
+                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
                     ),
+                    if (change != null) ...[
+                      const SizedBox(height: 7),
+                      DeltaChip(
+                        fraction: change,
+                        spendingContext: _isSpending(
+                          value['label']?.toString(),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               );
@@ -181,6 +209,16 @@ class _MetricRow extends StatelessWidget {
   }
 }
 
+double? _fraction(Object? value) => value is num ? value.toDouble() : null;
+
+/// Whether a rise in this metric is adverse. Spending up is bad; money in
+/// going up is not.
+bool _isSpending(String? label) {
+  final text = label?.toLowerCase() ?? '';
+  const incoming = ['received', 'income', 'credited', 'in', 'earned', 'refund'];
+  return !incoming.any(text.contains);
+}
+
 class _Comparison extends StatelessWidget {
   const _Comparison({required this.data});
   final Map<String, Object?> data;
@@ -188,6 +226,9 @@ class _Comparison extends StatelessWidget {
   Widget build(BuildContext context) {
     final title = data['title']?.toString() ?? 'Compared with before';
     final detail = data['detail']?.toString() ?? data['text']?.toString() ?? '';
+    final currentMinor = (data['currentMinor'] as num?)?.toInt();
+    final previousMinor = (data['previousMinor'] as num?)?.toInt();
+    final currency = data['currency']?.toString();
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -200,6 +241,21 @@ class _Comparison extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title, style: Theme.of(context).textTheme.titleMedium),
+          // Drawn only when the agent supplied both periods; otherwise the
+          // prose stands alone rather than inventing a shape for one number.
+          if (currentMinor != null &&
+              previousMinor != null &&
+              currency != null) ...[
+            const SizedBox(height: 14),
+            ComparisonBars(
+              currentLabel: data['currentLabel']?.toString() ?? 'This period',
+              currentMinor: currentMinor,
+              previousLabel:
+                  data['previousLabel']?.toString() ?? 'Previous period',
+              previousMinor: previousMinor,
+              currency: currency,
+            ),
+          ],
           if (detail.isNotEmpty) ...[
             const SizedBox(height: 7),
             Text(detail, style: TextStyle(color: context.current.muted)),
@@ -225,6 +281,7 @@ class _Breakdown extends StatelessWidget {
         .map((value) => value.toInt())
         .toList();
     final maximum = amounts.isEmpty ? 1 : max(1, amounts.reduce(max));
+    final total = amounts.fold<int>(0, (sum, value) => sum + value);
     if (rows.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,48 +293,24 @@ class _Breakdown extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        for (final raw in rows) ...[
+        for (var index = 0; index < rows.length; index++)
           Builder(
             builder: (_) {
-              final row = Map<Object?, Object?>.from(raw);
+              final row = Map<Object?, Object?>.from(rows[index]);
               final amount = (row['amountMinor'] as num?)?.toInt() ?? 0;
               final currency = row['currency']?.toString();
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 13),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(row['label']?.toString() ?? 'Other'),
-                        ),
-                        if (currency != null)
-                          Text(
-                            formatMoney(amount, currency),
-                            style: const TextStyle(fontFamily: 'Space Grotesk'),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 7),
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: FractionallySizedBox(
-                        widthFactor: max(.04, amount / maximum),
-                        child: Container(
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: context.current.intelligence,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              return MagnitudeRow(
+                label: row['label']?.toString() ?? 'Other',
+                amountMinor: amount,
+                currency: currency ?? '',
+                maximumMinor: maximum,
+                share: total > 0 ? amount / total : null,
+                // The largest contributor is usually what the question was
+                // about, so it carries the accent and the rest recede.
+                emphasis: index == 0,
               );
             },
           ),
-        ],
       ],
     );
   }
