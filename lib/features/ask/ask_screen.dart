@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_controller.dart';
@@ -10,11 +11,11 @@ import '../../ui/components/current_button.dart';
 import '../../ui/components/current_field.dart';
 import '../../ui/components/current_edge_fade.dart';
 import '../../ui/components/current_header.dart';
-import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
 import '../../ui/format/money_format.dart';
 import '../../ui/layout/chat_shell.dart';
 import '../activity/activity_screen.dart';
+import '../activity/transaction_editor_sheet.dart';
 import '../you/connect_intelligence_sheet.dart';
 import '../you/you_screen.dart';
 import 'agent_answer_view.dart';
@@ -119,6 +120,11 @@ class _State extends ConsumerState<AskScreen> {
                                     return _MessageView(
                                       message: app.conversation[i],
                                       transactions: app.transactions,
+                                      precedingQuestion: i > 0 &&
+                                              app.conversation[i - 1].author ==
+                                                  MessageAuthor.person
+                                          ? app.conversation[i - 1].text
+                                          : null,
                                       onFollowUp: _ask,
                                       onTransaction: _showTransaction,
                                     );
@@ -241,31 +247,15 @@ class _State extends ConsumerState<AskScreen> {
     ref.read(appControllerProvider.notifier).ask(value);
   }
 
-  Future<void> _showTransaction(
-    MoneyTransaction item,
-  ) => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => CurrentSheet(
-      title: item.merchant,
-      explanation:
-          '${item.category} · ${item.direction == TransactionDirection.incoming ? 'Money in' : 'Money out'}',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            formatMoney(item.amountMinor, item.currency),
-            style: Theme.of(context).textTheme.headlineLarge,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'This transaction was opened from the evidence used in the answer.',
-            style: TextStyle(color: context.current.muted),
-          ),
-        ],
-      ),
-    ),
-  );
+  /// Evidence cited in an answer opens the same editor the record uses.
+  /// A transaction reached through chat is not a different kind of thing, and
+  /// showing it read-only made the conversation a dead end for corrections.
+  Future<void> _showTransaction(MoneyTransaction item) =>
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        builder: (_) => TransactionEditorSheet(transaction: item),
+      );
 }
 
 class _EmptyAsk extends StatelessWidget {
@@ -382,8 +372,12 @@ class _MessageView extends StatelessWidget {
     required this.transactions,
     required this.onFollowUp,
     required this.onTransaction,
+    this.precedingQuestion,
   });
   final ConversationMessage message;
+
+  /// The question this answer replied to, so it can be asked again.
+  final String? precedingQuestion;
   final List<MoneyTransaction> transactions;
   final ValueChanged<String> onFollowUp;
   final ValueChanged<MoneyTransaction> onTransaction;
@@ -422,6 +416,12 @@ class _MessageView extends StatelessWidget {
             )
           else
             Text(message.text, style: Theme.of(context).textTheme.bodyLarge),
+          if (message.author == MessageAuthor.assistant)
+            _MessageActions(
+              message: message,
+              precedingQuestion: precedingQuestion,
+              onFollowUp: onFollowUp,
+            ),
           if (message.verified) ...[
             const SizedBox(height: 12),
             Row(
@@ -452,6 +452,80 @@ class _MessageView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Actions on a finished answer.
+///
+/// Kept quiet until the answer is complete and shown as low-contrast icons:
+/// they are occasionally useful and should not compete with the figures.
+class _MessageActions extends StatelessWidget {
+  const _MessageActions({
+    required this.message,
+    required this.precedingQuestion,
+    required this.onFollowUp,
+  });
+  final ConversationMessage message;
+  final String? precedingQuestion;
+  final ValueChanged<String> onFollowUp;
+
+  @override
+  Widget build(BuildContext context) {
+    // providerContent carries the figures too, so a copied answer is not
+    // reduced to its prose.
+    final text = message.providerContent.trim();
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          _MessageAction(
+            icon: Icons.copy_rounded,
+            label: 'Copy answer',
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Answer copied')),
+                );
+              }
+            },
+          ),
+          // Offered only when the original question is known: re-sending the
+          // answer as a question would be nonsense.
+          if (precedingQuestion != null) ...[
+            const SizedBox(width: 4),
+            _MessageAction(
+              icon: Icons.refresh_rounded,
+              label: 'Ask again',
+              onPressed: () => onFollowUp(precedingQuestion!),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+}
+
+class _MessageAction extends StatelessWidget {
+  const _MessageAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    onPressed: onPressed,
+    tooltip: label,
+    visualDensity: VisualDensity.compact,
+    iconSize: 17,
+    color: context.current.muted,
+    icon: Icon(icon),
+  );
 }
 
 class _WorkingOrError extends StatelessWidget {
