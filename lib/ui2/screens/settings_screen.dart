@@ -5,9 +5,9 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../app/app_controller.dart';
 import '../../app/app_state.dart';
 import '../../domain/preferences.dart';
-import '../../features/you/connect_intelligence_sheet.dart';
-import '../../features/you/message_intelligence_sheet.dart';
-import '../../features/you/update_sheet.dart';
+import '../sheets/connect_intelligence_sheet.dart';
+import '../sheets/message_intelligence_sheet.dart';
+import '../sheets/update_sheet.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
 

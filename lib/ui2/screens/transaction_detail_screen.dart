@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
-import '../../features/activity/transaction_editor_sheet.dart';
+import '../sheets/transaction_editor_sheet.dart';
 import '../format/money_format.dart';
 import '../flow_categories.dart';
 import '../motion/flow_motion_widgets.dart';
@@ -78,12 +78,8 @@ class TransactionDetailScreen extends ConsumerWidget {
                   const Spacer(),
                   IconButton(
                     tooltip: 'Edit details',
-                    onPressed: () => showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      builder: (sheet) =>
-                          TransactionEditorSheet(transaction: item),
-                    ),
+                    onPressed: () =>
+                        showTransactionEditor(context, transaction: item),
                     icon: const Icon(Icons.edit_outlined),
                     color: flow.inkSoft,
                   ),

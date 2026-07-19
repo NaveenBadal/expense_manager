@@ -2,11 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../ui/components/current_button.dart';
-import '../../ui/components/current_sheet.dart';
-import '../../ui/foundation/current_colors.dart';
 import '../../update/app_updater.dart';
+import '../tokens/flow_metrics.dart';
+import '../tokens/flow_palette.dart';
 
+/// Checking for and installing development builds from GitHub.
+///
+/// The sheet is a single state machine — checking, error, current, or an
+/// update ready — and always shows exactly one of them with one primary
+/// action, because "is there an update and what do I press" is the entire
+/// job here.
 class UpdateSheet extends StatefulWidget {
   const UpdateSheet({super.key});
 
@@ -90,17 +95,37 @@ class _UpdateSheetState extends State<UpdateSheet> {
   }
 
   @override
-  Widget build(BuildContext context) => CurrentSheet(
-    title: 'App updates',
-    explanation:
-        'Development releases come directly from Fund Flow on GitHub. Every APK is verified before Android opens the installer.',
-    child: AnimatedSwitcher(
-      duration: const Duration(milliseconds: 180),
-      child: _content(context),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final flow = context.flow;
+    final text = Theme.of(context).textTheme;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(FlowSpace.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('App updates', style: text.titleLarge),
+            const SizedBox(height: FlowSpace.sm),
+            Text(
+              'Development releases come directly from Fund Flow on GitHub. '
+              'Every APK is verified before Android opens the installer.',
+              style: text.bodyMedium?.copyWith(color: flow.inkSoft),
+            ),
+            const SizedBox(height: FlowSpace.lg),
+            AnimatedSwitcher(
+              duration: FlowMotion.respecting(context, FlowMotion.quick),
+              child: _content(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _content(BuildContext context) {
+    final flow = context.flow;
+    final text = Theme.of(context).textTheme;
     if (_checking) {
       return const _Status(
         icon: Icons.sync_rounded,
@@ -110,25 +135,23 @@ class _UpdateSheetState extends State<UpdateSheet> {
       );
     }
     if (_error != null) {
+      final permission = _error is InstallPermissionRequired;
       return Column(
         key: const ValueKey('error'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _Status(
             icon: Icons.cloud_off_outlined,
-            title: _error is InstallPermissionRequired
+            title: permission
                 ? 'One Android permission needed'
                 : 'Could not continue',
             detail: _error.toString(),
           ),
-          const SizedBox(height: 18),
-          CurrentButton(
-            label: _error is InstallPermissionRequired
-                ? 'I allowed it — install'
-                : 'Try again',
+          const SizedBox(height: FlowSpace.lg),
+          _PrimaryButton(
+            label: permission ? 'I allowed it — install' : 'Try again',
             icon: Icons.refresh_rounded,
-            expand: true,
-            onPressed: _error is InstallPermissionRequired ? _install : _check,
+            onPressed: permission ? _install : _check,
           ),
         ],
       );
@@ -157,43 +180,40 @@ class _UpdateSheetState extends State<UpdateSheet> {
             Expanded(
               child: Text(
                 '${update.versionName} · build ${update.buildNumber}',
-                style: Theme.of(context).textTheme.titleLarge,
+                style: text.titleMedium,
               ),
             ),
             if (update.downloadSize > 0)
               Text(
                 _size(update.downloadSize),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: context.current.muted),
+                style: text.bodySmall?.copyWith(color: flow.inkSoft),
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: FlowSpace.sm),
         Text(
           update.releaseNotes.trim().isEmpty
               ? 'A newer development build is ready.'
               : update.releaseNotes.trim(),
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: context.current.muted),
+          style: text.bodyMedium?.copyWith(color: flow.inkSoft),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: FlowSpace.lg),
         if (_progress != null) ...[
           LinearProgressIndicator(
             value: _progress,
             minHeight: 6,
+            color: flow.accent,
+            backgroundColor: flow.sunken,
             borderRadius: BorderRadius.circular(3),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: FlowSpace.sm),
           Text(
-            _progress == null
-                ? 'Downloading securely…'
-                : 'Downloading · ${(_progress! * 100).round()}%',
+            'Downloading · ${((_progress ?? 0) * 100).round()}%',
             textAlign: TextAlign.center,
+            style: text.bodySmall?.copyWith(color: flow.inkSoft),
           ),
         ] else
-          CurrentButton(
+          _PrimaryButton(
             label: _download == null
                 ? 'Download and verify'
                 : _installing
@@ -202,7 +222,6 @@ class _UpdateSheetState extends State<UpdateSheet> {
             icon: _download == null
                 ? Icons.download_rounded
                 : Icons.system_update_alt_rounded,
-            expand: true,
             onPressed: _installing
                 ? null
                 : _download == null
@@ -214,6 +233,33 @@ class _UpdateSheetState extends State<UpdateSheet> {
   }
 
   String _size(int bytes) => '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+}
+
+class _PrimaryButton extends StatelessWidget {
+  const _PrimaryButton({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final flow = context.flow;
+    return FilledButton.icon(
+      onPressed: onPressed,
+      style: FilledButton.styleFrom(
+        minimumSize: const Size.fromHeight(FlowDensity.minimumTarget),
+        backgroundColor: flow.accent,
+        foregroundColor: flow.onAccent,
+        shape: const RoundedRectangleBorder(borderRadius: FlowRadius.sm),
+      ),
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+    );
+  }
 }
 
 class _Status extends StatelessWidget {
@@ -229,40 +275,45 @@ class _Status extends StatelessWidget {
   final bool busy;
 
   @override
-  Widget build(BuildContext context) => Container(
-    key: ValueKey(title),
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(
-      color: context.current.surface,
-      border: Border.all(color: context.current.rule),
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        busy
-            ? const SizedBox.square(
-                dimension: 22,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(icon, color: context.current.intelligence),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                detail,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyMedium?.copyWith(color: context.current.muted),
-              ),
-            ],
+  Widget build(BuildContext context) {
+    final flow = context.flow;
+    final text = Theme.of(context).textTheme;
+    return Container(
+      key: ValueKey(title),
+      padding: const EdgeInsets.all(FlowSpace.lg),
+      decoration: BoxDecoration(
+        color: flow.raised,
+        border: Border.all(color: flow.line),
+        borderRadius: FlowRadius.md,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          busy
+              ? SizedBox.square(
+                  dimension: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: flow.accent,
+                  ),
+                )
+              : Icon(icon, size: 20, color: flow.accent),
+          const SizedBox(width: FlowSpace.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: text.titleMedium),
+                const SizedBox(height: FlowSpace.xs),
+                Text(
+                  detail,
+                  style: text.bodyMedium?.copyWith(color: flow.inkSoft),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }

@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
-import '../../features/activity/transaction_editor_sheet.dart';
+import '../sheets/transaction_editor_sheet.dart';
 import '../format/money_format.dart';
 import '../sheets/category_sheet.dart';
 import '../sheets/confirm_delete_sheet.dart';
@@ -505,11 +505,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   }
 
   /// Manual entry only; existing rows open the detail route instead.
-  Future<void> _edit(MoneyTransaction? item) => showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (sheet) => TransactionEditorSheet(transaction: item),
-  );
+  Future<void> _edit(MoneyTransaction? item) =>
+      showTransactionEditor(context, transaction: item);
 }
 
 // --------------------------------------------------------------- filter row

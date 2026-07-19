@@ -61,7 +61,7 @@ Rebuilt:
 | 6 | Transaction detail as a route | done |
 | 7 | Settings, reorganised by intent | done |
 | 8 | Motion | done |
-| 8b | Legacy surfaces rebuilt in ui2, `lib/ui` + `lib/features` deleted | todo |
+| 8b | Legacy surfaces rebuilt in ui2, `lib/ui` + `lib/features` deleted | done |
 | 9 | Verification sweep | todo |
 
 ### Phase 4 — Activity
@@ -161,6 +161,16 @@ Decision: **every** legacy surface is redesigned in ui2 — nothing from
 5. Delete `lib/ui` and `lib/features`; `flutter analyze` after each slice.
 
 Runs before the verification sweep so the sweep covers the new surfaces.
+
+Landed: `lib/ui` and `lib/features` are gone. money_format lives at
+`ui2/format/`; the editor, connect, message-intelligence and update sheets
+live in `ui2/sheets/` (same class names, ui2 style, category as chips in
+the editor instead of free text); onboarding is `ui2/screens/
+onboarding_screen.dart` with the mark ported to `ui2/components/flow_mark.
+dart`; `app_experience.dart` (loading, locked) restyled on flow tokens.
+New shared input: `ui2/components/flow_field.dart`. All verified by
+screenshot on the emulator, including a full onboarding pass after
+`pm clear`.
 
 ### Phase 9 — Verification sweep
 

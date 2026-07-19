@@ -6,7 +6,7 @@ import '../../app/app_controller.dart';
 import '../../app/app_state.dart';
 import '../../domain/conversation.dart';
 import '../../domain/transaction.dart';
-import '../../features/you/connect_intelligence_sheet.dart';
+import '../sheets/connect_intelligence_sheet.dart';
 import '../chat/flow_answer_view.dart';
 import '../sheets/category_sheet.dart';
 import '../tokens/flow_metrics.dart';

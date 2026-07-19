@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../features/onboarding/onboarding_screen.dart';
-import '../ui/components/current_mark.dart';
-import '../ui/components/current_button.dart';
-import '../ui/foundation/current_colors.dart';
+import '../ui2/components/flow_mark.dart';
 import '../ui2/screens/flow_home.dart';
+import '../ui2/screens/onboarding_screen.dart';
+import '../ui2/tokens/flow_metrics.dart';
+import '../ui2/tokens/flow_palette.dart';
 import 'app_controller.dart';
 
 class AppExperience extends ConsumerStatefulWidget {
@@ -49,7 +49,7 @@ class _State extends ConsumerState<AppExperience> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final async = ref.watch(appControllerProvider);
     return async.when(
-      loading: () => const Scaffold(body: Center(child: CurrentMark(size: 48))),
+      loading: () => const Scaffold(body: Center(child: FlowMark(size: 48))),
       error: (e, _) => Scaffold(
         body: Center(
           child: Text(
@@ -85,38 +85,50 @@ class _LockedView extends StatelessWidget {
   final VoidCallback onUnlock;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const CurrentMark(size: 38),
-            const Spacer(),
-            Icon(
-              Icons.lock_outline_rounded,
-              size: 34,
-              color: context.current.intelligence,
-            ),
-            const SizedBox(height: 22),
-            Text(
-              'Your money is locked.',
-              style: Theme.of(context).textTheme.headlineLarge,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Authenticate with this device to open Fund Flow.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: context.current.muted),
-            ),
-            const SizedBox(height: 24),
-            CurrentButton(label: 'Unlock Fund Flow', onPressed: onUnlock),
-            const Spacer(),
-          ],
+  Widget build(BuildContext context) {
+    final flow = context.flow;
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(FlowSpace.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const FlowMark(size: 38),
+              const Spacer(),
+              Icon(Icons.lock_outline_rounded, size: 34, color: flow.accent),
+              const SizedBox(height: FlowSpace.xl),
+              Text(
+                'Your money is locked.',
+                style: Theme.of(context).textTheme.headlineLarge,
+              ),
+              const SizedBox(height: FlowSpace.md),
+              Text(
+                'Authenticate with this device to open Fund Flow.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: flow.inkSoft),
+              ),
+              const SizedBox(height: FlowSpace.xl),
+              FilledButton(
+                onPressed: onUnlock,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(
+                    FlowDensity.minimumTarget,
+                  ),
+                  backgroundColor: flow.accent,
+                  foregroundColor: flow.onAccent,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: FlowRadius.sm,
+                  ),
+                ),
+                child: const Text('Unlock Fund Flow'),
+              ),
+              const Spacer(),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
