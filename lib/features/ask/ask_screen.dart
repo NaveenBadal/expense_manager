@@ -13,9 +13,12 @@ import '../../ui/components/current_header.dart';
 import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
 import '../../ui/format/money_format.dart';
+import '../../ui/layout/chat_shell.dart';
+import '../activity/activity_screen.dart';
 import '../you/connect_intelligence_sheet.dart';
 import '../you/you_screen.dart';
 import 'agent_answer_view.dart';
+import 'money_pulse.dart';
 import 'agent_approval_card.dart';
 
 class AskScreen extends ConsumerStatefulWidget {
@@ -66,6 +69,30 @@ class _State extends ConsumerState<AskScreen> {
               padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
               child: Column(
                 children: [
+                  // The pulse answers the unasked question. Once the person
+                  // scrolls into an answer it becomes a third copy of the
+                  // same figure, so it yields to the conversation.
+                  AnimatedBuilder(
+                    animation: _scroll,
+                    builder: (context, child) {
+                      final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+                      final t = (offset / 72).clamp(0.0, 1.0);
+                      if (t == 1) return const SizedBox.shrink();
+                      return Opacity(
+                        opacity: 1 - t,
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          heightFactor: 1 - t,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: MoneyPulse(
+                      transactions: app.transactions,
+                      hideAmounts: app.preferences.hideAmounts,
+                      onTap: _openActivity,
+                    ),
+                  ),
                   Expanded(
                     child: app.conversation.isEmpty
                         ? _EmptyAsk(
@@ -179,6 +206,11 @@ class _State extends ConsumerState<AskScreen> {
       ],
     );
   }
+
+  void _openActivity() => ChatShell.openActivitySheet(
+    context,
+    (_) => const ActivityScreen(),
+  );
 
   Future<void> _connect() => showModalBottomSheet<void>(
     context: context,

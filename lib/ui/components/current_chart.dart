@@ -298,3 +298,79 @@ class HeroAmount extends StatelessWidget {
     ],
   );
 }
+
+/// Compact trend of recent daily totals.
+///
+/// Deliberately unlabelled and unaxed. It answers "is this month calm or
+/// spiky" at a glance, which is a shape question; anyone wanting figures has
+/// the record one pull away. Adding axes here would spend the space that
+/// makes it readable at this size.
+class Sparkline extends StatelessWidget {
+  const Sparkline({super.key, required this.values, this.height = 26});
+
+  /// Ordered oldest to newest. Fewer than two points renders nothing, since a
+  /// single point has no trend to show.
+  final List<int> values;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    if (values.length < 2) return SizedBox(height: height);
+    return SizedBox(
+      height: height,
+      child: CustomPaint(
+        painter: _SparklinePainter(
+          values: values,
+          color: context.current.muted,
+          fill: context.current.subtle,
+        ),
+        size: Size.infinite,
+      ),
+    );
+  }
+}
+
+class _SparklinePainter extends CustomPainter {
+  _SparklinePainter({
+    required this.values,
+    required this.color,
+    required this.fill,
+  });
+
+  final List<int> values;
+  final Color color;
+  final Color fill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final maximum = values.reduce(max).toDouble();
+    // A flat run must not collapse onto the baseline and read as no data.
+    final scale = maximum <= 0 ? 1.0 : maximum;
+    final step = size.width / (values.length - 1);
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
+      final x = step * i;
+      final y = size.height - (values[i] / scale) * (size.height - 2) - 1;
+      i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+    }
+
+    final area = Path.from(path)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+    canvas.drawPath(area, Paint()..color = fill);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SparklinePainter old) =>
+      old.values != values || old.color != color;
+}
