@@ -43,6 +43,7 @@ void main() {
               {
                 'draft': false,
                 'prerelease': true,
+                'published_at': '2026-07-18T12:00:00Z',
                 'assets': [
                   {
                     'name': 'fund-flow-development.apk',
@@ -96,6 +97,69 @@ void main() {
     );
     updater.close();
   });
+
+  test('picks the newest release when tags sort as text', () async {
+    // Reproduces the live API response: GitHub returned dev.99 ahead of
+    // dev.111 because tags compare as strings, so "9" beats "1". Taking the
+    // first entry pinned the check to build 99 and reported no update while
+    // build 111 was published.
+    final requested = <String>[];
+    final updater = AppUpdater(
+      client: MockClient((request) async {
+        if (request.url.host == 'api.github.com') {
+          return http.Response(
+            jsonEncode([
+              {
+                'draft': false,
+                'prerelease': true,
+                'published_at': '2026-07-19T03:20:18Z',
+                'assets': [
+                  {
+                    'name': 'fund-flow-development.apk',
+                    'size': 100,
+                    'browser_download_url': 'https://github.com/apk99',
+                  },
+                  {
+                    'name': 'update.json',
+                    'browser_download_url': 'https://github.com/manifest99',
+                  },
+                ],
+              },
+              {
+                'draft': false,
+                'prerelease': true,
+                'published_at': '2026-07-19T08:06:16Z',
+                'assets': [
+                  {
+                    'name': 'fund-flow-development.apk',
+                    'size': 200,
+                    'browser_download_url': 'https://github.com/apk111',
+                  },
+                  {
+                    'name': 'update.json',
+                    'browser_download_url': 'https://github.com/manifest111',
+                  },
+                ],
+              },
+            ]),
+            200,
+          );
+        }
+        requested.add(request.url.toString());
+        final build = request.url.toString().endsWith('111') ? 111 : 99;
+        return http.Response(jsonEncode(_manifest(build: build)), 200);
+      }),
+    );
+
+    final result = await updater.check(
+      installedPackage: package(name: 'com.naveen.fund_flow.dev', build: '99'),
+    );
+
+    expect(requested.single, 'https://github.com/manifest111');
+    expect(result.buildNumber, 111);
+    expect(result.availability, UpdateAvailability.available);
+    expect(result.downloadSize, 200);
+  });
 }
 
 AppUpdater _updaterWithManifest(Map<String, Object?> manifest) => AppUpdater(
@@ -106,6 +170,7 @@ AppUpdater _updaterWithManifest(Map<String, Object?> manifest) => AppUpdater(
           {
             'draft': false,
             'prerelease': true,
+            'published_at': '2026-07-18T12:00:00Z',
             'assets': [
               {
                 'name': 'update.json',

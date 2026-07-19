@@ -76,24 +76,43 @@ class AppUpdater {
       throw UpdateException('GitHub returned ${releasesResponse.statusCode}.');
     }
     final releases = jsonDecode(releasesResponse.body) as List;
-    Uri? manifestUrl;
-    var downloadSize = 0;
+
+    // Ordering from the API cannot be treated as newest first. Release tags
+    // sort as text, so dev.99 is returned ahead of dev.111 because "9" is
+    // greater than "1" as a character. Taking the first entry therefore
+    // pinned the check to an old build and reported no update available
+    // while newer ones existed. Publish time is unambiguous, so choose on
+    // that instead.
+    ({Uri manifest, int size, DateTime publishedAt})? newest;
     for (final raw in releases) {
       final release = raw as Map<String, dynamic>;
       if (release['draft'] == true || release['prerelease'] != true) continue;
+      final publishedAt = DateTime.tryParse(
+        release['published_at']?.toString() ?? '',
+      );
+      if (publishedAt == null) continue;
+
+      Uri? manifestUrl;
+      var size = 0;
       for (final rawAsset in release['assets'] as List? ?? const []) {
         final asset = rawAsset as Map<String, dynamic>;
         if (asset['name'] == 'update.json') {
           manifestUrl = Uri.parse(asset['browser_download_url'] as String);
         } else if (asset['name'] == 'fund-flow-development.apk') {
-          downloadSize = asset['size'] as int? ?? 0;
+          size = asset['size'] as int? ?? 0;
         }
       }
-      if (manifestUrl != null) break;
+      if (manifestUrl == null) continue;
+
+      if (newest == null || publishedAt.isAfter(newest.publishedAt)) {
+        newest = (manifest: manifestUrl, size: size, publishedAt: publishedAt);
+      }
     }
-    if (manifestUrl == null) {
+    if (newest == null) {
       throw const UpdateException('No development update manifest was found.');
     }
+    final manifestUrl = newest.manifest;
+    final downloadSize = newest.size;
     final manifestResponse = await _client
         .get(manifestUrl)
         .timeout(const Duration(seconds: 20));
