@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
 import '../../ui/format/money_format.dart';
+import '../flow_categories.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
 import '../tokens/flow_type.dart';
@@ -149,20 +150,6 @@ class _ReviewCard extends StatelessWidget {
   final MoneyTransaction item;
   final ValueChanged<String> onCategory;
 
-  /// Offered inline so the common correction never opens a keyboard.
-  static const _categories = [
-    'Food',
-    'Groceries',
-    'Transport',
-    'Shopping',
-    'Bills',
-    'Health',
-    'Entertainment',
-    'Subscriptions',
-    'Transfer',
-    'Other',
-  ];
-
   @override
   Widget build(BuildContext context) {
     final flow = context.flow;
@@ -251,7 +238,8 @@ class _ReviewCard extends StatelessWidget {
           spacing: FlowSpace.sm,
           runSpacing: FlowSpace.sm,
           children: [
-            for (final category in _categories)
+            // Offered inline so the common correction never opens a keyboard.
+            for (final category in kFlowCategories)
               _CategoryChip(
                 label: category,
                 selected: category.toLowerCase() == item.category.toLowerCase(),

@@ -3,19 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
-import '../../features/activity/activity_screen.dart';
 import '../../features/ask/ask_screen.dart';
 import '../../features/you/you_screen.dart';
 import '../shell/flow_nav.dart';
 import '../shell/flow_shell.dart';
+import 'activity_screen.dart';
 import 'review_screen.dart';
 import 'today_screen.dart';
 
 /// Wires the destinations into the shell.
-///
-/// Activity and Review still point at the previous screens. Landing the shell
-/// alongside them keeps the app working between phases rather than holding
-/// every screen back for one switch at the end.
 class FlowHome extends ConsumerStatefulWidget {
   const FlowHome({super.key});
 

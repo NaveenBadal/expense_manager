@@ -56,7 +56,7 @@ Rebuilt:
 | 1 | Shell + omnipresent composer | done |
 | 2 | Today — position first | done |
 | 3 | Review flow — clearing the backlog | done |
-| 4 | Activity — dense, groupable, filterable ledger | todo |
+| 4 | Activity — dense, groupable, filterable ledger | done |
 | 5 | Rich chat — charts, tables, interactive cards, deep links | todo |
 | 6 | Transaction detail as a route | todo |
 | 7 | Settings, reorganised by intent | todo |
@@ -69,6 +69,11 @@ Replaces `features/activity/activity_screen.dart` in
 `ui2/screens/flow_home.dart`. Dense rows (`FlowDensity.compactRow`), group by
 day / category / merchant, date range, filters, bulk select, sort. The old
 screen showed about five rows per screen against a ledger of hundreds.
+
+Landed as `ui2/screens/activity_screen.dart`. Rows open the legacy editor
+sheet until phase 6 lands the detail route. One defect found on screen and
+fixed: the header summary wrapped between a sign and its figure, leaving a
+bare `+` at a line end — amounts now carry U+2060 after the sign.
 
 ### Phase 5 — Rich chat
 
