@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_controller.dart';
 import '../../app/app_state.dart';
-import '../../agent/agent_proposal.dart';
 import '../../domain/conversation.dart';
 import '../../domain/finance_summary.dart';
 import '../../domain/transaction.dart';
@@ -16,6 +15,7 @@ import '../../ui/format/money_format.dart';
 import '../you/connect_intelligence_sheet.dart';
 import '../you/you_screen.dart';
 import 'agent_answer_view.dart';
+import 'agent_approval_card.dart';
 
 class AskScreen extends ConsumerStatefulWidget {
   const AskScreen({super.key});
@@ -35,15 +35,6 @@ class _State extends ConsumerState<AskScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(appControllerProvider, (previous, next) {
-      final before = previous?.value?.pendingAgentProposal;
-      final after = next.value?.pendingAgentProposal;
-      if (before == null && after != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _showAgentApproval(after);
-        });
-      }
-    });
     final app = ref.watch(appControllerProvider).requireValue;
     final connected = app.aiConnection == AiConnection.connected;
     return Column(
@@ -82,26 +73,53 @@ class _State extends ConsumerState<AskScreen> {
                             onConnect: _connect,
                             onAsk: _ask,
                           )
-                        : ListView.builder(
-                            controller: _scroll,
-                            padding: const EdgeInsets.only(bottom: 18),
-                            itemCount:
-                                app.conversation.length +
-                                (app.asking || app.error != null ? 1 : 0),
-                            itemBuilder: (context, i) {
-                              if (i == app.conversation.length) {
-                                return _WorkingOrError(
-                                  app: app,
-                                  onStop: () => ref
-                                      .read(appControllerProvider.notifier)
-                                      .stopAgent(),
-                                );
-                              }
-                              return _MessageView(
-                                message: app.conversation[i],
-                                transactions: app.transactions,
-                                onFollowUp: _ask,
-                                onTransaction: _showTransaction,
+                        : Builder(
+                            builder: (context) {
+                              final proposal = app.pendingAgentProposal;
+                              final showStatus =
+                                  app.asking || app.error != null;
+                              return ListView.builder(
+                                controller: _scroll,
+                                padding: const EdgeInsets.only(bottom: 18),
+                                itemCount:
+                                    app.conversation.length +
+                                    (proposal != null ? 1 : 0) +
+                                    (showStatus ? 1 : 0),
+                                itemBuilder: (context, i) {
+                                  if (i < app.conversation.length) {
+                                    return _MessageView(
+                                      message: app.conversation[i],
+                                      transactions: app.transactions,
+                                      onFollowUp: _ask,
+                                      onTransaction: _showTransaction,
+                                    );
+                                  }
+                                  var slot = i - app.conversation.length;
+                                  if (proposal != null) {
+                                    if (slot == 0) {
+                                      return AgentApprovalCard(
+                                        proposal: proposal,
+                                        onApprove: () => ref
+                                            .read(
+                                              appControllerProvider.notifier,
+                                            )
+                                            .approveAgentProposal(),
+                                        onReject: () => ref
+                                            .read(
+                                              appControllerProvider.notifier,
+                                            )
+                                            .rejectAgentProposal(),
+                                      );
+                                    }
+                                    slot--;
+                                  }
+                                  return _WorkingOrError(
+                                    app: app,
+                                    onStop: () => ref
+                                        .read(appControllerProvider.notifier)
+                                        .stopAgent(),
+                                  );
+                                },
                               );
                             },
                           ),
@@ -188,53 +206,6 @@ class _State extends ConsumerState<AskScreen> {
     _question.clear();
     ref.read(appControllerProvider.notifier).ask(value);
   }
-
-  Future<void> _showAgentApproval(AgentProposal proposal) =>
-      showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (sheet) => CurrentSheet(
-          title: proposal.title,
-          explanation: proposal.explanation,
-          actions: Row(
-            children: [
-              Expanded(
-                child: CurrentButton(
-                  label: 'Reject',
-                  style: CurrentButtonStyle.outline,
-                  onPressed: () {
-                    ref
-                        .read(appControllerProvider.notifier)
-                        .rejectAgentProposal();
-                    Navigator.pop(sheet);
-                  },
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: CurrentButton(
-                  label: proposal.requiresAuthentication
-                      ? 'Approve securely'
-                      : 'Approve change',
-                  onPressed: () async {
-                    await ref
-                        .read(appControllerProvider.notifier)
-                        .approveAgentProposal();
-                    if (sheet.mounted) Navigator.pop(sheet);
-                  },
-                ),
-              ),
-            ],
-          ),
-          child: const SizedBox.shrink(),
-        ),
-      ).whenComplete(() {
-        if (mounted &&
-            ref.read(appControllerProvider).value?.pendingAgentProposal !=
-                null) {
-          ref.read(appControllerProvider.notifier).rejectAgentProposal();
-        }
-      });
 
   Future<void> _showTransaction(
     MoneyTransaction item,
