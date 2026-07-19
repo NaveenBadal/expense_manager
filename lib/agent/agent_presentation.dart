@@ -113,6 +113,93 @@ class AgentPresentation {
     ],
   );
 
+  /// Recovers a presentation from a turn that answered in prose.
+  ///
+  /// Providers sometimes describe the compose call instead of making it,
+  /// writing headings with the part objects beneath them as fenced JSON. The
+  /// content is correct and fully grounded; only the delivery is wrong, and
+  /// rendering it as markdown showed the person raw JSON. Rather than discard
+  /// a good answer, the part objects are lifted out of the prose.
+  static AgentPresentation? tryFromLooseContent(String content) {
+    final parts = <AgentPart>[];
+    for (final candidate in _jsonCandidates(content.trim())) {
+      final Object? decoded;
+      try {
+        decoded = jsonDecode(candidate);
+      } catch (_) {
+        continue;
+      }
+      if (decoded is! Map) continue;
+
+      // A wrapper object carrying the whole list is the intended shape.
+      if (decoded['parts'] is List) {
+        try {
+          return AgentPresentation.fromComposeArguments(
+            Map<String, Object?>.from(decoded),
+          );
+        } catch (_) {
+          continue;
+        }
+      }
+      final type = decoded['type']?.toString();
+      if (type == null) continue;
+      if (!AgentPartKind.values.any((kind) => kind.name == type)) continue;
+      try {
+        final part = AgentPart.fromJson(Map<Object?, Object?>.from(decoded));
+        // _jsonCandidates walks every opening brace, so the same object can
+        // be produced more than once.
+        if (!parts.any(
+          (existing) =>
+              existing.kind == part.kind &&
+              jsonEncode(existing.data) == jsonEncode(part.data),
+        )) {
+          parts.add(part);
+        }
+      } catch (_) {
+        continue;
+      }
+    }
+    if (parts.isEmpty) return null;
+
+    // Prose ahead of the first part object is the answer itself when the
+    // provider never emitted a conclusion object.
+    if (!parts.any((part) => part.kind == AgentPartKind.conclusion)) {
+      final lead = _leadingProse(content);
+      if (lead != null) {
+        parts.insert(
+          0,
+          AgentPart(kind: AgentPartKind.conclusion, data: {'text': lead}),
+        );
+      } else {
+        return null;
+      }
+    }
+    return AgentPresentation(parts: parts);
+  }
+
+  /// First substantial line of prose before any JSON or fence, with markdown
+  /// heading markers removed.
+  static String? _leadingProse(String content) {
+    final cut = content.indexOf(RegExp(r'```|\{'));
+    final head = (cut == -1 ? content : content.substring(0, cut)).trim();
+    if (head.isEmpty) return null;
+    final lines = head
+        .split('\n')
+        .map((line) => line.replaceAll(RegExp(r'^\s*#{1,6}\s*'), '').trim())
+        .where((line) => line.isNotEmpty)
+        // Bare section labels the provider wrote as headings carry no answer.
+        .where(
+          (line) => !RegExp(
+            r'^(conclusion|narrative|summary|answer)$',
+            caseSensitive: false,
+          ).hasMatch(line),
+        )
+        .toList();
+    if (lines.isEmpty) return null;
+    final text = lines.join(' ').trim();
+    return text.length > 600 ? '${text.substring(0, 600)}…' : text;
+  }
+
   static AgentPresentation? tryFromProviderContent(String content) {
     var text = content.trim();
     if (text.startsWith('```')) {
