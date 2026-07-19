@@ -2,7 +2,7 @@ import 'package:fund_flow/ui/components/current_field.dart';
 import 'package:fund_flow/ui/components/current_button.dart';
 import 'package:fund_flow/ui/components/current_sheet.dart';
 import 'package:fund_flow/ui/foundation/current_theme.dart';
-import 'package:fund_flow/ui/layout/current_shell.dart';
+import 'package:fund_flow/ui/layout/chat_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -42,16 +42,19 @@ void main() {
             size: Size(320, 720),
             textScaler: TextScaler.linear(2),
           ),
-          child: CurrentShell(
-            destination: RootDestination.ask,
-            onDestinationChanged: (_) {},
-            child: const SizedBox(),
+          child: ChatShell(
+            chat: const SizedBox(),
+            activityBuilder: (_) => const SizedBox(),
+            activityLabel: '12 transactions',
           ),
         ),
       ),
     );
     expect(tester.takeException(), isNull);
-    expect(find.bySemanticsLabel('Activity'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('Open activity. 12 transactions'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('buttons and sheets keep the Current rounded anatomy', (
@@ -97,15 +100,17 @@ void main() {
         theme: CurrentTheme.dark(),
         home: Directionality(
           textDirection: TextDirection.rtl,
-          child: CurrentShell(
-            destination: RootDestination.activity,
-            onDestinationChanged: (_) {},
-            child: const SizedBox(),
+          child: ChatShell(
+            chat: const SizedBox(),
+            activityBuilder: (_) => const SizedBox(),
+            activityLabel: 'Activity',
           ),
         ),
       ),
     );
     expect(tester.takeException(), isNull);
-    expect(find.bySemanticsLabel('Activity'), findsOneWidget);
+    // Wide layouts show the record as a permanent panel, so there is no
+    // pull-up handle to find.
+    expect(find.bySemanticsLabel('Open activity. Activity'), findsNothing);
   });
 }

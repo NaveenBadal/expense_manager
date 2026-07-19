@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/activity/activity_screen.dart';
 import '../features/ask/ask_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
-import '../features/you/you_screen.dart';
+import '../domain/transaction.dart';
 import '../ui/components/current_mark.dart';
 import '../ui/components/current_button.dart';
 import '../ui/foundation/current_colors.dart';
-import '../ui/layout/current_shell.dart';
+import '../ui/layout/chat_shell.dart';
 import 'app_controller.dart';
 
 class AppExperience extends ConsumerStatefulWidget {
@@ -18,7 +18,6 @@ class AppExperience extends ConsumerStatefulWidget {
 }
 
 class _State extends ConsumerState<AppExperience> with WidgetsBindingObserver {
-  RootDestination _destination = RootDestination.ask;
   bool _unlockScheduled = false;
 
   @override
@@ -78,15 +77,18 @@ class _State extends ConsumerState<AppExperience> with WidgetsBindingObserver {
             onUnlock: () => ref.read(appControllerProvider.notifier).unlock(),
           );
         }
-        final child = switch (_destination) {
-          RootDestination.ask => const AskScreen(),
-          RootDestination.activity => const ActivityScreen(),
-          RootDestination.you => const YouScreen(),
-        };
-        return CurrentShell(
-          destination: _destination,
-          onDestinationChanged: (v) => setState(() => _destination = v),
-          child: SafeArea(bottom: false, child: child),
+        final needsReview = app.transactions
+            .where((item) => item.reviewState == ReviewState.needsReview)
+            .length;
+        return ChatShell(
+          chat: const AskScreen(),
+          activityBuilder: (_) => const ActivityScreen(),
+          activityLabel: switch ((app.transactions.length, needsReview)) {
+            (0, _) => 'Activity',
+            (final total, 0) => '$total transactions',
+            (final total, final review) =>
+              '$total transactions · $review to review',
+          },
         );
       },
     );

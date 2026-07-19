@@ -14,6 +14,7 @@ import '../../ui/components/current_sheet.dart';
 import '../../ui/foundation/current_colors.dart';
 import '../../ui/format/money_format.dart';
 import '../you/connect_intelligence_sheet.dart';
+import '../you/you_screen.dart';
 import 'agent_answer_view.dart';
 
 class AskScreen extends ConsumerStatefulWidget {
@@ -48,7 +49,7 @@ class _State extends ConsumerState<AskScreen> {
     return Column(
       children: [
         CurrentHeader(
-          title: 'Ask',
+          title: 'Fund Flow',
           contextLine: 'Your money, made clearer',
           actions: [
             if (app.conversation.isNotEmpty)
@@ -59,6 +60,11 @@ class _State extends ConsumerState<AskScreen> {
                     .read(appControllerProvider.notifier)
                     .clearConversation(),
               ),
+            CurrentIconAction(
+              icon: Icons.tune_rounded,
+              label: 'Settings',
+              onPressed: _openSettings,
+            ),
           ],
         ),
         Expanded(
@@ -157,6 +163,25 @@ class _State extends ConsumerState<AskScreen> {
     context: context,
     isScrollControlled: true,
     builder: (_) => const ConnectIntelligenceSheet(),
+  );
+
+  /// Settings live over the conversation rather than beside it, so adjusting
+  /// something never costs the thread someone is in the middle of.
+  Future<void> _openSettings() => showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: context.current.canvas,
+    builder: (_) => DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: .92,
+      minChildSize: .5,
+      maxChildSize: .96,
+      builder: (context, controller) => PrimaryScrollController(
+        controller: controller,
+        child: const YouScreen(),
+      ),
+    ),
   );
   void _ask(String value) {
     if (value.trim().isEmpty) return;
