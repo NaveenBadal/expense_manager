@@ -15,6 +15,7 @@ class SecurePreferences {
   static const _capture = 'greenfield.capture';
   static const _endpoint = 'greenfield.endpoint';
   static const _model = 'greenfield.model';
+  static const _chatModel = 'greenfield.chat_model';
   static const apiKeyName = 'greenfield.ai_key';
 
   Future<AppPreferences> read() async {
@@ -28,13 +29,17 @@ class SecurePreferences {
       currency: values[_currency] ?? 'INR',
       hideAmounts: values[_hidden] == 'true',
       lockApp: values[_lock] == 'true',
-      messageLookbackDays: int.tryParse(values[_lookback] ?? '') ?? 30,
+      // Stored values may predate the 30 day ceiling, so clamp on read.
+      messageLookbackDays: (int.tryParse(values[_lookback] ?? '') ??
+              maximumLookbackDays)
+          .clamp(minimumLookbackDays, maximumLookbackDays),
       captureNotifications: values[_capture] == 'true',
       aiEndpoint: values[_endpoint] ?? 'https://ollama.com',
       aiModel: switch (values[_model]) {
-        null || 'gpt-oss:20b' => 'gpt-oss:20b-cloud',
+        null || 'gpt-oss:20b' => defaultParsingModel,
         final value => value,
       },
+      aiChatModel: values[_chatModel] ?? defaultChatModel,
     );
   }
 
@@ -49,6 +54,7 @@ class SecurePreferences {
       _storage.write(key: _capture, value: '${value.captureNotifications}'),
       _storage.write(key: _endpoint, value: value.aiEndpoint),
       _storage.write(key: _model, value: value.aiModel),
+      _storage.write(key: _chatModel, value: value.aiChatModel),
     ]);
   }
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../domain/transaction.dart';
 import 'message_candidate.dart';
+import 'message_evidence.dart';
 
 enum IngestionDecision { transaction, notTransaction, uncertain }
 
@@ -20,8 +21,14 @@ class AnalyzedMessage {
 }
 
 class AiIngestionBatch {
-  const AiIngestionBatch({required this.results});
+  const AiIngestionBatch({required this.results, this.unresolved = const []});
   final List<AnalyzedMessage> results;
+
+  /// Fingerprints the provider failed to classify usably. These are omitted
+  /// from [results] on purpose: only committed results are written to
+  /// `import_attempts`, so leaving them out means they stay unseen and are
+  /// retried on the next scan instead of being silently lost.
+  final List<String> unresolved;
 
   factory AiIngestionBatch.parse({
     required String content,
@@ -43,6 +50,47 @@ class AiIngestionBatch {
     final seen = <String>{};
     final values = <AnalyzedMessage>[];
     for (final raw in payload['results'] as List) {
+      try {
+        final parsed = _parseResult(
+          raw: raw,
+          candidates: candidates,
+          seen: seen,
+          source: source,
+          now: now,
+        );
+        if (parsed != null) values.add(parsed);
+      } on IngestionSchemaException {
+        // One malformed row must not discard its eleven healthy siblings.
+        // The candidate stays unseen and is retried on the next scan.
+        continue;
+      }
+    }
+    if (values.isEmpty) {
+      throw const IngestionSchemaException(
+        'The provider returned no usable classifications.',
+      );
+    }
+    final classified = values.map((value) => value.fingerprint).toSet();
+    return AiIngestionBatch(
+      results: values,
+      unresolved: [
+        for (final candidate in candidates)
+          if (!classified.contains(candidate.fingerprint))
+            candidate.fingerprint,
+      ],
+    );
+  }
+
+  /// Parses a single provider row. Throws [IngestionSchemaException] when the
+  /// row cannot be trusted; the caller drops just that row.
+  static AnalyzedMessage? _parseResult({
+    required Object? raw,
+    required List<MessageCandidate> candidates,
+    required Set<String> seen,
+    required TransactionSource source,
+    required DateTime now,
+  }) {
+    {
       if (raw is! Map) {
         throw const IngestionSchemaException(
           'An ingestion result is malformed.',
@@ -95,8 +143,9 @@ class AiIngestionBatch {
         ),
       };
       final reason = _requiredText(value, 'reason');
+      var decided = decision;
       MoneyTransaction? transaction;
-      if (decision == IngestionDecision.transaction) {
+      if (decided == IngestionDecision.transaction) {
         final amount = value['amountMinor'];
         if (amount is! int || amount <= 0) {
           throw const IngestionSchemaException(
@@ -128,6 +177,21 @@ class AiIngestionBatch {
             'Confidence must be between zero and one.',
           );
         }
+        // The model reads meaning; it does not get to invent numbers. An
+        // amount with no counterpart in the source text, or one lifted from a
+        // balance, is downgraded rather than written to the ledger.
+        final failure = verifyExtractedAmount(
+          body: candidate.body,
+          amountMinor: amount,
+          currency: currency,
+        );
+        if (failure != null) {
+          return AnalyzedMessage(
+            fingerprint: candidate.fingerprint,
+            decision: IngestionDecision.uncertain,
+            reason: 'Held for review because ${failure.message}.',
+          );
+        }
         transaction = MoneyTransaction(
           amountMinor: amount,
           currency: currency,
@@ -143,21 +207,13 @@ class AiIngestionBatch {
           sourceText: candidate.body,
         );
       }
-      values.add(
-        AnalyzedMessage(
-          fingerprint: candidate.fingerprint,
-          decision: decision,
-          reason: reason,
-          transaction: transaction,
-        ),
+      return AnalyzedMessage(
+        fingerprint: candidate.fingerprint,
+        decision: decided,
+        reason: reason,
+        transaction: transaction,
       );
     }
-    if (seen.length != candidates.length) {
-      throw const IngestionSchemaException(
-        'The provider did not classify every message in the batch.',
-      );
-    }
-    return AiIngestionBatch(results: values);
   }
 
   /// Recovers the JSON value from a model response that may be wrapped in

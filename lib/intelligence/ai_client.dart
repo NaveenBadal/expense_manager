@@ -75,9 +75,20 @@ class AiClient {
       final requestBody = jsonEncode({
         'model': model,
         'stream': false,
-        'think': 'low',
+        // Constrained decoding: the provider can only emit tokens that keep
+        // the response valid against the schema, which makes malformed JSON
+        // structurally impossible rather than something to repair afterwards.
+        'format': IngestionPrompt.responseSchema,
+        // Extraction is a reading task, not a planning one. Reasoning tokens
+        // here are pure latency, and the schema already guarantees shape.
+        'think': false,
         'keep_alive': '10m',
-        'options': {'temperature': 0, 'num_predict': 1200},
+        'options': {
+          'temperature': 0,
+          // Roughly 100 tokens per message plus envelope headroom, so a full
+          // batch cannot truncate mid-object.
+          'num_predict': 160 * candidates.length + 256,
+        },
         'messages': messages,
       });
       http.Response? response;
@@ -211,9 +222,9 @@ class _ConfiguredAiProvider implements AgentProvider {
       ..body = jsonEncode({
         'model': _model,
         'stream': true,
-        // GPT-OSS cannot disable reasoning completely. Low effort materially
-        // improves first-token latency while retaining enough planning for
-        // choosing and sequencing local MCP tools.
+        // The agent loop genuinely plans: it picks tools, sequences them and
+        // decides when it has enough evidence. Low effort keeps first-token
+        // latency down while retaining that planning.
         'think': 'low',
         'keep_alive': '10m',
         'options': {'temperature': 0, 'num_predict': 1200},

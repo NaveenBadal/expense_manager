@@ -208,10 +208,13 @@ void main() {
       expect(sent, isNot(contains('secret-not-logged')));
       expect(requestUri?.path, '/api/chat');
       final request = jsonDecode(sent!) as Map<String, Object?>;
-      expect(request['think'], 'low');
+      // Extraction is a reading task: reasoning tokens are pure latency.
+      expect(request['think'], isFalse);
       expect(request['keep_alive'], '10m');
-      expect(request.containsKey('format'), isFalse);
-      expect(request['options'], {'temperature': 0, 'num_predict': 1200});
+      // Constrained decoding makes malformed JSON structurally impossible.
+      expect(request['format'], IngestionPrompt.responseSchema);
+      // Output budget scales with batch size so a batch cannot truncate.
+      expect(request['options'], {'temperature': 0, 'num_predict': 416});
       final messages = request['messages'] as List;
       final userPayload =
           jsonDecode((messages.last as Map)['content'].toString()) as Map;

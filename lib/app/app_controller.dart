@@ -23,6 +23,15 @@ import 'app_state.dart';
 
 const _maximumIngestionMessages = 12;
 
+/// Batches analyzed concurrently.
+///
+/// Output-token generation dominates import wall clock, and total output
+/// tokens are roughly fixed regardless of batch size, so parallelism is the
+/// only lever that actually shortens the import. Unlike dropping messages
+/// before they reach the model, it cannot cost recall. Held at five to stay
+/// under provider rate limits, above which retries erase the gain.
+const _ingestionConcurrency = 5;
+
 List<List<T>> _ingestionBatches<T>(List<T> values) {
   final batches = <List<T>>[];
   for (
@@ -191,8 +200,10 @@ class AppController extends AsyncNotifier<AppState> {
       final activeRunId = auditRunId;
       final acknowledged = <String>[];
       final batches = _ingestionBatches(unseen);
-      for (var wave = 0; wave < batches.length; wave += 2) {
-        final end = (wave + 2).clamp(0, batches.length);
+      for (var wave = 0;
+          wave < batches.length;
+          wave += _ingestionConcurrency) {
+        final end = (wave + _ingestionConcurrency).clamp(0, batches.length);
         await Future.wait([
           for (var batchPosition = wave; batchPosition < end; batchPosition++)
             () async {
@@ -506,7 +517,9 @@ class AppController extends AsyncNotifier<AppState> {
       var checked = 0;
       var skipped = seen.length;
       final batches = _ingestionBatches(unseen);
-      for (var wave = 0; wave < batches.length; wave += 2) {
+      for (var wave = 0;
+          wave < batches.length;
+          wave += _ingestionConcurrency) {
         await _waitWhileLifecyclePaused(
           permission: permission,
           checked: checked,
@@ -543,7 +556,7 @@ class AppController extends AsyncNotifier<AppState> {
             ),
           ),
         );
-        final end = (wave + 2).clamp(0, batches.length);
+        final end = (wave + _ingestionConcurrency).clamp(0, batches.length);
         await Future.wait([
           for (var batchPosition = wave; batchPosition < end; batchPosition++)
             () async {
@@ -890,7 +903,9 @@ class AppController extends AsyncNotifier<AppState> {
         provider: client.configured(
           endpoint: _value.preferences.aiEndpoint,
           apiKey: key,
-          model: _value.preferences.aiModel,
+          // The agent orchestrates tools across turns; the parsing model is
+          // tuned for single-pass structured extraction instead.
+          model: _value.preferences.aiChatModel,
         ),
         server: server,
       );
