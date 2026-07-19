@@ -58,7 +58,7 @@ Rebuilt:
 | 3 | Review flow — clearing the backlog | done |
 | 4 | Activity — dense, groupable, filterable ledger | done |
 | 5 | Rich chat — charts, tables, interactive cards, deep links | todo |
-| 6 | Transaction detail as a route | todo |
+| 6 | Transaction detail as a route | done |
 | 7 | Settings, reorganised by intent | todo |
 | 8 | Motion | todo |
 | 9 | Verification sweep | todo |
@@ -95,6 +95,17 @@ contract the model is given lives in `agent/agent_runner.dart`
 
 A route, not a sheet. Source message, what was extracted and why, confidence,
 edit history, similar transactions. This is where trust is won or lost.
+
+Landed as `ui2/screens/transaction_detail_screen.dart`, opened via
+`TransactionDetailScreen.open(context, id)` on the root navigator — which is
+what lets chat push it over the sheet and pop back. Activity rows and Today's
+captures link into it. Edit history was dropped from scope: the kept engine
+records an import audit but no per-transaction edit log, and `lib/data` is
+frozen. Two things found by looking: the review callout claimed the model
+"was not sure" beside a 96% confidence row (reworded neutrally — review has
+non-confidence triggers), and a category outside the standard vocabulary was
+invisible because no chip carried it (the record's own category now leads
+the chip row).
 
 ### Phase 9 — Verification sweep
 

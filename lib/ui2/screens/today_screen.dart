@@ -8,6 +8,7 @@ import '../charts/flow_charts.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
 import '../tokens/flow_type.dart';
+import 'transaction_detail_screen.dart';
 
 /// Where you stand.
 ///
@@ -16,7 +17,11 @@ import '../tokens/flow_type.dart';
 /// and answerable from records already on the device. Everything here is
 /// computed locally and rendered without waiting for anything.
 class TodayScreen extends ConsumerWidget {
-  const TodayScreen({super.key, required this.onReview, required this.onOpenSettings});
+  const TodayScreen({
+    super.key,
+    required this.onReview,
+    required this.onOpenSettings,
+  });
 
   final VoidCallback onReview;
   final VoidCallback onOpenSettings;
@@ -281,50 +286,59 @@ class _CaptureRow extends StatelessWidget {
     final flow = context.flow;
     final incoming = item.direction == TransactionDirection.incoming;
     final confident = item.reviewState != ReviewState.needsReview;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: FlowSpace.sm),
-      child: Row(
-        children: [
-          // Confidence is stated with an icon and a word, never colour alone.
-          Icon(
-            confident
-                ? Icons.check_circle_outline_rounded
-                : Icons.help_outline_rounded,
-            size: 17,
-            color: confident ? flow.income : flow.attention,
-          ),
-          const SizedBox(width: FlowSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.merchant,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                Text(
-                  confident ? item.category : '${item.category} · needs a look',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: confident ? flow.inkFaint : flow.attention,
+    return InkWell(
+      // A capture is a claim, and the detail route is where the claim can be
+      // checked — so the row that announces it also opens it.
+      onTap: item.id == null
+          ? null
+          : () => TransactionDetailScreen.open(context, item.id!),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: FlowSpace.sm),
+        child: Row(
+          children: [
+            // Confidence is stated with an icon and a word, never colour alone.
+            Icon(
+              confident
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.help_outline_rounded,
+              size: 17,
+              color: confident ? flow.income : flow.attention,
+            ),
+            const SizedBox(width: FlowSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.merchant,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                ),
-              ],
+                  Text(
+                    confident
+                        ? item.category
+                        : '${item.category} · needs a look',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: confident ? flow.inkFaint : flow.attention,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          Text(
-            hidden
-                ? '••••'
-                : '${incoming ? '+' : '−'}'
-                      '${formatMoney(item.amountMinor, item.currency)}',
-            style: FlowType.amountRow.copyWith(
-              color: incoming ? flow.income : flow.ink,
+            Text(
+              hidden
+                  ? '••••'
+                  : '${incoming ? '+' : '−'}'
+                        '${formatMoney(item.amountMinor, item.currency)}',
+              style: FlowType.amountRow.copyWith(
+                color: incoming ? flow.income : flow.ink,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -415,7 +429,9 @@ class TodaySummary {
       if (!at.isBefore(monthStart)) {
         spent += item.amountMinor;
         final index = at.day - 1;
-        if (index >= 0 && index < daily.length) daily[index] += item.amountMinor;
+        if (index >= 0 && index < daily.length) {
+          daily[index] += item.amountMinor;
+        }
         byCategory[item.category] =
             (byCategory[item.category] ?? 0) + item.amountMinor;
       } else if (!at.isBefore(previousStart)) {

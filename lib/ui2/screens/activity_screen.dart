@@ -10,9 +10,11 @@ import '../../domain/transaction.dart';
 import '../../features/activity/transaction_editor_sheet.dart';
 import '../../ui/format/money_format.dart';
 import '../flow_categories.dart';
+import '../sheets/confirm_delete_sheet.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
 import '../tokens/flow_type.dart';
+import 'transaction_detail_screen.dart';
 
 /// The ledger.
 ///
@@ -230,9 +232,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
           child: app.transactions.isEmpty
               ? _EmptyLedger(
                   importing: app.importStatus.working,
-                  onImport: () => ref
-                      .read(appControllerProvider.notifier)
-                      .importMessages(),
+                  onImport: () =>
+                      ref.read(appControllerProvider.notifier).importMessages(),
                 )
               : values.isEmpty
               ? _NoMatch(onClear: _clearFilters)
@@ -246,8 +247,8 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
                   onTap: (item) {
                     if (selecting) {
                       _toggle(item);
-                    } else {
-                      _edit(item);
+                    } else if (item.id != null) {
+                      TransactionDetailScreen.open(context, item.id!);
                     }
                   },
                   onLongPress: (item) {
@@ -359,9 +360,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
   }
 
   String _groupKey(MoneyTransaction item) => switch (_grouping) {
-    ActivityGrouping.day => item.occurredAt
-        .toIso8601String()
-        .substring(0, 10),
+    ActivityGrouping.day => item.occurredAt.toIso8601String().substring(0, 10),
     ActivityGrouping.category => item.category.toLowerCase(),
     ActivityGrouping.merchant => item.merchant.toLowerCase(),
   };
@@ -495,11 +494,11 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
 
   Future<void> _bulkDelete(List<MoneyTransaction> values) async {
     final items = _selectedItems(values);
-    final confirmed = await showModalBottomSheet<bool>(
-      context: context,
-      builder: (sheet) => _DeleteSheet(count: items.length),
+    final confirmed = await confirmDeleteTransactions(
+      context,
+      count: items.length,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     final controller = ref.read(appControllerProvider.notifier);
     for (final item in items) {
       if (item.id != null) await controller.deleteTransaction(item.id!);
@@ -507,8 +506,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
     if (mounted) setState(_selected.clear);
   }
 
-  /// Interim: rows open the legacy editor sheet until phase 6 lands the
-  /// transaction detail route, which replaces this call site.
+  /// Manual entry only; existing rows open the detail route instead.
   Future<void> _edit(MoneyTransaction? item) => showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
@@ -688,10 +686,7 @@ class _MenuChip<T> extends StatelessWidget {
           PopupMenuItem<T>(value: entry.$1, child: Text(entry.$2)),
       ],
       child: Container(
-        padding: const EdgeInsets.only(
-          left: FlowSpace.md,
-          right: FlowSpace.sm,
-        ),
+        padding: const EdgeInsets.only(left: FlowSpace.md, right: FlowSpace.sm),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: active ? flow.accent : flow.raised,
@@ -880,11 +875,7 @@ class _LedgerList extends StatelessWidget {
       itemBuilder: (context, index) {
         final entry = entries[index];
         if (entry is _Group) {
-          return _GroupHeader(
-            group: entry,
-            currency: currency,
-            hidden: hidden,
-          );
+          return _GroupHeader(group: entry, currency: currency, hidden: hidden);
         }
         final item = entry as MoneyTransaction;
         return _LedgerRow(
@@ -1121,77 +1112,6 @@ class _CategorySheet extends StatelessWidget {
                       ),
                     ),
                   ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DeleteSheet extends StatelessWidget {
-  const _DeleteSheet({required this.count});
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final flow = context.flow;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(FlowSpace.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              count == 1 ? 'Delete 1 transaction?' : 'Delete $count transactions?',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: FlowSpace.sm),
-            Text(
-              'They are removed from Activity and from future answers. '
-              'This cannot be undone.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: flow.inkSoft),
-            ),
-            const SizedBox(height: FlowSpace.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(
-                        FlowDensity.minimumTarget,
-                      ),
-                      side: BorderSide(color: flow.line),
-                      foregroundColor: flow.ink,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: FlowRadius.sm,
-                      ),
-                    ),
-                    child: const Text('Keep'),
-                  ),
-                ),
-                const SizedBox(width: FlowSpace.md),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(
-                        FlowDensity.minimumTarget,
-                      ),
-                      backgroundColor: flow.expense,
-                      foregroundColor: Colors.white,
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: FlowRadius.sm,
-                      ),
-                    ),
-                    child: const Text('Delete'),
-                  ),
-                ),
               ],
             ),
           ],
