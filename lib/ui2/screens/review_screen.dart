@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
-import '../../ui/format/money_format.dart';
+import '../format/money_format.dart';
 import '../flow_categories.dart';
 import '../motion/flow_motion_widgets.dart';
 import '../tokens/flow_metrics.dart';

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fund_flow/ui/format/money_format.dart';
+import 'package:fund_flow/ui2/format/money_format.dart';
 
 void main() {
   test('rupees render with the rupee sign, not the code', () {

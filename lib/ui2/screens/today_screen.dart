@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
-import '../../ui/format/money_format.dart';
+import '../format/money_format.dart';
 import '../charts/flow_charts.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
