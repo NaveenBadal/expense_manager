@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:intl/intl.dart';
 
 import '../../agent/agent_presentation.dart';
 import '../../domain/transaction.dart';
@@ -643,8 +644,16 @@ class _EvidenceRow extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  // The date belongs on the row, not only in the detail
+                  // screen: an answer about duplicates or repeated charges
+                  // lists rows that are identical except for when they
+                  // happened, and without it there is nothing to judge.
                   Text(
-                    pending ? '${item.category} · needs a look' : item.category,
+                    [
+                      DateFormat('d MMM').format(item.occurredAt),
+                      item.category,
+                      if (pending) 'needs a look',
+                    ].join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
