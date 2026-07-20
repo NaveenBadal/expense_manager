@@ -185,6 +185,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             onFollowUp: _ask,
                             onTransaction: _openTransaction,
                             onRecategorise: _recategorise,
+                            onRecategoriseMany: _recategoriseMany,
                             onToggleReview: _toggleReview,
                           );
                         }
@@ -298,6 +299,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
   }
 
+  /// One category applied to several cited rows at once.
+  ///
+  /// Direct rather than through an agent proposal: the person picked the
+  /// exact rows and the exact category, so there is nothing for a model to
+  /// propose and nothing left to approve.
+  Future<void> _recategoriseMany(List<MoneyTransaction> items) async {
+    if (items.isEmpty) return;
+    final choice = await pickCategory(
+      context,
+      title: 'Category for ${items.length} transactions',
+      current: items.first.category,
+    );
+    if (choice == null || !mounted) return;
+    final controller = ref.read(appControllerProvider.notifier);
+    for (final item in items) {
+      await controller.saveTransaction(
+        item.copyWith(
+          category: choice,
+          reviewState: ReviewState.confirmed,
+          confidence: 1,
+        ),
+      );
+    }
+  }
+
   Future<void> _toggleReview(MoneyTransaction item) async {
     final controller = ref.read(appControllerProvider.notifier);
     if (item.reviewState == ReviewState.needsReview) {
@@ -341,6 +367,7 @@ class _MessageView extends StatelessWidget {
     required this.onFollowUp,
     required this.onTransaction,
     required this.onRecategorise,
+    required this.onRecategoriseMany,
     required this.onToggleReview,
     this.precedingQuestion,
   });
@@ -352,6 +379,7 @@ class _MessageView extends StatelessWidget {
   final ValueChanged<String> onFollowUp;
   final ValueChanged<MoneyTransaction> onTransaction;
   final ValueChanged<MoneyTransaction> onRecategorise;
+  final ValueChanged<List<MoneyTransaction>> onRecategoriseMany;
   final ValueChanged<MoneyTransaction> onToggleReview;
 
   @override
@@ -395,6 +423,7 @@ class _MessageView extends StatelessWidget {
               onFollowUp: onFollowUp,
               onTransaction: onTransaction,
               onRecategorise: onRecategorise,
+              onRecategoriseMany: onRecategoriseMany,
               onToggleReview: onToggleReview,
             )
           else

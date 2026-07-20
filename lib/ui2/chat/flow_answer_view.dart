@@ -28,6 +28,7 @@ class FlowAnswerView extends StatefulWidget {
     required this.onTransaction,
     required this.onRecategorise,
     required this.onToggleReview,
+    required this.onRecategoriseMany,
     this.animate = false,
   });
 
@@ -37,6 +38,7 @@ class FlowAnswerView extends StatefulWidget {
   final ValueChanged<MoneyTransaction> onTransaction;
   final ValueChanged<MoneyTransaction> onRecategorise;
   final ValueChanged<MoneyTransaction> onToggleReview;
+  final ValueChanged<List<MoneyTransaction>> onRecategoriseMany;
   final bool animate;
 
   @override
@@ -126,6 +128,7 @@ class _FlowAnswerViewState extends State<FlowAnswerView>
     onTransaction: widget.onTransaction,
     onRecategorise: widget.onRecategorise,
     onToggleReview: widget.onToggleReview,
+    onRecategoriseMany: widget.onRecategoriseMany,
     deltaAlreadyShown: deltaShown,
   );
 
@@ -148,6 +151,7 @@ class _PartView extends StatelessWidget {
     required this.onTransaction,
     required this.onRecategorise,
     required this.onToggleReview,
+    required this.onRecategoriseMany,
     this.deltaAlreadyShown = false,
   });
 
@@ -158,6 +162,7 @@ class _PartView extends StatelessWidget {
   final ValueChanged<MoneyTransaction> onTransaction;
   final ValueChanged<MoneyTransaction> onRecategorise;
   final ValueChanged<MoneyTransaction> onToggleReview;
+  final ValueChanged<List<MoneyTransaction>> onRecategoriseMany;
 
   @override
   Widget build(BuildContext context) {
@@ -183,6 +188,7 @@ class _PartView extends StatelessWidget {
         onTransaction: onTransaction,
         onRecategorise: onRecategorise,
         onToggleReview: onToggleReview,
+        onRecategoriseMany: onRecategoriseMany,
       ),
       AgentPartKind.insight => _Notice(
         icon: Icons.lightbulb_outline_rounded,
@@ -553,13 +559,14 @@ class _LegendRow extends StatelessWidget {
   }
 }
 
-class _TransactionEvidence extends StatelessWidget {
+class _TransactionEvidence extends StatefulWidget {
   const _TransactionEvidence({
     required this.ids,
     required this.transactions,
     required this.onTransaction,
     required this.onRecategorise,
     required this.onToggleReview,
+    required this.onRecategoriseMany,
   });
 
   final List<int> ids;
@@ -567,42 +574,112 @@ class _TransactionEvidence extends StatelessWidget {
   final ValueChanged<MoneyTransaction> onTransaction;
   final ValueChanged<MoneyTransaction> onRecategorise;
   final ValueChanged<MoneyTransaction> onToggleReview;
+  final ValueChanged<List<MoneyTransaction>> onRecategoriseMany;
+
+  @override
+  State<_TransactionEvidence> createState() => _TransactionEvidenceState();
+}
+
+class _TransactionEvidenceState extends State<_TransactionEvidence> {
+  /// Rows picked for one correction applied to all of them.
+  ///
+  /// An answer that lists eight miscategorised rows used to mean eight
+  /// separate corrections. Selection starts empty and is entered by
+  /// long-pressing a row, so the ordinary case — read the evidence, tap
+  /// through to a record — is untouched.
+  final _selected = <int>{};
 
   @override
   Widget build(BuildContext context) {
     final flow = context.flow;
-    final values = transactions
-        .where((item) => ids.contains(item.id))
+    final values = widget.transactions
+        .where((item) => widget.ids.contains(item.id))
         .take(8)
         .toList();
     if (values.isEmpty) return const SizedBox.shrink();
-    return Container(
-      decoration: BoxDecoration(
-        color: flow.raised,
-        borderRadius: FlowRadius.md,
-        border: Border.all(color: flow.line),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          for (var index = 0; index < values.length; index++) ...[
-            _EvidenceRow(
-              item: values[index],
-              onOpen: () => onTransaction(values[index]),
-              onRecategorise: () => onRecategorise(values[index]),
-              onToggleReview: () => onToggleReview(values[index]),
-            ),
-            if (index != values.length - 1)
-              Divider(
-                height: 1,
-                indent: FlowSpace.lg,
-                endIndent: FlowSpace.lg,
-                color: flow.line,
+    final selecting = _selected.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: flow.raised,
+            borderRadius: FlowRadius.md,
+            border: Border.all(color: selecting ? flow.accent : flow.line),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              for (var index = 0; index < values.length; index++) ...[
+                _EvidenceRow(
+                  item: values[index],
+                  selecting: selecting,
+                  selected: _selected.contains(values[index].id),
+                  onOpen: () => selecting
+                      ? _toggle(values[index])
+                      : widget.onTransaction(values[index]),
+                  onSelect: () => _toggle(values[index]),
+                  onRecategorise: () => widget.onRecategorise(values[index]),
+                  onToggleReview: () => widget.onToggleReview(values[index]),
+                ),
+                if (index != values.length - 1)
+                  Divider(
+                    height: 1,
+                    indent: FlowSpace.lg,
+                    endIndent: FlowSpace.lg,
+                    color: flow.line,
+                  ),
+              ],
+            ],
+          ),
+        ),
+        if (selecting) ...[
+          const SizedBox(height: FlowSpace.sm),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${_selected.length} selected',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: flow.inkSoft),
+                ),
               ),
-          ],
+              TextButton(
+                onPressed: () => setState(_selected.clear),
+                child: const Text('Cancel'),
+              ),
+              const SizedBox(width: FlowSpace.sm),
+              FilledButton(
+                onPressed: () {
+                  final chosen = values
+                      .where((item) => _selected.contains(item.id))
+                      .toList();
+                  setState(_selected.clear);
+                  widget.onRecategoriseMany(chosen);
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: flow.accent,
+                  foregroundColor: flow.onAccent,
+                  shape: const RoundedRectangleBorder(
+                    borderRadius: FlowRadius.sm,
+                  ),
+                ),
+                child: const Text('Change category'),
+              ),
+            ],
+          ),
         ],
-      ),
+      ],
     );
+  }
+
+  void _toggle(MoneyTransaction item) {
+    final id = item.id;
+    if (id == null) return;
+    setState(() {
+      if (!_selected.remove(id)) _selected.add(id);
+    });
   }
 }
 
@@ -613,13 +690,19 @@ class _TransactionEvidence extends StatelessWidget {
 class _EvidenceRow extends StatelessWidget {
   const _EvidenceRow({
     required this.item,
+    required this.selecting,
+    required this.selected,
     required this.onOpen,
+    required this.onSelect,
     required this.onRecategorise,
     required this.onToggleReview,
   });
 
   final MoneyTransaction item;
+  final bool selecting;
+  final bool selected;
   final VoidCallback onOpen;
+  final VoidCallback onSelect;
   final VoidCallback onRecategorise;
   final VoidCallback onToggleReview;
 
@@ -630,11 +713,24 @@ class _EvidenceRow extends StatelessWidget {
     final pending = item.reviewState == ReviewState.needsReview;
     return InkWell(
       onTap: onOpen,
+      // Long press enters selection, so correcting several rows at once is
+      // available without putting a checkbox in front of everyone who only
+      // wants to read the evidence.
+      onLongPress: onSelect,
       child: Container(
         constraints: const BoxConstraints(minHeight: FlowDensity.compactRow),
         padding: const EdgeInsets.only(left: FlowSpace.lg),
+        color: selected ? flow.accent.withValues(alpha: .08) : null,
         child: Row(
           children: [
+            if (selecting) ...[
+              Icon(
+                selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                size: 18,
+                color: selected ? flow.accent : flow.inkFaint,
+              ),
+              const SizedBox(width: FlowSpace.md),
+            ],
             Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
