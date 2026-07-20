@@ -24,15 +24,20 @@ abstract final class FlowPalette {
   // Warm rather than neutral. A paper ground is the one thing worth keeping
   // from the previous language: every other money app is stark white or
   // black, and this is a screen someone opens daily.
-  static const lightCanvas = Color(0xFFF6F4EF);
-  static const lightSunken = Color(0xFFEFEDE6);
-  static const lightRaised = Color(0xFFFBFAF7);
-  static const lightLine = Color(0xFFDDDAD1);
+  // Canvas, sunken and raised used to sit within a few percent of each
+  // other, so a card could not separate from the page by tone and — with no
+  // shadow anywhere either — could not separate at all. The ground is now a
+  // touch deeper and raised surfaces go to near-white, which is what lets a
+  // card read as a card.
+  static const lightCanvas = Color(0xFFF1EEE8);
+  static const lightSunken = Color(0xFFE8E5DD);
+  static const lightRaised = Color(0xFFFFFEFC);
+  static const lightLine = Color(0xFFDCD8CF);
 
-  static const darkCanvas = Color(0xFF15161A);
-  static const darkSunken = Color(0xFF101115);
-  static const darkRaised = Color(0xFF1D1F24);
-  static const darkLine = Color(0xFF303239);
+  static const darkCanvas = Color(0xFF121316);
+  static const darkSunken = Color(0xFF0C0D10);
+  static const darkRaised = Color(0xFF1E2126);
+  static const darkLine = Color(0xFF32353C);
 
   // -------------------------------------------------------------------- ink
   static const lightInk = Color(0xFF1A1C1B);

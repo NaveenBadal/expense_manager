@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 /// Geometry, spacing and motion.
 ///
@@ -34,6 +34,60 @@ abstract final class FlowSpace {
   static const double xl = 24;
   static const double xxl = 32;
   static const double huge = 48;
+}
+
+/// Depth.
+///
+/// The build had no shadow anywhere and three surface tones within a few
+/// percent of each other, so nothing could separate from the ground by depth
+/// or by tone and every card sat flat on the page. These are wide and soft
+/// rather than tight and dark: a card should look lifted, not stamped.
+///
+/// [FlowElevation.of] is used rather than raw lists because a shadow tuned
+/// for a warm paper ground is far too heavy on a near-black one.
+abstract final class FlowElevation {
+  /// Rows and tiles that group content without claiming importance.
+  static List<BoxShadow> low(Brightness brightness) =>
+      _shadows(brightness, blur: 12, y: 2, opacity: .05);
+
+  /// Cards. The common case.
+  static List<BoxShadow> card(Brightness brightness) =>
+      _shadows(brightness, blur: 24, y: 6, opacity: .07);
+
+  /// The one surface a screen is built around.
+  static List<BoxShadow> hero(Brightness brightness) =>
+      _shadows(brightness, blur: 40, y: 12, opacity: .10);
+
+  static List<BoxShadow> of(BuildContext context) =>
+      card(Theme.of(context).brightness);
+
+  static List<BoxShadow> _shadows(
+    Brightness brightness, {
+    required double blur,
+    required double y,
+    required double opacity,
+  }) {
+    // Depth on a dark ground comes from the light above a surface, not from
+    // a darker shadow beneath it, so the same shadow has to work harder.
+    final dark = brightness == Brightness.dark;
+    return [
+      BoxShadow(
+        color: const Color(0xFF1A1C1B).withValues(
+          alpha: dark ? opacity * 3.2 : opacity,
+        ),
+        blurRadius: blur,
+        offset: Offset(0, y),
+      ),
+      // A tight contact shadow stops a large soft one reading as a blur.
+      BoxShadow(
+        color: const Color(0xFF1A1C1B).withValues(
+          alpha: dark ? opacity * 2 : opacity * .7,
+        ),
+        blurRadius: blur / 6,
+        offset: Offset(0, y / 3),
+      ),
+    ];
+  }
 }
 
 /// Row heights.

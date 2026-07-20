@@ -122,12 +122,23 @@ class _SparkPainter extends CustomPainter {
       final y = size.height - (values[i] / scale) * (size.height - 3) - 1.5;
       i == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
     }
+    // A flat wash under the line read as a gray slab. Fading it out toward
+    // the baseline lets the line stay the figure and the fill stay its
+    // shadow, which is the difference between a chart and a block.
     canvas.drawPath(
       Path.from(path)
         ..lineTo(size.width, size.height)
         ..lineTo(0, size.height)
         ..close(),
-      Paint()..color = fill,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            fill.withValues(alpha: (fill.a * 1.6).clamp(0, 1)),
+            fill.withValues(alpha: 0),
+          ],
+        ).createShader(Offset.zero & size),
     );
     canvas.drawPath(
       path,
@@ -426,11 +437,13 @@ class FlowBarRow extends StatelessWidget {
           const SizedBox(height: 6),
           Stack(
             children: [
+              // Fully rounded rather than a 4pt corner on a 6pt bar, which
+              // reads as a rectangle someone forgot to finish.
               Container(
-                height: 6,
+                height: 7,
                 decoration: BoxDecoration(
                   color: flow.sunken,
-                  borderRadius: FlowRadius.xs,
+                  borderRadius: FlowRadius.pill,
                 ),
               ),
               FractionallySizedBox(
@@ -438,10 +451,15 @@ class FlowBarRow extends StatelessWidget {
                 // reading as absent.
                 widthFactor: fraction.clamp(.03, 1.0),
                 child: Container(
-                  height: 6,
+                  height: 7,
                   decoration: BoxDecoration(
-                    color: color ?? flow.accent,
-                    borderRadius: FlowRadius.xs,
+                    borderRadius: FlowRadius.pill,
+                    gradient: LinearGradient(
+                      colors: [
+                        (color ?? flow.accent).withValues(alpha: .82),
+                        color ?? flow.accent,
+                      ],
+                    ),
                   ),
                 ),
               ),

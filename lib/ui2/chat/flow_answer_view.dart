@@ -606,6 +606,7 @@ class _TransactionEvidenceState extends State<_TransactionEvidence> {
             color: flow.raised,
             borderRadius: FlowRadius.md,
             border: Border.all(color: selecting ? flow.accent : flow.line),
+            boxShadow: FlowElevation.low(Theme.of(context).brightness),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(

@@ -6,6 +6,7 @@ import '../../domain/transaction.dart';
 import '../../domain/insight_engine.dart';
 import '../../domain/money_format.dart';
 import '../charts/flow_charts.dart';
+import '../motion/flow_motion_widgets.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
 import '../tokens/flow_type.dart';
@@ -89,43 +90,67 @@ class TodayScreen extends ConsumerWidget {
                 FlowSpace.xl,
                 0,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Spent this month',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: flow.inkSoft),
+              // The month's figure is what this screen is for, so it sits on
+              // its own raised surface rather than floating on the page with
+              // everything else. This is the one card allowed hero depth.
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(FlowSpace.xl),
+                decoration: BoxDecoration(
+                  borderRadius: FlowRadius.lg,
+                  boxShadow: FlowElevation.hero(
+                    Theme.of(context).brightness,
                   ),
-                  const SizedBox(height: FlowSpace.xs),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          hidden
-                              ? '••••••'
-                              : formatMoney(
-                                  summary.spentMinor,
-                                  summary.currency,
-                                ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: FlowType.amountHero.copyWith(color: flow.ink),
-                        ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      flow.raised,
+                      Color.alphaBlend(
+                        flow.accent.withValues(alpha: .05),
+                        flow.raised,
                       ),
-                      if (summary.change != null && !hidden) ...[
-                        const SizedBox(width: FlowSpace.md),
-                        FlowDelta(fraction: summary.change!),
-                      ],
                     ],
                   ),
-                  if (!hidden && summary.daily.length > 1) ...[
-                    const SizedBox(height: FlowSpace.md),
-                    FlowSpark(values: summary.daily),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Spent this month',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: flow.inkSoft),
+                    ),
+                    const SizedBox(height: FlowSpace.xs),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: FlowAnimatedCount(
+                            text: hidden
+                                ? '••••••'
+                                : formatMoney(
+                                    summary.spentMinor,
+                                    summary.currency,
+                                  ),
+                            style: FlowType.amountHero.copyWith(
+                              color: flow.ink,
+                            ),
+                          ),
+                        ),
+                        if (summary.change != null && !hidden) ...[
+                          const SizedBox(width: FlowSpace.md),
+                          FlowDelta(fraction: summary.change!),
+                        ],
+                      ],
+                    ),
+                    if (!hidden && summary.daily.length > 1) ...[
+                      const SizedBox(height: FlowSpace.lg),
+                      FlowSpark(values: summary.daily),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
@@ -193,7 +218,37 @@ class TodayScreen extends ConsumerWidget {
                       'Where it went',
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    const SizedBox(height: FlowSpace.sm),
+                    const SizedBox(height: FlowSpace.md),
+                    // The share of a whole is the question this section
+                    // answers, and a ring says it at a glance in a way a
+                    // column of bars cannot. Bars stay underneath because
+                    // they are what let you compare and read the figures.
+                    if (!hidden && summary.categories.length >= 2)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: FlowSpace.lg),
+                          child: FlowDonut(
+                            size: 148,
+                            centerLabel: 'Spent',
+                            centerValue: formatMoney(
+                              summary.spentMinor,
+                              summary.currency,
+                            ),
+                            segments: [
+                              for (
+                                var i = 0;
+                                i < summary.categories.length;
+                                i++
+                              )
+                                FlowDonutSegment(
+                                  value: summary.categories[i].amountMinor
+                                      .toDouble(),
+                                  color: flow.seriesAt(i),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
                     for (var i = 0; i < summary.categories.length; i++)
                       FlowBarRow(
                         label: summary.categories[i].label,
@@ -303,6 +358,7 @@ class _InsightCard extends StatelessWidget {
             color: flow.raised,
             borderRadius: FlowRadius.md,
             border: Border.all(color: flow.line),
+            boxShadow: FlowElevation.low(Theme.of(context).brightness),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -377,6 +433,7 @@ class _ReviewCallout extends StatelessWidget {
             color: flow.raised,
             borderRadius: FlowRadius.md,
             border: Border.all(color: flow.attention.withValues(alpha: .45)),
+            boxShadow: FlowElevation.low(Theme.of(context).brightness),
           ),
           child: Row(
             children: [
