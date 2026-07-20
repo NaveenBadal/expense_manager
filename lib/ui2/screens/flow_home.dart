@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
 import '../shell/flow_nav.dart';
+import '../components/flow_sheet_inset.dart';
 import '../shell/flow_shell.dart';
 import 'activity_screen.dart';
 import 'chat_screen.dart';
@@ -75,14 +76,9 @@ class _FlowHomeState extends ConsumerState<FlowHome> {
       maxChildSize: .96,
       // Without this the sheet keeps its full height when the keyboard opens
       // and the composer — the whole point of the screen — sits underneath it,
-      // so you cannot see what you are typing. The editor and connect sheets
-      // already inset this way.
-      builder: (context, controller) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: const ChatScreen(),
-      ),
+      // so you cannot see what you are typing.
+      builder: (context, controller) =>
+          const FlowSheetInset(child: ChatScreen()),
     ),
   );
 
