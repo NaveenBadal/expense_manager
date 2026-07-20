@@ -5,7 +5,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../../agent/agent_presentation.dart';
 import '../../domain/transaction.dart';
-import '../format/money_format.dart';
+import '../../domain/money_format.dart';
 import '../charts/flow_charts.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';

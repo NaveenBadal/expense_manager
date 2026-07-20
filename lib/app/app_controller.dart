@@ -1082,7 +1082,10 @@ class AppController extends AsyncNotifier<AppState> {
         },
       );
       _activeRun = null;
-      final supportingIds = <int>{};
+      // Everything the run actually checked, not just what the answer cites:
+      // a briefing reads the whole ledger without listing a single row, and
+      // "checked against 0" under it reads as an unverified answer.
+      final supportingIds = <int>{...result.evidenceTransactionIds};
       for (final part in result.presentation.parts) {
         final raw = part.data['transactionIds'];
         if (raw is List) supportingIds.addAll(raw.whereType<int>());

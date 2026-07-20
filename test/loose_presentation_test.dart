@@ -55,6 +55,24 @@ Spending summary.
     expect(presentation!.parts.single.kind, AgentPartKind.conclusion);
   });
 
+  test('a bare part object with no prose still becomes an answer', () {
+    const content =
+        '{"type":"comparison","title":"Last month vs previous month",'
+        '"currentLabel":"Jun 21-Jul 20","currentMinor":12789027,'
+        '"previousLabel":"May 21-Jun 20","previousMinor":11982863,'
+        '"currency":"INR","detail":"Spending fell by 6,762.64."}';
+    final presentation = AgentPresentation.tryFromLooseContent(content);
+    expect(presentation, isNotNull);
+    final conclusion = presentation!.parts.first;
+    expect(conclusion.kind, AgentPartKind.conclusion);
+    expect(conclusion.data['text'], contains('Spending fell'));
+    final comparison = presentation.parts
+        .singleWhere((part) => part.kind == AgentPartKind.comparison);
+    // The promoted detail must not be shown twice.
+    expect(comparison.data.containsKey('detail'), isFalse);
+    expect(comparison.data['currentMinor'], 12789027);
+  });
+
   test('returns null for ordinary prose with no parts', () {
     expect(
       AgentPresentation.tryFromLooseContent('I could not find any records.'),

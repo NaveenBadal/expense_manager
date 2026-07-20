@@ -32,6 +32,59 @@ void main() {
     expect(names, contains('answer_compose'));
   });
 
+  test('direction "both" means no filter, not an impossible match', () async {
+    final execution = await server.execute(
+      const McpToolCall(
+        id: 'both',
+        name: 'finance_briefing',
+        arguments: {
+          'from': '2026-07-01',
+          'to': '2026-07-31',
+          'direction': 'both',
+        },
+      ),
+    );
+    expect(execution.result.isError, isFalse);
+    expect(execution.result.content['checkedCount'], transactions.length);
+  });
+
+  test('an invalid enum filter fails loudly instead of matching nothing', () async {
+    final execution = await server.execute(
+      const McpToolCall(
+        id: 'bad',
+        name: 'finance_briefing',
+        arguments: {
+          'from': '2026-07-01',
+          'to': '2026-07-31',
+          'direction': 'sideways',
+        },
+      ),
+    );
+    expect(execution.result.isError, isTrue);
+    expect(
+      execution.result.content['error'].toString(),
+      contains('incoming'),
+    );
+  });
+
+  test('an empty period result carries ledger coverage for self-correction',
+      () async {
+    final execution = await server.execute(
+      const McpToolCall(
+        id: 'empty',
+        name: 'finance_briefing',
+        arguments: {'from': '2024-01-01', 'to': '2024-02-01'},
+      ),
+    );
+    expect(execution.result.isError, isFalse);
+    expect(execution.result.content['checkedCount'], 0);
+    final coverage =
+        execution.result.content['ledgerCoverage'] as Map<String, Object?>;
+    expect(coverage['totalCount'], transactions.length);
+    expect(coverage['earliestOccurredAt'], isNotNull);
+    expect(execution.result.content['hint'], isNotNull);
+  });
+
   test('conversation search returns bounded local follow-up context', () async {
     server = LocalMcpServer(
       transactions: () => transactions,

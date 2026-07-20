@@ -8,7 +8,7 @@ import 'package:intl/intl.dart';
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
 import '../sheets/transaction_editor_sheet.dart';
-import '../format/money_format.dart';
+import '../../domain/money_format.dart';
 import '../flow_categories.dart';
 import '../motion/flow_motion_widgets.dart';
 import '../sheets/confirm_delete_sheet.dart';

@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:developer' as developer;
+
 import '../domain/finance_summary.dart';
 import '../domain/conversation.dart';
+import '../domain/money_format.dart';
 import '../domain/preferences.dart';
 import '../domain/transaction.dart';
 import 'agent_presentation.dart';
@@ -294,6 +298,12 @@ class LocalMcpServer {
   }
 
   Future<McpExecution> execute(McpToolCall call) async {
+    // Local-only diagnostics: seeing which period the model actually asked
+    // for is the difference between fixing a bad answer and guessing at it.
+    developer.log(
+      '${call.name} ${jsonEncode(call.arguments)}',
+      name: 'fundflow.agent',
+    );
     final definition = tools.where((tool) => tool.name == call.name);
     if (definition.length != 1) return _error(call, 'Unknown capability.');
     try {
@@ -429,6 +439,7 @@ class LocalMcpServer {
       'total': all.length,
       'offset': offset,
       'hasMore': offset + page.length < all.length,
+      ..._emptyPeriodHint(all),
     }, summary: 'Found ${all.length} matching transactions');
   }
 
@@ -450,6 +461,7 @@ class LocalMcpServer {
           .where((item) => item.reviewState == ReviewState.needsReview)
           .length,
       'transactionIds': values.map((item) => item.id).whereType<int>().toList(),
+      ..._emptyPeriodHint(values),
     }, summary: 'Calculated ${values.length} transactions');
   }
 
@@ -484,6 +496,7 @@ class LocalMcpServer {
           'label': group.key,
           'currency': currency.key,
           'amountMinor': currency.value.$1,
+          'amountDisplay': formatMoney(currency.value.$1, currency.key),
           'count': currency.value.$2,
         });
       }
@@ -495,6 +508,7 @@ class LocalMcpServer {
       'groupBy': groupBy,
       'rows': rows.take(limit).toList(),
       'transactionIds': values.map((item) => item.id).whereType<int>().toList(),
+      ..._emptyPeriodHint(values),
     });
   }
 
@@ -527,6 +541,7 @@ class LocalMcpServer {
             ),
           },
       ],
+      if (currencies.isEmpty) ..._emptyPeriodHint(const []),
     });
   }
 
@@ -554,7 +569,10 @@ class LocalMcpServer {
             )
             .toList()
           ..sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
-    return _ok(call, {'candidates': rows.take(20).toList()});
+    return _ok(call, {
+      'candidates': rows.take(20).toList(),
+      ..._emptyPeriodHint(values),
+    });
   }
 
   McpExecution _briefing(McpToolCall call) {
@@ -579,6 +597,10 @@ class LocalMcpServer {
                   'label': group.key,
                   'currency': currency.key,
                   'amountMinor': currency.value.$1,
+                  'amountDisplay': formatMoney(
+                    currency.value.$1,
+                    currency.key,
+                  ),
                   'count': currency.value.$2,
                 },
           ]..sort(
@@ -607,8 +629,9 @@ class LocalMcpServer {
       'evidenceTransactionIds': values
           .map((item) => item.id)
           .whereType<int>()
-          .take(100)
+          .take(500)
           .toList(),
+      ..._emptyPeriodHint(values),
     }, summary: 'Built a local financial briefing');
   }
 
@@ -624,6 +647,7 @@ class LocalMcpServer {
           .map((row) => row['transactionId'])
           .whereType<int>()
           .toList(),
+      ..._emptyPeriodHint(values),
     }, summary: 'Checked transactions for unusual amounts');
   }
 
@@ -649,7 +673,9 @@ class LocalMcpServer {
           'transactionId': item.id,
           'merchant': item.merchant,
           'amountMinor': item.amountMinor,
+          'amountDisplay': formatMoney(item.amountMinor, item.currency),
           'medianMinor': median,
+          'medianDisplay': formatMoney(median, item.currency),
           'multiple': item.amountMinor / median,
           'currency': item.currency,
           'direction': item.direction.name,
@@ -678,6 +704,7 @@ class LocalMcpServer {
           )
           .toSet()
           .toList(),
+      ..._emptyPeriodHint(values),
     }, summary: 'Checked transactions for possible duplicates');
   }
 
@@ -703,6 +730,10 @@ class LocalMcpServer {
           rows.add({
             'merchant': current.merchant,
             'amountMinor': current.amountMinor,
+            'amountDisplay': formatMoney(
+              current.amountMinor,
+              current.currency,
+            ),
             'currency': current.currency,
             'direction': current.direction.name,
             'transactionIds': [previous.id, current.id],
@@ -864,6 +895,36 @@ class LocalMcpServer {
     );
   }
 
+  /// Appended to a period tool's result when nothing matched.
+  ///
+  /// A model that mis-derives "this month" — most often by trusting its
+  /// training-era sense of today over the stated clock — would otherwise see
+  /// an empty result and truthfully report that no data exists. Handing back
+  /// the ledger's actual span turns that dead end into a one-turn retry.
+  Map<String, Object?> _emptyPeriodHint(List<MoneyTransaction> matched) {
+    if (matched.isNotEmpty) return const {};
+    final all = _transactions();
+    if (all.isEmpty) {
+      return {
+        'ledgerCoverage': {'totalCount': 0},
+        'hint': 'The ledger holds no transactions at all yet.',
+      };
+    }
+    final dates = all.map((item) => item.occurredAt).toList()..sort();
+    return {
+      'ledgerCoverage': {
+        'totalCount': all.length,
+        'earliestOccurredAt': dates.first.toIso8601String(),
+        'latestOccurredAt': dates.last.toIso8601String(),
+      },
+      'hint':
+          'No records matched the requested period or filters, but the '
+          'ledger holds ${all.length} transactions between '
+          '${dates.first.toIso8601String()} and ${dates.last.toIso8601String()}. '
+          'Re-query within this range before concluding there is no data.',
+    };
+  }
+
   List<MoneyTransaction> _filtered(
     Map<String, Object?> arguments, {
     bool requirePeriod = false,
@@ -881,9 +942,15 @@ class LocalMcpServer {
     final merchant = arguments['merchant']?.toString().toLowerCase();
     final category = arguments['category']?.toString().toLowerCase();
     final account = arguments['account']?.toString().toLowerCase();
-    final direction = arguments['direction']?.toString();
-    final source = arguments['source']?.toString();
-    final review = arguments['reviewState']?.toString();
+    // Schema enums are advisory to the provider, not enforced by it: models
+    // routinely send direction "both" meaning "no filter". Taken literally
+    // that matches nothing — every transaction is incoming or outgoing — and
+    // the whole ledger silently vanishes from the answer. Honour the intent
+    // for the no-filter spellings and reject anything else loudly enough for
+    // the model to correct itself.
+    final direction = _enumFilter(arguments, 'direction', _directions);
+    final source = _enumFilter(arguments, 'source', _sources);
+    final review = _enumFilter(arguments, 'reviewState', _reviewStates);
     final currency = arguments['currency']?.toString().toUpperCase();
     final minimum = arguments['minimumMinor'] as int?;
     final maximum = arguments['maximumMinor'] as int?;
@@ -909,6 +976,28 @@ class LocalMcpServer {
       return true;
     }).toList()..sort((a, b) => b.occurredAt.compareTo(a.occurredAt));
     return values;
+  }
+
+  /// A filter argument that must be one of [allowed], with "no filter"
+  /// spellings treated as absent rather than as a value nothing can match.
+  String? _enumFilter(
+    Map<String, Object?> arguments,
+    String key,
+    List<String> allowed,
+  ) {
+    final raw = arguments[key]?.toString().trim();
+    if (raw == null || raw.isEmpty) return null;
+    const unfiltered = {'both', 'all', 'any'};
+    if (unfiltered.contains(raw.toLowerCase())) return null;
+    final match = allowed.where(
+      (value) => value.toLowerCase() == raw.toLowerCase(),
+    );
+    if (match.length != 1) {
+      throw McpProtocolException(
+        '$key must be one of ${allowed.join(', ')}, or omitted for all.',
+      );
+    }
+    return match.single;
   }
 
   DateTime? _dateArgument(
@@ -973,6 +1062,7 @@ class LocalMcpServer {
   Map<String, Object?> _transactionJson(MoneyTransaction item) => {
     'id': item.id,
     'amountMinor': item.amountMinor,
+    'amountDisplay': formatMoney(item.amountMinor, item.currency),
     'currency': item.currency,
     'direction': item.direction.name,
     'merchant': item.merchant,
@@ -988,8 +1078,11 @@ class LocalMcpServer {
   Map<String, Object?> _summaryJson(CurrencySummary value) => {
     'currency': value.currency,
     'incomingMinor': value.incomingMinor,
+    'incomingDisplay': formatMoney(value.incomingMinor, value.currency),
     'outgoingMinor': value.outgoingMinor,
+    'outgoingDisplay': formatMoney(value.outgoingMinor, value.currency),
     'netMinor': value.netMinor,
+    'netDisplay': formatMoney(value.netMinor, value.currency),
     'count': value.transactionCount,
   };
 

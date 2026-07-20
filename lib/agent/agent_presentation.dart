@@ -164,7 +164,7 @@ class AgentPresentation {
     // Prose ahead of the first part object is the answer itself when the
     // provider never emitted a conclusion object.
     if (!parts.any((part) => part.kind == AgentPartKind.conclusion)) {
-      final lead = _leadingProse(content);
+      final lead = _leadingProse(content) ?? _conclusionFromParts(parts);
       if (lead != null) {
         parts.insert(
           0,
@@ -175,6 +175,29 @@ class AgentPresentation {
       }
     }
     return AgentPresentation(parts: parts);
+  }
+
+  /// A conclusion drawn from the parts themselves, for a reply that is one
+  /// bare part object with no prose around it — a comparison's detail line is
+  /// the answer, and discarding the whole reply over a missing heading would
+  /// show the person raw JSON instead. A detail promoted to the conclusion is
+  /// removed from its part so the same sentence is not shown twice.
+  static String? _conclusionFromParts(List<AgentPart> parts) {
+    for (var index = 0; index < parts.length; index++) {
+      final part = parts[index];
+      final detail = part.data['detail']?.toString().trim();
+      if (detail != null && detail.isNotEmpty) {
+        parts[index] = AgentPart(
+          kind: part.kind,
+          data: Map<String, Object?>.from(part.data)..remove('detail'),
+        );
+        return detail;
+      }
+      final text =
+          (part.data['text'] ?? part.data['title'])?.toString().trim();
+      if (text != null && text.isNotEmpty) return text;
+    }
+    return null;
   }
 
   /// First substantial line of prose before any JSON or fence, with markdown
