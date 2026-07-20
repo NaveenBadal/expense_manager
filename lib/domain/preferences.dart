@@ -36,7 +36,10 @@ const Set<String> retiredChatModels = {
 class AppPreferences {
   const AppPreferences({
     this.onboardingComplete = false,
-    this.appearance = AppearancePreference.system,
+    // Dark is what this interface was designed in, not a variant of it, so
+    // it is what someone sees before they have expressed a preference.
+    // Choosing "system" or "light" in settings still does exactly that.
+    this.appearance = AppearancePreference.dark,
     this.currency = 'INR',
     this.hideAmounts = false,
     this.lockApp = false,

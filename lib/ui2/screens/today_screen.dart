@@ -97,7 +97,8 @@ class TodayScreen extends ConsumerWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(FlowSpace.xl),
                 decoration: BoxDecoration(
-                  borderRadius: FlowRadius.lg,
+                  borderRadius: FlowRadius.xl,
+                  border: Border.all(color: flow.line),
                   boxShadow: FlowElevation.hero(
                     Theme.of(context).brightness,
                   ),
@@ -117,34 +118,36 @@ class TodayScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Spent this month',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: flow.inkSoft),
+                      'SPENT THIS MONTH',
+                      style: FlowType.eyebrow.copyWith(color: flow.inkFaint),
                     ),
-                    const SizedBox(height: FlowSpace.xs),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Flexible(
-                          child: FlowAnimatedCount(
-                            text: hidden
-                                ? '••••••'
-                                : formatMoney(
-                                    summary.spentMinor,
-                                    summary.currency,
-                                  ),
-                            style: FlowType.amountHero.copyWith(
-                              color: flow.ink,
-                            ),
-                          ),
+                    const SizedBox(height: FlowSpace.md),
+                    // Scaled to the width rather than wrapped. A figure this
+                    // size will not fit every currency and every amount, and
+                    // a balance broken across two lines is unreadable.
+                    SizedBox(
+                      width: double.infinity,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: FlowAnimatedCount(
+                          text: hidden
+                              ? '••••••'
+                              : formatMoney(
+                                  summary.spentMinor,
+                                  summary.currency,
+                                ),
+                          style: FlowType.amountHero.copyWith(color: flow.ink),
                         ),
-                        if (summary.change != null && !hidden) ...[
-                          const SizedBox(width: FlowSpace.md),
-                          FlowDelta(fraction: summary.change!),
-                        ],
-                      ],
+                      ),
                     ),
+                    // The change sits under the figure rather than beside
+                    // it: alongside, it competes for the width the figure
+                    // needs and forces the number to shrink.
+                    if (summary.change != null && !hidden) ...[
+                      const SizedBox(height: FlowSpace.md),
+                      FlowDelta(fraction: summary.change!),
+                    ],
                     if (!hidden && summary.daily.length > 1) ...[
                       const SizedBox(height: FlowSpace.lg),
                       FlowSpark(values: summary.daily),
@@ -187,8 +190,8 @@ class TodayScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'What I noticed',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      'WHAT I NOTICED',
+                      style: FlowType.eyebrow.copyWith(color: flow.inkFaint),
                     ),
                     const SizedBox(height: FlowSpace.sm),
                     for (final insight in noticed)
@@ -215,8 +218,8 @@ class TodayScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Where it went',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      'WHERE IT WENT',
+                      style: FlowType.eyebrow.copyWith(color: flow.inkFaint),
                     ),
                     const SizedBox(height: FlowSpace.md),
                     // The share of a whole is the question this section
@@ -285,8 +288,8 @@ class TodayScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Just captured',
-                      style: Theme.of(context).textTheme.titleLarge,
+                      'JUST CAPTURED',
+                      style: FlowType.eyebrow.copyWith(color: flow.inkFaint),
                     ),
                     const SizedBox(height: FlowSpace.xs),
                     Text(
@@ -302,7 +305,9 @@ class TodayScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          const SliverToBoxAdapter(child: SizedBox(height: FlowSpace.xl)),
+          // Clears the composer, which floats over this scroll view. At
+          // FlowSpace.xl the last section sat underneath it and was cut off.
+          const SliverToBoxAdapter(child: SizedBox(height: FlowSpace.huge * 2)),
         ],
       ],
     );

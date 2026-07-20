@@ -24,64 +24,75 @@ abstract final class FlowPalette {
   // Warm rather than neutral. A paper ground is the one thing worth keeping
   // from the previous language: every other money app is stark white or
   // black, and this is a screen someone opens daily.
-  // Canvas, sunken and raised used to sit within a few percent of each
-  // other, so a card could not separate from the page by tone and — with no
-  // shadow anywhere either — could not separate at all. The ground is now a
-  // touch deeper and raised surfaces go to near-white, which is what lets a
-  // card read as a card.
-  static const lightCanvas = Color(0xFFF1EEE8);
-  static const lightSunken = Color(0xFFE8E5DD);
-  static const lightRaised = Color(0xFFFFFEFC);
-  static const lightLine = Color(0xFFDCD8CF);
+  // Dark is the identity and light is its faithful translation, not the
+  // other way round. Near-black rather than true black: #000 smears on OLED
+  // during scroll and reads cheap, while a blue-cast charcoal lets a raised
+  // surface look lit rather than merely lighter.
+  static const darkCanvas = Color(0xFF0B0C11);
+  static const darkSunken = Color(0xFF07080B);
+  static const darkRaised = Color(0xFF16181F);
+  static const darkLine = Color(0xFF262A33);
 
-  static const darkCanvas = Color(0xFF121316);
-  static const darkSunken = Color(0xFF0C0D10);
-  static const darkRaised = Color(0xFF1E2126);
-  static const darkLine = Color(0xFF32353C);
+  // Cool rather than warm. The previous ground was paper-coloured, which
+  // signals archive and record — the wrong register for something opened
+  // every day and hoped to be liked.
+  static const lightCanvas = Color(0xFFF7F8FA);
+  static const lightSunken = Color(0xFFEDEFF3);
+  static const lightRaised = Color(0xFFFFFFFF);
+  static const lightLine = Color(0xFFE2E5EB);
 
   // -------------------------------------------------------------------- ink
-  static const lightInk = Color(0xFF1A1C1B);
-  static const lightInkSoft = Color(0xFF5C605E);
-  static const lightInkFaint = Color(0xFF8A8E8B);
+  static const lightInk = Color(0xFF0B0C11);
+  static const lightInkSoft = Color(0xFF5A6172);
+  static const lightInkFaint = Color(0xFF8B92A3);
 
-  static const darkInk = Color(0xFFF2F1EC);
-  static const darkInkSoft = Color(0xFFAFB2AE);
-  static const darkInkFaint = Color(0xFF7B7F7C);
+  static const darkInk = Color(0xFFF4F5F7);
+  static const darkInkSoft = Color(0xFFA8ADBA);
+  static const darkInkFaint = Color(0xFF6B7180);
 
   // ------------------------------------------------------------ categorical
   /// Fixed order. A ninth series is never a generated hue: it folds into
   /// "Other" or the chart becomes small multiples.
-  static const lightSeries = <Color>[
-    Color(0xFF005496),
-    Color(0xFF539344),
-    Color(0xFF8C3019),
-    Color(0xFF997E00),
-    Color(0xFF5F3D8E),
-    Color(0xFF009891),
+  ///
+  /// Hues are spaced around the wheel rather than shaded from one family, so
+  /// neighbouring slices stay separable for a red-green colour blind reader.
+  /// Even so, a chart never relies on hue alone: every slice carries a label
+  /// and a figure.
+  static const darkSeries = <Color>[
+    Color(0xFF6C5CE7), // indigo, the signal
+    Color(0xFF22D3EE), // cyan
+    Color(0xFF34D399), // emerald
+    Color(0xFFFBBF24), // amber
+    Color(0xFFFB7185), // rose
+    Color(0xFF94A3B8), // slate
   ];
 
-  static const darkSeries = <Color>[
-    Color(0xFF2D78BD),
-    Color(0xFF65A556),
-    Color(0xFFB3543C),
-    Color(0xFFAB9017),
-    Color(0xFF8160B5),
-    Color(0xFF00ABA4),
+  static const lightSeries = <Color>[
+    Color(0xFF5B4BD6),
+    Color(0xFF0891B2),
+    Color(0xFF059669),
+    Color(0xFFD97706),
+    Color(0xFFE11D48),
+    Color(0xFF64748B),
   ];
 
   // --------------------------------------------------------------- semantic
-  // Direction reuses the validated green and red slots, which sit 15.2 ΔE
-  // apart under deuteranopia. Even so, direction always carries a sign or an
-  // arrow: colour is reinforcement here, never the only signal.
-  static const lightIncome = Color(0xFF539344);
-  static const lightExpense = Color(0xFF8C3019);
-  static const lightAttention = Color(0xFF997E00);
-  static const lightAccent = Color(0xFF005496);
+  // Direction is never the brand colour: green and red mean money in and
+  // money out and nothing else, so the signal hue stays free to mean
+  // "the app is talking to you". Direction also always carries a sign or an
+  // arrow — colour is reinforcement, never the only cue.
+  static const darkIncome = Color(0xFF34D399);
+  static const darkExpense = Color(0xFFFB7185);
+  static const darkAttention = Color(0xFFFBBF24);
 
-  static const darkIncome = Color(0xFF65A556);
-  static const darkExpense = Color(0xFFB3543C);
-  static const darkAttention = Color(0xFFAB9017);
-  static const darkAccent = Color(0xFF2D78BD);
+  /// The one hue the interface spends. Used sparingly, against a great deal
+  /// of restraint, which is the only reason it lands.
+  static const darkAccent = Color(0xFF6C5CE7);
+
+  static const lightIncome = Color(0xFF059669);
+  static const lightExpense = Color(0xFFE11D48);
+  static const lightAttention = Color(0xFFD97706);
+  static const lightAccent = Color(0xFF5B4BD6);
 }
 
 /// Resolved colours for the active brightness.

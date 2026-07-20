@@ -23,13 +23,30 @@ abstract final class FlowType {
   ];
 
   /// The single most important number on a screen.
+  ///
+  /// Deliberately enormous. The interface has almost no decoration, so what
+  /// carries it is the ratio between this and the 11pt label above it — at
+  /// 40pt against 12pt body there was no ratio and nothing led.
   static const TextStyle amountHero = TextStyle(
     fontFamily: text,
-    fontSize: 40,
-    height: 1.05,
+    fontSize: 56,
+    height: 1.0,
     fontWeight: FontWeight.w700,
-    letterSpacing: -1.2,
+    letterSpacing: -2.2,
     fontFeatures: _tabular,
+  );
+
+  /// The quiet line above a figure. Small, tracked wide, never sentence case.
+  ///
+  /// Tracking is what stops something this small reading as an afterthought;
+  /// it is the counterweight that makes the figure below it feel placed
+  /// rather than merely big.
+  static const TextStyle eyebrow = TextStyle(
+    fontFamily: text,
+    fontSize: 11,
+    height: 1.2,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 1.1,
   );
 
   /// Section totals and card headline figures.
