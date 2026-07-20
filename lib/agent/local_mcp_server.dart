@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:developer' as developer;
 
 import '../domain/finance_summary.dart';
 import '../domain/conversation.dart';
@@ -300,10 +299,8 @@ class LocalMcpServer {
   Future<McpExecution> execute(McpToolCall call) async {
     // Local-only diagnostics: seeing which period the model actually asked
     // for is the difference between fixing a bad answer and guessing at it.
-    developer.log(
-      '${call.name} ${jsonEncode(call.arguments)}',
-      name: 'fundflow.agent',
-    );
+    // ignore: avoid_print
+    print('fundflow.agent ${call.name} ${jsonEncode(call.arguments)}');
     final definition = tools.where((tool) => tool.name == call.name);
     if (definition.length != 1) return _error(call, 'Unknown capability.');
     try {
@@ -519,12 +516,14 @@ class LocalMcpServer {
       if (call.arguments['direction'] != null)
         'direction': call.arguments['direction'],
     }, requirePeriod: true);
+    final currentValues = period('current');
+    final baselineValues = period('baseline');
     final current = {
-      for (final value in FinanceEngine.summarize(period('current')))
+      for (final value in FinanceEngine.summarize(currentValues))
         value.currency: value,
     };
     final baseline = {
-      for (final value in FinanceEngine.summarize(period('baseline')))
+      for (final value in FinanceEngine.summarize(baselineValues))
         value.currency: value,
     };
     final currencies = {...current.keys, ...baseline.keys}.toList()..sort();
@@ -541,6 +540,11 @@ class LocalMcpServer {
             ),
           },
       ],
+      'evidenceTransactionIds': [...currentValues, ...baselineValues]
+          .map((item) => item.id)
+          .whereType<int>()
+          .take(500)
+          .toList(),
       if (currencies.isEmpty) ..._emptyPeriodHint(const []),
     });
   }
@@ -939,9 +943,18 @@ class LocalMcpServer {
     if (from != null && to != null && !from.isBefore(to)) {
       throw const McpProtocolException('The date range is empty.');
     }
-    final merchant = arguments['merchant']?.toString().toLowerCase();
-    final category = arguments['category']?.toString().toLowerCase();
-    final account = arguments['account']?.toString().toLowerCase();
+    // Providers fill every schema property rather than omitting the unused
+    // ones — empty strings and zeroes arrive meaning "no filter". Taken
+    // literally, category "" or maximumMinor 0 matches nothing and the whole
+    // ledger silently disappears, so blank means absent throughout.
+    String? textFilter(String key) {
+      final value = arguments[key]?.toString().trim().toLowerCase();
+      return (value == null || value.isEmpty) ? null : value;
+    }
+
+    final merchant = textFilter('merchant');
+    final category = textFilter('category');
+    final account = textFilter('account');
     // Schema enums are advisory to the provider, not enforced by it: models
     // routinely send direction "both" meaning "no filter". Taken literally
     // that matches nothing — every transaction is incoming or outgoing — and
@@ -951,9 +964,19 @@ class LocalMcpServer {
     final direction = _enumFilter(arguments, 'direction', _directions);
     final source = _enumFilter(arguments, 'source', _sources);
     final review = _enumFilter(arguments, 'reviewState', _reviewStates);
-    final currency = arguments['currency']?.toString().toUpperCase();
-    final minimum = arguments['minimumMinor'] as int?;
-    final maximum = arguments['maximumMinor'] as int?;
+    // Currency is free-form, so the no-filter spellings are honoured here
+    // directly — "all" taken literally is a currency nothing is priced in.
+    final currencyRaw = arguments['currency']?.toString().trim();
+    final currency =
+        currencyRaw == null ||
+            currencyRaw.isEmpty ||
+            const {'both', 'all', 'any'}.contains(currencyRaw.toLowerCase())
+        ? null
+        : currencyRaw.toUpperCase();
+    final minimumRaw = arguments['minimumMinor'] as int?;
+    final maximumRaw = arguments['maximumMinor'] as int?;
+    final minimum = (minimumRaw == null || minimumRaw <= 0) ? null : minimumRaw;
+    final maximum = (maximumRaw == null || maximumRaw <= 0) ? null : maximumRaw;
     final values = _transactions().where((item) {
       if (from != null && item.occurredAt.isBefore(from)) return false;
       if (to != null && !item.occurredAt.isBefore(to)) return false;
@@ -1007,7 +1030,7 @@ class LocalMcpServer {
     bool endExclusive = false,
   }) {
     final raw = arguments[key];
-    if (raw == null) {
+    if (raw == null || raw.toString().trim().isEmpty) {
       if (required) throw McpProtocolException('$key is required.');
       return null;
     }

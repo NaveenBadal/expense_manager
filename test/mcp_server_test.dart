@@ -32,6 +32,60 @@ void main() {
     expect(names, contains('answer_compose'));
   });
 
+  test('filled-but-empty arguments mean no filter, exactly as sent by '
+      'gpt-oss', () async {
+    transactions.add(
+      MoneyTransaction(
+        id: 9,
+        amountMinor: 87255,
+        currency: 'INR',
+        direction: TransactionDirection.outgoing,
+        merchant: 'Zomato',
+        category: 'Food',
+        occurredAt: DateTime(2026, 7, 17),
+        source: TransactionSource.message,
+        reviewState: ReviewState.needsReview,
+      ),
+    );
+    // Verbatim shape observed from the live provider: every property
+    // present, unused ones as empty strings and zeroes.
+    final execution = await server.execute(
+      const McpToolCall(
+        id: 'filled',
+        name: 'transactions_search',
+        arguments: {
+          'account': '',
+          'category': '',
+          'currency': '',
+          'direction': '',
+          'from': '',
+          'limit': 14,
+          'maximumMinor': 0,
+          'merchant': '',
+          'minimumMinor': 0,
+          'offset': 0,
+          'reviewState': 'needsReview',
+          'source': '',
+          'to': '',
+        },
+      ),
+    );
+    expect(execution.result.isError, isFalse);
+    expect(execution.result.content['total'], 1);
+  });
+
+  test('currency "all" means no filter, not an impossible currency', () async {
+    final execution = await server.execute(
+      const McpToolCall(
+        id: 'cur',
+        name: 'transactions_search',
+        arguments: {'currency': 'all', 'reviewState': 'confirmed'},
+      ),
+    );
+    expect(execution.result.isError, isFalse);
+    expect(execution.result.content['total'], transactions.length);
+  });
+
   test('direction "both" means no filter, not an impossible match', () async {
     final execution = await server.execute(
       const McpToolCall(
