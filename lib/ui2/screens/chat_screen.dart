@@ -212,6 +212,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           onStop: () => ref
                               .read(appControllerProvider.notifier)
                               .stopAgent(),
+                          onRetry: () {
+                            final question = app.retryQuestion;
+                            if (question != null) _ask(question);
+                          },
                         );
                       },
                     ),
@@ -480,9 +484,14 @@ class _MessageFooter extends StatelessWidget {
 }
 
 class _WorkingOrError extends StatelessWidget {
-  const _WorkingOrError({required this.app, required this.onStop});
+  const _WorkingOrError({
+    required this.app,
+    required this.onStop,
+    required this.onRetry,
+  });
   final AppState app;
   final VoidCallback onStop;
+  final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -519,7 +528,11 @@ class _WorkingOrError extends StatelessWidget {
                 ),
               ),
               if (app.asking)
-                TextButton(onPressed: onStop, child: const Text('Stop')),
+                TextButton(onPressed: onStop, child: const Text('Stop'))
+              // A failed question is still a question worth asking, and the
+              // failure is usually transient. Retyping it is a poor tax.
+              else if (app.retryQuestion != null)
+                TextButton(onPressed: onRetry, child: const Text('Try again')),
             ],
           ),
           // The draft is the answer being written; it streams here and is

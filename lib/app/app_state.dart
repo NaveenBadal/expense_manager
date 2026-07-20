@@ -65,6 +65,7 @@ class AppState {
     this.pendingAgentProposal,
     this.lastAgentAction,
     this.lastAgentUndoId,
+    this.retryQuestion,
   });
   final AppPreferences preferences;
   final List<MoneyTransaction> transactions;
@@ -85,6 +86,9 @@ class AppState {
   final bool locked;
   final AgentProposal? pendingAgentProposal;
   final String? lastAgentAction;
+
+  /// The question that failed, kept so retrying costs a tap.
+  final String? retryQuestion;
 
   /// The undo record the last applied action wrote, if it wrote one.
   ///
@@ -115,6 +119,8 @@ class AppState {
     String? lastAgentAction,
     bool clearLastAgentAction = false,
     int? lastAgentUndoId,
+    String? retryQuestion,
+    bool clearRetryQuestion = false,
   }) => AppState(
     preferences: preferences ?? this.preferences,
     transactions: transactions ?? this.transactions,
@@ -139,5 +145,8 @@ class AppState {
     lastAgentUndoId: clearLastAgentAction
         ? null
         : lastAgentUndoId ?? this.lastAgentUndoId,
+    retryQuestion: clearRetryQuestion
+        ? null
+        : retryQuestion ?? this.retryQuestion,
   );
 }

@@ -959,7 +959,16 @@ class AppController extends AsyncNotifier<AppState> {
         await store.createConversationThread(
           ConversationThread.titleFrom(trimmed),
         );
-    await store.addMessage(user, threadId: threadId);
+    // Retrying asks the same question again, and the failed attempt already
+    // left it in the thread. Writing it a second time makes the transcript
+    // read as though the person asked twice.
+    final last = _value.conversation.lastOrNull;
+    final alreadyAsked =
+        _value.retryQuestion == trimmed &&
+        last != null &&
+        last.author == MessageAuthor.person &&
+        last.text.trim() == trimmed;
+    if (!alreadyAsked) await store.addMessage(user, threadId: threadId);
     state = AsyncData(
       _value.copyWith(
         activeThreadId: threadId,
@@ -968,6 +977,7 @@ class AppController extends AsyncNotifier<AppState> {
         asking: true,
         askStage: 'Checking your activity',
         clearError: true,
+        clearRetryQuestion: true,
       ),
     );
     try {
@@ -1153,6 +1163,13 @@ class AppController extends AsyncNotifier<AppState> {
               'settings under Advanced options.',
         AiRequestFailure(:final detail?) => detail,
         AgentRunException(:final message) => message,
+        // A phone loses signal mid-answer often enough that "could not be
+        // completed" is a poor description of the most common failure.
+        SocketException() || HttpException() =>
+          'No connection reached the provider. Your records are all local '
+              'and unchanged.',
+        TimeoutException() =>
+          'The provider stopped responding. Nothing was changed.',
         _ =>
           'The answer could not be completed. Your activity was not changed.',
       };
@@ -1162,6 +1179,10 @@ class AppController extends AsyncNotifier<AppState> {
           askStage: null,
           clearAskDraft: true,
           error: message,
+          // Hold the question so a failure costs a tap rather than retyping
+          // it. Losing what someone just asked is its own small insult on
+          // top of the failure.
+          retryQuestion: question,
         ),
       );
     }
