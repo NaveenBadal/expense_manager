@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../domain/money_format.dart';
+
 enum AgentPartKind {
   conclusion,
   narrative,
@@ -26,7 +28,47 @@ class AgentPart {
       throw AgentPresentationException('Unknown answer part: $type');
     }
     final data = Map<String, Object?>.from(value)..remove('type');
-    return AgentPart(kind: kind.single, data: data);
+    return AgentPart(kind: kind.single, data: _repaired(kind.single, data));
+  }
+
+  /// Fixes part data that would render as nonsense.
+  ///
+  /// The widgets trust what reaches them, so a metric claiming a currency of
+  /// "ms" printed "MS101" on screen — a duration run through the money
+  /// formatter. Repairing here fixes it for every surface at once rather
+  /// than teaching each widget to distrust its input.
+  static Map<String, Object?> _repaired(
+    AgentPartKind kind,
+    Map<String, Object?> data,
+  ) {
+    if (kind != AgentPartKind.metricRow) return data;
+    // The provider uses either key; repair whichever one carried the list.
+    final key = data['metrics'] is List ? 'metrics' : 'values';
+    final raw = data[key];
+    if (raw is! List) return data;
+    final metrics = <Object?>[];
+    for (final item in raw) {
+      if (item is! Map) {
+        metrics.add(item);
+        continue;
+      }
+      final metric = Map<String, Object?>.from(item.cast<String, Object?>());
+      final amount = metric['amountMinor'];
+      if (amount is num &&
+          !isPlausibleCurrency(metric['currency']?.toString())) {
+        // Not money. Keep the figure and its unit as a plain value, which is
+        // what the model was reaching for, and drop the money fields so
+        // nothing downstream formats them as currency.
+        final unit = (metric['currency'] ?? metric['unit'])?.toString().trim();
+        metric['value'] =
+            metric['value']?.toString() ??
+            (unit == null || unit.isEmpty ? '$amount' : '$amount $unit');
+        metric.remove('amountMinor');
+        metric.remove('currency');
+      }
+      metrics.add(metric);
+    }
+    return {...data, key: metrics};
   }
 
   Map<String, Object?> toJson() => {'type': kind.name, ...data};
@@ -61,8 +103,9 @@ class AgentPart {
         data['title'],
         data['detail'],
       ].whereType<Object>().join(': '),
-      AgentPartKind.metricRow =>
-        rows('metrics').map(money).where((e) => e.isNotEmpty).join('; '),
+      AgentPartKind.metricRow => rows(
+        'metrics',
+      ).map(money).where((e) => e.isNotEmpty).join('; '),
       AgentPartKind.breakdown => [
         data['title']?.toString() ?? 'Breakdown',
         rows('rows').map(money).where((e) => e.isNotEmpty).join(', '),
@@ -224,8 +267,7 @@ class AgentPresentation {
         );
         return detail;
       }
-      final text =
-          (part.data['text'] ?? part.data['title'])?.toString().trim();
+      final text = (part.data['text'] ?? part.data['title'])?.toString().trim();
       if (text != null && text.isNotEmpty) return text;
     }
     return null;

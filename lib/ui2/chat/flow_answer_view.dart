@@ -271,7 +271,7 @@ class _MetricRow extends StatelessWidget {
     if (values.length == 1) {
       final value = Map<Object?, Object?>.from(values.single);
       final amount = value['amountMinor'];
-      if (amount is num && value['currency'] != null) {
+      if (amount is num && isPlausibleCurrency(value['currency']?.toString())) {
         final change = _fraction(value['changeFraction']);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,7 +318,9 @@ class _MetricRow extends StatelessWidget {
             builder: (context) {
               final value = Map<Object?, Object?>.from(raw);
               final amount = value['amountMinor'];
-              final display = amount is num && value['currency'] != null
+              final display =
+                  amount is num &&
+                      isPlausibleCurrency(value['currency']?.toString())
                   ? formatMoney(amount.toInt(), value['currency'].toString())
                   : value['value']?.toString() ?? '—';
               final change = _fraction(value['changeFraction']);

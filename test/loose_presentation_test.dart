@@ -102,6 +102,59 @@ Spending summary.
     ]);
   });
 
+  test('a non-money metric never reaches the money formatter', () {
+    // Observed live: asked how fast its answers were, the agent expressed a
+    // duration through the money shape and the screen read "MS101".
+    final presentation = AgentPresentation.fromComposeArguments({
+      'parts': [
+        {'type': 'conclusion', 'text': 'About 10 seconds each.'},
+        {
+          'type': 'metricRow',
+          'metrics': [
+            {'label': 'Average elapsed', 'amountMinor': 101, 'currency': 'ms'},
+          ],
+        },
+      ],
+    });
+    final metric =
+        (presentation.parts
+                        .singleWhere(
+                          (part) => part.kind == AgentPartKind.metricRow,
+                        )
+                        .data['metrics']
+                    as List)
+                .single
+            as Map;
+    expect(metric.containsKey('amountMinor'), isFalse);
+    expect(metric.containsKey('currency'), isFalse);
+    expect(metric['value'], '101 ms');
+  });
+
+  test('a real currency is left alone', () {
+    final presentation = AgentPresentation.fromComposeArguments({
+      'parts': [
+        {'type': 'conclusion', 'text': 'You spent a lot.'},
+        {
+          'type': 'metricRow',
+          'metrics': [
+            {'label': 'Spent', 'amountMinor': 36549_93, 'currency': 'INR'},
+          ],
+        },
+      ],
+    });
+    final metric =
+        (presentation.parts
+                        .singleWhere(
+                          (part) => part.kind == AgentPartKind.metricRow,
+                        )
+                        .data['metrics']
+                    as List)
+                .single
+            as Map;
+    expect(metric['amountMinor'], 3654993);
+    expect(metric['currency'], 'INR');
+  });
+
   test('returns null for ordinary prose with no parts', () {
     expect(
       AgentPresentation.tryFromLooseContent('I could not find any records.'),

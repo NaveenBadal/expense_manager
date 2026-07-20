@@ -26,6 +26,18 @@ const Map<String, int> _minorDigits = {
   'TND': 3,
 };
 
+/// Whether [currency] could be a currency code at all.
+///
+/// A language model asked for a metric will reach for the money shape to
+/// express anything numeric, and once wrote a duration as
+/// `{amountMinor: 101, currency: "ms"}` — which formatted, faithfully, as
+/// "MS101" on screen. Three letters is the ISO 4217 shape; anything else is
+/// not money and must not be sent through [formatMoney].
+bool isPlausibleCurrency(String? currency) {
+  final code = currency?.trim() ?? '';
+  return code.length == 3 && RegExp(r'^[A-Za-z]{3}$').hasMatch(code);
+}
+
 /// Formats [minor] units of [currency] for display.
 ///
 /// Whole amounts drop their empty fraction. A statement listing "2,500.00"
