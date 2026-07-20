@@ -20,6 +20,16 @@ class AnalyzedMessage {
   final MoneyTransaction? transaction;
 }
 
+/// Confidence at or above which an extraction is written as confirmed.
+///
+/// The amount is already cross-checked against the source text and the OTP
+/// guard has run before this point, so existence and figures are verified
+/// mechanically. What confidence still governs is the model's judgment —
+/// category, direction, merchant — and above this line those are right often
+/// enough that queueing every capture for a human tap would cost more trust
+/// than it buys. Below it, the capture goes to Review.
+const double kAutoConfirmConfidence = 0.9;
+
 class AiIngestionBatch {
   const AiIngestionBatch({required this.results, this.unresolved = const []});
   final List<AnalyzedMessage> results;
@@ -200,7 +210,9 @@ class AiIngestionBatch {
           category: _boundedText(value, 'category', 40),
           occurredAt: occurredAt,
           source: source,
-          reviewState: ReviewState.needsReview,
+          reviewState: confidence >= kAutoConfirmConfidence
+              ? ReviewState.confirmed
+              : ReviewState.needsReview,
           confidence: confidence.toDouble(),
           account: _optionalText(value['account'], 80),
           note: reason,

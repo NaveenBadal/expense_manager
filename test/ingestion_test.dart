@@ -37,8 +37,62 @@ void main() {
     final transaction = batch.results.single.transaction!;
     expect(transaction.amountMinor, 125000);
     expect(transaction.merchant, 'River Books');
-    expect(transaction.reviewState, ReviewState.needsReview);
+    expect(transaction.reviewState, ReviewState.confirmed);
     expect(transaction.sourceText, candidate.body);
+  });
+
+  test('extraction below the confidence threshold is held for review', () {
+    final batch = AiIngestionBatch.parse(
+      content: jsonEncode({
+        'results': [
+          {
+            'id': candidate.fingerprint,
+            'decision': 'transaction',
+            'reason': 'Charge whose merchant reading is uncertain',
+            'amountMinor': 125000,
+            'currency': 'INR',
+            'direction': 'outgoing',
+            'merchant': 'River Books',
+            'category': 'Shopping',
+            'occurredAt': '2026-07-18T09:00:00+05:30',
+            'confidence': 0.7,
+          },
+        ],
+      }),
+      candidates: [candidate],
+      source: TransactionSource.message,
+      now: DateTime(2026, 7, 18, 12),
+    );
+    final transaction = batch.results.single.transaction!;
+    expect(transaction.reviewState, ReviewState.needsReview);
+  });
+
+  test('the auto-confirm threshold itself confirms', () {
+    final batch = AiIngestionBatch.parse(
+      content: jsonEncode({
+        'results': [
+          {
+            'id': candidate.fingerprint,
+            'decision': 'transaction',
+            'reason': 'Completed card purchase',
+            'amountMinor': 125000,
+            'currency': 'INR',
+            'direction': 'outgoing',
+            'merchant': 'River Books',
+            'category': 'Shopping',
+            'occurredAt': '2026-07-18T09:00:00+05:30',
+            'confidence': kAutoConfirmConfidence,
+          },
+        ],
+      }),
+      candidates: [candidate],
+      source: TransactionSource.message,
+      now: DateTime(2026, 7, 18, 12),
+    );
+    expect(
+      batch.results.single.transaction!.reviewState,
+      ReviewState.confirmed,
+    );
   });
 
   test(
