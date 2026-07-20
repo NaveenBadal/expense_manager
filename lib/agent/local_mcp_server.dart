@@ -873,6 +873,7 @@ class LocalMcpServer {
           'The agent prepared this local change. Nothing changes until you approve it.',
       arguments: call.arguments,
       affectedIds: ids,
+      details: _proposalDetails(kind, call.arguments, ids),
       affectedFingerprint: fingerprint,
       createdAt: now,
       // Expiry is not the safety net — approval re-checks that the affected
@@ -902,6 +903,79 @@ class LocalMcpServer {
         summary: title,
       ),
     );
+  }
+
+  /// The proposed change stated plainly, for the approval card.
+  ///
+  /// Formatted by the app from the arguments, never narrated by the model:
+  /// the point is to show what will actually happen, including when that
+  /// differs from what was asked for. An amount rendered here as $0.40 is a
+  /// proposal someone can decline on sight.
+  List<String> _proposalDetails(
+    AgentProposalKind kind,
+    Map<String, Object?> arguments,
+    List<int> ids,
+  ) {
+    String? money() {
+      final amount = arguments['amountMinor'];
+      final currency = arguments['currency']?.toString();
+      if (amount is! num || currency == null || currency.isEmpty) return null;
+      return formatMoney(amount.toInt(), currency);
+    }
+
+    String? field(String key) {
+      final value = arguments[key]?.toString().trim();
+      return (value == null || value.isEmpty) ? null : value;
+    }
+
+    String? when() {
+      final raw = field('occurredAt');
+      if (raw == null) return null;
+      final parsed = DateTime.tryParse(raw);
+      return parsed == null ? raw : _date(parsed.toLocal());
+    }
+
+    List<String> transactionLines() => [
+      if (money() case final value?) 'Amount: $value',
+      if (field('merchant') case final value?) 'Merchant: $value',
+      if (field('category') case final value?) 'Category: $value',
+      if (when() case final value?) 'Date: $value',
+      if (field('direction') case final value?) 'Direction: $value',
+      if (field('account') case final value?) 'Account: $value',
+    ];
+
+    return switch (kind) {
+      AgentProposalKind.createTransaction => transactionLines(),
+      AgentProposalKind.updateTransaction => [
+        'Transaction ${ids.join(', ')}',
+        ...transactionLines(),
+      ],
+      AgentProposalKind.deleteTransaction => [
+        for (final item in _transactions().where((v) => ids.contains(v.id)))
+          '${item.merchant} · ${formatMoney(item.amountMinor, item.currency)} '
+              '· ${_date(item.occurredAt)}',
+      ],
+      AgentProposalKind.bulkCategory => [
+        '${ids.length} transactions',
+        if (field('category') case final value?) 'New category: $value',
+      ],
+      AgentProposalKind.updateSettings => [
+        for (final entry in arguments.entries) '${entry.key}: ${entry.value}',
+      ],
+      AgentProposalKind.setAppLock => [
+        arguments['enabled'] == true ? 'Turn app lock on' : 'Turn app lock off',
+      ],
+      AgentProposalKind.clearConversation => const [
+        'Deletes this conversation. This cannot be undone.',
+      ],
+      AgentProposalKind.setMemory => [
+        if (field('key') case final value?) 'Remember: $value',
+        if (field('value') case final value?) 'As: $value',
+      ],
+      AgentProposalKind.deleteMemory => [
+        if (field('key') case final value?) 'Forget: $value',
+      ],
+    };
   }
 
   /// Appended to a period tool's result when nothing matched.

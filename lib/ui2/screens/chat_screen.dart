@@ -198,6 +198,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               reversible: proposal.reversible,
                               locked: proposal.requiresAuthentication,
                               expiresAt: proposal.expiresAt,
+                              details: proposal.details,
                               onApprove: () => ref
                                   .read(appControllerProvider.notifier)
                                   .approveAgentProposal(),
@@ -588,6 +589,7 @@ class _ApprovalCard extends StatelessWidget {
     required this.reversible,
     required this.locked,
     required this.expiresAt,
+    required this.details,
     required this.onApprove,
     required this.onReject,
   });
@@ -597,6 +599,9 @@ class _ApprovalCard extends StatelessWidget {
   final bool reversible;
   final bool locked;
   final DateTime expiresAt;
+
+  /// What will actually change, stated by the app.
+  final List<String> details;
   final VoidCallback onApprove;
   final VoidCallback onReject;
 
@@ -638,6 +643,32 @@ class _ApprovalCard extends StatelessWidget {
           ),
           const SizedBox(height: FlowSpace.sm),
           Text(title, style: Theme.of(context).textTheme.titleMedium),
+          // Approving something you cannot see is not approving it. These
+          // lines are the change itself, formatted by the app.
+          if (details.isNotEmpty) ...[
+            const SizedBox(height: FlowSpace.sm),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(FlowSpace.md),
+              decoration: BoxDecoration(
+                color: flow.sunken,
+                borderRadius: FlowRadius.sm,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final line in details)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        line,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: FlowSpace.xs),
           Text(
             explanation,

@@ -108,6 +108,31 @@ void main() {
       expect(execution.result.isError, isTrue);
     });
 
+    test('a proposal states the change it would make', () async {
+      // Observed live: the model proposed forty US dollars as amountMinor 40,
+      // which is forty cents, and the card said only "Add a transaction" —
+      // so there was nothing on screen anyone could have declined.
+      final execution = await server.execute(
+        const McpToolCall(
+          id: 'create',
+          name: 'transactions_create',
+          arguments: {
+            'amountMinor': 40,
+            'currency': 'USD',
+            'direction': 'outgoing',
+            'merchant': 'Cloud Host',
+            'category': 'Work',
+            'occurredAt': '2026-07-18T00:00:00Z',
+          },
+        ),
+      );
+      final details = execution.proposal!.details;
+      expect(details, isNotEmpty);
+      // The mistake is now legible: $0.40, not $40.
+      expect(details.first, contains(r'$0.40'));
+      expect(details.any((line) => line.contains('Cloud Host')), isTrue);
+    });
+
     test('a valid proposal still passes and mutates nothing', () async {
       final execution = await server.execute(
         const McpToolCall(

@@ -22,6 +22,7 @@ class AgentProposal {
     required this.createdAt,
     required this.expiresAt,
     required this.affectedIds,
+    this.details = const [],
     this.affectedFingerprint = const {},
     this.requiresAuthentication = false,
     this.reversible = true,
@@ -36,6 +37,14 @@ class AgentProposal {
   final DateTime createdAt;
   final DateTime expiresAt;
   final List<int> affectedIds;
+
+  /// The change itself, in the words of the app rather than the model.
+  ///
+  /// A card reading only "Add a transaction" asks someone to approve
+  /// something they cannot see. The model once proposed forty US dollars as
+  /// forty cents, and no amount of care at the approval step could have
+  /// caught it, because the amount was never on screen.
+  final List<String> details;
 
   /// What the affected records looked like when this was proposed, keyed by
   /// transaction id.
@@ -71,6 +80,7 @@ class AgentProposal {
         createdAt: createdAt,
         expiresAt: expiresAt,
         affectedIds: affectedIds,
+        details: details,
         affectedFingerprint: affectedFingerprint,
         requiresAuthentication: requiresAuthentication,
         reversible: reversible,
@@ -86,6 +96,7 @@ class AgentProposal {
     'createdAt': createdAt.toUtc().toIso8601String(),
     'expiresAt': expiresAt.toUtc().toIso8601String(),
     'affectedIds': affectedIds,
+    'details': details,
     'affectedFingerprint': affectedFingerprint.map(
       (id, value) => MapEntry(id.toString(), value),
     ),
