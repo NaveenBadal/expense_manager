@@ -188,8 +188,9 @@ AnthropicMessages translateMessages(List<Map<String, Object?>> source) {
             });
           }
         }
-        if (blocks.isNotEmpty)
+        if (blocks.isNotEmpty) {
           out.add({'role': 'assistant', 'content': blocks});
+        }
       default: // user
         final content = message['content'];
         out.add({

@@ -45,8 +45,9 @@ class ModelCatalog {
           headers: {'Authorization': 'Bearer $key'},
         )
         .timeout(const Duration(seconds: 20));
-    if (response.statusCode < 200 || response.statusCode >= 300)
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       return const [];
+    }
     final data = (jsonDecode(response.body) as Map)['data'];
     if (data is! List) return const [];
     return [
@@ -66,8 +67,9 @@ class ModelCatalog {
           headers: {'x-api-key': key, 'anthropic-version': '2023-06-01'},
         )
         .timeout(const Duration(seconds: 20));
-    if (response.statusCode < 200 || response.statusCode >= 300)
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       return const [];
+    }
     final data = (jsonDecode(response.body) as Map)['data'];
     if (data is! List) return const [];
     return [
@@ -84,8 +86,9 @@ class ModelCatalog {
     final response = await client
         .get(Uri.parse('$base/models'), headers: {'x-goog-api-key': key})
         .timeout(const Duration(seconds: 20));
-    if (response.statusCode < 200 || response.statusCode >= 300)
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       return const [];
+    }
     final models = (jsonDecode(response.body) as Map)['models'];
     if (models is! List) return const [];
     final ids = <String>[];
@@ -114,8 +117,9 @@ class ModelCatalog {
           headers: {'Authorization': 'Bearer $key'},
         )
         .timeout(const Duration(seconds: 20));
-    if (response.statusCode < 200 || response.statusCode >= 300)
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       return const [];
+    }
     final models = (jsonDecode(response.body) as Map)['models'];
     if (models is! List) return const [];
     return [
