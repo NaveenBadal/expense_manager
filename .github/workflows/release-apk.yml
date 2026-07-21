@@ -71,10 +71,10 @@ jobs:
           flutter build apk \
             --release \
             --flavor development \
+            --target-platform android-arm64 \
             --dart-define=ENABLE_GITHUB_UPDATES=true \
             --build-name="${DEV_BASE_VERSION}-dev.${GITHUB_RUN_NUMBER}" \
-            --build-number="${GITHUB_RUN_NUMBER}" \
-            --no-tree-shake-icons
+            --build-number="${GITHUB_RUN_NUMBER}"
           cp build/app/outputs/flutter-apk/app-development-release.apk "$APK_NAME"
 
       - name: Create update manifest
