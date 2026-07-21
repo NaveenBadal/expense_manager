@@ -305,9 +305,7 @@ class TodayScreen extends ConsumerWidget {
                 ),
               ),
             ),
-          // Clears the composer and the floating nav, both of which sit over
-          // this scroll view.
-          const SliverToBoxAdapter(child: SizedBox(height: 200)),
+          const SliverToBoxAdapter(child: SizedBox(height: FlowSpace.xxl)),
         ],
       ],
     );
