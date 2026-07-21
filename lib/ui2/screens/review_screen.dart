@@ -296,7 +296,8 @@ class _ReviewCard extends StatelessWidget {
           runSpacing: FlowSpace.sm,
           children: [
             // Offered inline so the common correction never opens a keyboard.
-            for (final category in kFlowCategories)
+            // Direction-aware: money in gets income categories, not "Food".
+            for (final category in categoriesFor(item.direction))
               _CategoryChip(
                 label: category,
                 selected:

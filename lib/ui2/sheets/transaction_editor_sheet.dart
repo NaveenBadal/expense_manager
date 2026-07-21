@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../app/app_controller.dart';
 import '../../domain/transaction.dart';
@@ -45,6 +46,8 @@ class _EditorSheetState extends ConsumerState<_EditorSheet> {
   late TransactionDirection _direction =
       widget.transaction?.direction ?? TransactionDirection.outgoing;
   late String _category = widget.transaction?.category ?? 'Other';
+  late DateTime _occurredAt =
+      widget.transaction?.occurredAt ?? DateTime.now();
   String? _error;
 
   @override
@@ -61,14 +64,16 @@ class _EditorSheetState extends ConsumerState<_EditorSheet> {
     final text = Theme.of(context).textTheme;
     final editing = widget.transaction != null;
 
-    // The record's own category leads when it sits outside the standard
-    // vocabulary, so an unusual reading stays visible and selectable.
+    // The vocabulary follows the direction — a refund or salary is offered for
+    // money in, never "Food". The record's own category still leads when it
+    // sits outside the standard set, so an unusual reading stays selectable.
+    final vocabulary = categoriesFor(_direction);
     final categories = [
-      if (!kFlowCategories.any(
+      if (!vocabulary.any(
         (value) => value.toLowerCase() == _category.toLowerCase(),
       ))
         _category,
-      ...kFlowCategories,
+      ...vocabulary,
     ];
 
     return Padding(
@@ -87,7 +92,17 @@ class _EditorSheetState extends ConsumerState<_EditorSheet> {
             const SizedBox(height: FlowSpace.lg),
             _DirectionToggle(
               direction: _direction,
-              onChanged: (value) => setState(() => _direction = value),
+              onChanged: (value) => setState(() {
+                _direction = value;
+                // Carry the category across only when it belongs to both sides
+                // (Transfer, Other); otherwise fall back to the new side's
+                // default so a stale "Food" never rides onto money in.
+                if (!categoriesFor(value).any(
+                  (c) => c.toLowerCase() == _category.toLowerCase(),
+                )) {
+                  _category = defaultCategoryFor(value);
+                }
+              }),
             ),
             const SizedBox(height: FlowSpace.lg),
             FlowField(
@@ -107,6 +122,13 @@ class _EditorSheetState extends ConsumerState<_EditorSheet> {
               label: 'Merchant or person',
               hint: 'Who was this with?',
             ),
+            const SizedBox(height: FlowSpace.md),
+            Text(
+              'When',
+              style: text.labelSmall?.copyWith(color: flow.inkSoft),
+            ),
+            const SizedBox(height: FlowSpace.sm),
+            _DateField(value: _occurredAt, onTap: _pickDate),
             const SizedBox(height: FlowSpace.md),
             Text(
               'Category',
@@ -151,6 +173,29 @@ class _EditorSheetState extends ConsumerState<_EditorSheet> {
     );
   }
 
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _occurredAt,
+      firstDate: DateTime(now.year - 5),
+      // A transaction cannot have happened in the future.
+      lastDate: now,
+    );
+    if (picked == null) return;
+    setState(() {
+      // Keep the original time-of-day so an edited record's ordering within a
+      // day is preserved; a fresh entry keeps the current time.
+      _occurredAt = DateTime(
+        picked.year,
+        picked.month,
+        picked.day,
+        _occurredAt.hour,
+        _occurredAt.minute,
+      );
+    });
+  }
+
   Future<void> _save() async {
     final value = double.tryParse(_amount.text.trim().replaceAll(',', ''));
     if (value == null || value <= 0) {
@@ -172,7 +217,7 @@ class _EditorSheetState extends ConsumerState<_EditorSheet> {
             direction: _direction,
             merchant: _merchant.text.trim(),
             category: _category,
-            occurredAt: widget.transaction?.occurredAt ?? DateTime.now(),
+            occurredAt: _occurredAt,
             source: widget.transaction?.source ?? TransactionSource.manual,
             reviewState:
                 widget.transaction?.reviewState ?? ReviewState.confirmed,
@@ -182,6 +227,64 @@ class _EditorSheetState extends ConsumerState<_EditorSheet> {
           ),
         );
     if (mounted) Navigator.pop(context);
+  }
+}
+
+class _DateField extends StatelessWidget {
+  const _DateField({required this.value, required this.onTap});
+  final DateTime value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final flow = context.flow;
+    final now = DateTime.now();
+    final isToday =
+        value.year == now.year &&
+        value.month == now.month &&
+        value.day == now.day;
+    final label = isToday
+        ? 'Today'
+        : DateFormat('EEEE, d MMM yyyy').format(value);
+    return Semantics(
+      button: true,
+      label: 'Date, $label',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: FlowRadius.sm,
+        child: Container(
+          height: FlowDensity.minimumTarget,
+          padding: const EdgeInsets.symmetric(horizontal: FlowSpace.md),
+          decoration: BoxDecoration(
+            color: flow.sunken,
+            borderRadius: FlowRadius.sm,
+            border: Border.all(color: flow.line),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.calendar_today_rounded,
+                size: 18,
+                color: flow.inkSoft,
+              ),
+              const SizedBox(width: FlowSpace.sm),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
+              Icon(
+                Icons.expand_more_rounded,
+                size: 20,
+                color: flow.inkFaint,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

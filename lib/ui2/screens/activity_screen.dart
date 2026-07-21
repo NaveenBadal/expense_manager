@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../app/app_controller.dart';
 import '../../app/app_state.dart';
 import '../../domain/transaction.dart';
+import '../flow_categories.dart';
 import '../flow_category_icon.dart';
 import '../sheets/transaction_editor_sheet.dart';
 import '../../domain/money_format.dart';
@@ -500,6 +501,7 @@ class _ActivityScreenState extends ConsumerState<ActivityScreen> {
       title: items.length == 1
           ? 'Category for 1 transaction'
           : 'Category for ${items.length} transactions',
+      direction: sharedDirection(items),
     );
     if (choice == null || !mounted) return;
     final controller = ref.read(appControllerProvider.notifier);

@@ -1,23 +1,32 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/transaction.dart';
 import '../flow_categories.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
 
-/// Offers the shared category vocabulary and returns the choice, or null if
-/// the sheet is dismissed. [current] highlights the category already set.
+/// Offers the category vocabulary for [direction] and returns the choice, or
+/// null if the sheet is dismissed. [current] highlights the category already
+/// set. [direction] defaults to money out, the common case.
 Future<String?> pickCategory(
   BuildContext context, {
   required String title,
   String? current,
+  TransactionDirection direction = TransactionDirection.outgoing,
 }) => showModalBottomSheet<String>(
   context: context,
-  builder: (sheet) => _CategorySheet(title: title, current: current),
+  builder: (sheet) =>
+      _CategorySheet(title: title, current: current, direction: direction),
 );
 
 class _CategorySheet extends StatelessWidget {
-  const _CategorySheet({required this.title, this.current});
+  const _CategorySheet({
+    required this.title,
+    required this.direction,
+    this.current,
+  });
   final String title;
+  final TransactionDirection direction;
   final String? current;
 
   @override
@@ -36,7 +45,7 @@ class _CategorySheet extends StatelessWidget {
               spacing: FlowSpace.sm,
               runSpacing: FlowSpace.sm,
               children: [
-                for (final category in kFlowCategories)
+                for (final category in categoriesFor(direction))
                   Builder(
                     builder: (context) {
                       final selected =

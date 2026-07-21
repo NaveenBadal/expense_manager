@@ -31,6 +31,10 @@ abstract final class FlowCategoryIcon {
     'transfer': Icons.swap_horiz_rounded,
     'income': Icons.savings_rounded,
     'salary': Icons.payments_rounded,
+    'refund': Icons.replay_rounded,
+    'cashback': Icons.redeem_rounded,
+    'interest': Icons.trending_up_rounded,
+    'business': Icons.business_center_rounded,
     'rent': Icons.home_rounded,
     'education': Icons.school_rounded,
     'insurance': Icons.shield_rounded,
@@ -54,6 +58,10 @@ abstract final class FlowCategoryIcon {
     'subscriptions': 0,
     'transfer': 5,
     'insurance': 1,
+    'income': 2, // emerald — money arriving reads green-family
+    'salary': 2,
+    'refund': 1,
+    'cashback': 3,
   };
 
   /// A stable colour for [category], drawn from the validated series palette

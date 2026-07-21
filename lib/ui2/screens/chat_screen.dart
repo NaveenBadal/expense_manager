@@ -8,6 +8,7 @@ import '../../domain/conversation.dart';
 import '../../domain/transaction.dart';
 import '../sheets/connect_intelligence_sheet.dart';
 import '../chat/flow_answer_view.dart';
+import '../flow_categories.dart';
 import '../sheets/category_sheet.dart';
 import '../tokens/flow_metrics.dart';
 import '../tokens/flow_palette.dart';
@@ -287,6 +288,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context,
       title: 'Category for ${item.merchant}',
       current: item.category,
+      direction: item.direction,
     );
     if (choice == null || !mounted) return;
     await ref
@@ -311,6 +313,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context,
       title: 'Category for ${items.length} transactions',
       current: items.first.category,
+      direction: sharedDirection(items),
     );
     if (choice == null || !mounted) return;
     final controller = ref.read(appControllerProvider.notifier);
